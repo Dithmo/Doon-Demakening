@@ -1,0 +1,144 @@
+extends Node
+## Terrain sampling. The single source of ground truth for both client and server.
+##
+## Phase 0 loads a synthetic region; Phase 5 swaps in real Hagga Basin data
+## produced by tools/ (see docs/terrain-plan.md). Nothing that consumes this
+## interface should care which it got, so keep the API free of both.
+##
+## World space: +x east, +z south, y up. Region origin is its north-west corner
+## at (0, 0), matching the wiki CRS which also runs y southward.
+
+enum Surface { SAND = 0, ROCK = 1, CLIFF = 2 }
+
+const DEFAULT_REGION := "res://data/regions/synthetic_test"
+
+var loaded: bool = false
+var region_name: String = ""
+## Content hash of the region files. Client and server must agree on this or
+## prediction silently diverges -- Net refuses mismatched clients.
+var fingerprint: String = ""
+var size_m: Vector2 = Vector2.ZERO
+
+var _cell: float = 1.0
+var _hx: int = 0
+var _hz: int = 0
+var _height_scale: float = 1.0
+var _heights: PackedFloat32Array = PackedFloat32Array()
+
+var _mask_cell: float = 1.0
+var _mx: int = 0
+var _mz: int = 0
+var _mask: PackedByteArray = PackedByteArray()
+
+
+func _ready() -> void:
+	if not loaded:
+		load_region(Args.value("--region", DEFAULT_REGION))
+
+
+func load_region(dir_path: String) -> bool:
+	var meta_text := _read_text(dir_path.path_join("region.json"))
+	if meta_text.is_empty():
+		push_error("Terrain: no region.json at %s" % dir_path)
+		return false
+
+	var meta: Variant = JSON.parse_string(meta_text)
+	if typeof(meta) != TYPE_DICTIONARY:
+		push_error("Terrain: malformed region.json at %s" % dir_path)
+		return false
+
+	region_name = str(meta.get("name", "unnamed"))
+	_cell = float(meta["cell_size"])
+	_hx = int(meta["height_cells"][0])
+	_hz = int(meta["height_cells"][1])
+	_height_scale = float(meta["height_scale"])
+	_mask_cell = float(meta["mask_cell_size"])
+	_mx = int(meta["mask_cells"][0])
+	_mz = int(meta["mask_cells"][1])
+	size_m = Vector2(float(meta["size_m"][0]), float(meta["size_m"][1]))
+
+	var raw_h := _read_bytes(dir_path.path_join("height.r16"))
+	var raw_m := _read_bytes(dir_path.path_join("mask.u8"))
+	if raw_h.size() != _hx * _hz * 2:
+		push_error("Terrain: height.r16 is %d bytes, expected %d" % [raw_h.size(), _hx * _hz * 2])
+		return false
+	if raw_m.size() != _mx * _mz:
+		push_error("Terrain: mask.u8 is %d bytes, expected %d" % [raw_m.size(), _mx * _mz])
+		return false
+
+	# Decode uint16 -> metres once, so sampling stays cheap in the movement loop.
+	var decoded := PackedFloat32Array()
+	decoded.resize(_hx * _hz)
+	var scale := _height_scale / 65535.0
+	for i in range(_hx * _hz):
+		decoded[i] = float(raw_h.decode_u16(i * 2)) * scale
+	_heights = decoded
+	_mask = raw_m
+
+	fingerprint = _hash(meta_text, raw_h, raw_m)
+	loaded = true
+	print("[terrain] %s  %.0fx%.0f m  height %dx%d @ %.1f m  mask %dx%d @ %.1f m  fp=%s"
+		% [region_name, size_m.x, size_m.y, _hx, _hz, _cell, _mx, _mz, _mask_cell, fingerprint])
+	return true
+
+
+## Ground height in metres. Bilinear, so movement doesn't stair-step.
+func sample_height(x: float, z: float) -> float:
+	if not loaded:
+		return 0.0
+	var fx: float = clampf(x / _cell, 0.0, float(_hx - 1))
+	var fz: float = clampf(z / _cell, 0.0, float(_hz - 1))
+	var ix := int(fx)
+	var iz := int(fz)
+	var jx: int = mini(ix + 1, _hx - 1)
+	var jz: int = mini(iz + 1, _hz - 1)
+	var tx := fx - float(ix)
+	var tz := fz - float(iz)
+	var h00 := _heights[iz * _hx + ix]
+	var h10 := _heights[iz * _hx + jx]
+	var h01 := _heights[jz * _hx + ix]
+	var h11 := _heights[jz * _hx + jx]
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)
+
+
+## Surface class. Nearest-neighbour on purpose: this is a hard gameplay
+## boundary (worm-safe vs exposed) and must not be smeared by interpolation.
+func sample_surface(x: float, z: float) -> Surface:
+	if not loaded:
+		return Surface.SAND
+	var ix: int = clampi(int(x / _mask_cell), 0, _mx - 1)
+	var iz: int = clampi(int(z / _mask_cell), 0, _mz - 1)
+	return _mask[iz * _mx + ix] as Surface
+
+
+func is_walkable(x: float, z: float) -> bool:
+	if x < 0.0 or z < 0.0 or x > size_m.x or z > size_m.y:
+		return false
+	return sample_surface(x, z) != Surface.CLIFF
+
+
+func surface_name(s: Surface) -> String:
+	match s:
+		Surface.SAND: return "SAND"
+		Surface.ROCK: return "ROCK"
+		Surface.CLIFF: return "CLIFF"
+	return "?"
+
+
+func _read_text(p: String) -> String:
+	var f := FileAccess.open(p, FileAccess.READ)
+	return "" if f == null else f.get_as_text()
+
+
+func _read_bytes(p: String) -> PackedByteArray:
+	var f := FileAccess.open(p, FileAccess.READ)
+	return PackedByteArray() if f == null else f.get_buffer(f.get_length())
+
+
+func _hash(meta: String, h: PackedByteArray, m: PackedByteArray) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(meta.to_utf8_buffer())
+	ctx.update(h)
+	ctx.update(m)
+	return ctx.finish().hex_encode().substr(0, 12)

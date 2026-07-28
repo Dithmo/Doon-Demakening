@@ -1,0 +1,25 @@
+{
+  "name": "synthetic_test",
+  "size_m": [
+    512.0,
+    512.0
+  ],
+  "cell_size": 2.0,
+  "height_cells": [
+    256,
+    256
+  ],
+  "height_scale": 64.0,
+  "mask_cell_size": 1.0,
+  "mask_cells": [
+    512,
+    512
+  ],
+  "surface_classes": {
+    "sand": 0,
+    "rock": 1,
+    "cliff": 2
+  },
+  "seed": 7,
+  "synthetic": true
+}

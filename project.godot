@@ -1,0 +1,32 @@
+; Doon — Dune: Awakening demake
+; See docs/game-plan.md for build order, docs/terrain-plan.md for the map pipeline.
+
+config_version=5
+
+[application]
+
+config/name="Doon"
+config/description="A demake of Dune: Awakening."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.5", "Forward Plus")
+
+[autoload]
+
+; Order is dependency order and matters: Net hashes Terrain at handshake, and
+; Store asks Net which role it is before deciding whether to persist anything.
+ItemDB="*res://scripts/items/item_db.gd"
+Terrain="*res://scripts/terrain/terrain_data.gd"
+Net="*res://scripts/net/net.gd"
+Store="*res://scripts/persistence/store.gd"
+
+[debug]
+
+gdscript/warnings/untyped_declaration=1
+
+[physics]
+
+common/physics_ticks_per_second=30
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

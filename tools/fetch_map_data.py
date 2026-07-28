@@ -6,9 +6,9 @@ namespace (id 2900) -- not the `Data:` namespace DataMaps uses on some other
 wikis -- and MediaWiki's action API serves that page's raw content.
 
 Writes:
-  data/hagga_basin.datamap.json   raw marker JSON, exactly as the wiki stores it
-  data/regions.json               sub-region bounding boxes in CRS units
-  data/hagga_basin.webp           base map render, 8182x8182
+  data/wiki/hagga_basin.datamap.json  raw marker JSON, exactly as the wiki stores it
+  data/wiki/regions.json              sub-region bounding boxes in CRS units
+  data/wiki/hagga_basin.webp          base map render, 8182x8182
 
 Coordinate system, verified against the map render:
   CRS spans 0..100000 on both axes, order "xy", topLeft [0,0].
@@ -95,7 +95,7 @@ def region_boxes(datamap):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="data", type=pathlib.Path)
+    ap.add_argument("--out", default="data/wiki", type=pathlib.Path)
     ap.add_argument("--skip-image", action="store_true")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)

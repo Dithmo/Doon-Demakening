@@ -106,7 +106,7 @@ server authority a late change means migrating persisted state too.
 Each phase ends in something you can actually play, with at least two clients
 connected. That is the whole point of the ordering.
 
-### Phase 0 — Foundations
+### Phase 0 — Foundations — **in progress**
 Godot project with **client and headless-server targets**, ENet transport,
 connect/join/disconnect, and a script to launch a server plus N clients.
 Character controller with predicted movement and reconciliation. `TerrainData`
@@ -114,9 +114,22 @@ interface (`sample_height`, `sample_surface`) backed by a synthetic region,
 loaded identically both sides. Server-owned inventory + item database + client
 inventory UI driven purely by replicated state. Server-side persistence.
 
-*Test:* two clients connect, both walk around, one picks up a debug item and the
-other sees it leave the world; restart the server and inventories persist.
+*Test:* `python3 tools/test_phase0.py` — 21 assertions across three headless
+sessions: handshake, bot-driven movement, pickup exclusivity, cross-client
+despawn, persistence across a server restart, and rejection of a client whose
+terrain does not match the server's.
 *Not fun yet. Nothing after this works without it.*
+
+Done: transport and handshake with protocol + terrain-fingerprint gating,
+kinematic movement with client prediction and server reconciliation, the
+`TerrainData` contract over a shared binary region format, server-owned
+inventory and the item database, ground-item entities with server-validated
+pickup, server-side persistence, a bot client for headless testing, and the
+`tools/run_session.sh` launcher.
+
+Not done: no HUD beyond a debug overlay, no equipment or use-hooks wired up
+(the `ItemDef` fields exist but nothing consumes them yet), no reconnect
+handling, no authentication — identity is whatever the client claims.
 
 ### Phase 1 — The water loop ← smallest recognisably-Dune build
 Server-simulated hydration draining in real time, replicated to owning clients.

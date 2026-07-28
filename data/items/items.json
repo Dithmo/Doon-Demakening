@@ -1,0 +1,92 @@
+{
+  "_comment": "Tight spine (docs/game-plan.md). Phase 0 needs enough breadth to exercise stacking, slots and use-hooks; Phase 1-2 fill in the water economy.",
+  "items": [
+    {
+      "id": "water",
+      "name": "Water",
+      "stack": 20,
+      "weight": 1.0,
+      "use": "hydrate",
+      "use_value": 25.0,
+      "desc": "Litre of potable water. The only currency that matters."
+    },
+    {
+      "id": "blood_sack",
+      "name": "Blood Sack",
+      "stack": 10,
+      "weight": 1.2,
+      "use": "hydrate",
+      "use_value": 12.0,
+      "desc": "Recovered body water. Needs purifying before it is worth drinking."
+    },
+    {
+      "id": "plant_fiber",
+      "name": "Plant Fibre",
+      "stack": 50,
+      "weight": 0.1,
+      "desc": "Tough desert growth. Feedstock for everything woven."
+    },
+    {
+      "id": "salvaged_metal",
+      "name": "Salvaged Metal",
+      "stack": 50,
+      "weight": 0.8,
+      "desc": "Stripped from wrecks. The basis of every fabricated part."
+    },
+    {
+      "id": "granite_stone",
+      "name": "Granite Stone",
+      "stack": 50,
+      "weight": 1.5,
+      "desc": "Quarried from outcrops. Bulk building material."
+    },
+    {
+      "id": "cutteray",
+      "name": "Cutteray",
+      "stack": 1,
+      "slot": "utility",
+      "weight": 3.0,
+      "use": "tool_gather",
+      "desc": "Cutting beam. Harvests ore and strips wrecks."
+    },
+    {
+      "id": "dew_harvester",
+      "name": "Dew Harvester",
+      "stack": 1,
+      "slot": "utility",
+      "weight": 2.5,
+      "use": "tool_dew",
+      "desc": "Draws moisture from plants. Works dusk to dawn only."
+    },
+    {
+      "id": "stillsuit",
+      "name": "Stillsuit",
+      "stack": 1,
+      "slot": "torso",
+      "weight": 4.0,
+      "use": "equip",
+      "use_value": 0.45,
+      "desc": "Reclaims body moisture. Cuts water loss substantially."
+    },
+    {
+      "id": "kindjal",
+      "name": "Kindjal",
+      "stack": 1,
+      "slot": "hands",
+      "weight": 1.8,
+      "use": "equip",
+      "use_value": 22.0,
+      "desc": "Short blade. Slow enough to pass a shield."
+    },
+    {
+      "id": "maula_pistol",
+      "name": "Maula Pistol",
+      "stack": 1,
+      "slot": "hands",
+      "weight": 2.2,
+      "use": "equip",
+      "use_value": 14.0,
+      "desc": "Spring-loaded dart pistol."
+    }
+  ]
+}

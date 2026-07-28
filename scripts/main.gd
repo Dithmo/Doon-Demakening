@@ -1,0 +1,101 @@
+extends Node3D
+## Entry point. Builds the world authority on both sides and, on a client that
+## has a window, the view on top of it. The server runs the identical World
+## node with no view attached.
+
+const WORLD_SCRIPT := preload("res://scripts/world/world.gd")
+const VIEW_SCRIPT := preload("res://scripts/client/client_view.gd")
+
+var world: Node
+
+
+func _ready() -> void:
+	_register_input()
+
+	world = WORLD_SCRIPT.new()
+	world.name = "World"
+	add_child(world)
+
+	if Net.is_client() and DisplayServer.get_name() != "headless":
+		var view: Node = VIEW_SCRIPT.new()
+		view.name = "View"
+		view.world = world
+		add_child(view)
+
+	if Net.run_seconds > 0.0:
+		var t := get_tree().create_timer(Net.run_seconds)
+		t.timeout.connect(_on_run_elapsed)
+		if not Net.screenshot_path.is_empty():
+			var shot := get_tree().create_timer(maxf(1.0, Net.run_seconds - 1.0))
+			shot.timeout.connect(_capture)
+
+	# Headless clients still need to log enough for the harness to assert on.
+	if Net.is_client():
+		world.inventory_changed.connect(_log_inventory)
+	if Net.auto:
+		var beat := Timer.new()
+		beat.wait_time = 2.0
+		beat.timeout.connect(_log_position)
+		add_child(beat)
+		beat.start()
+
+
+func _capture() -> void:
+	var img := get_viewport().get_texture().get_image()
+	if img.save_png(Net.screenshot_path) == OK:
+		print("[main] wrote %s" % Net.screenshot_path)
+	else:
+		push_error("main: could not write %s" % Net.screenshot_path)
+
+
+func _log_position() -> void:
+	print("[bot] %s pos %.1f,%.1f  surface %s  seen %d  nearest %d"
+		% [Net.identity, world.local_pos.x, world.local_pos.z,
+		Terrain.surface_name(Terrain.sample_surface(world.local_pos.x, world.local_pos.z)),
+		world.entity_mirror.size(), world.nearest_entity()])
+
+
+func _on_run_elapsed() -> void:
+	if Net.is_server():
+		Store.save_all()
+		print("[main] server saw %d entity(ies) remaining" % world._entities.size())
+		print("[main] run window elapsed, saved and exiting")
+	else:
+		# Final mirror size, so the harness can prove despawns reached every
+		# client and not just the one that did the picking up.
+		print("[mirror] %s entities=%d" % [Net.identity, world.entity_mirror.size()])
+		print("[main] run window elapsed, exiting")
+	get_tree().quit(0)
+
+
+func _log_inventory() -> void:
+	var summary: Array = []
+	for s: Dictionary in world.inventory_mirror:
+		if not s.is_empty():
+			summary.append("%s x%d" % [s["id"], s["count"]])
+	print("[inv] %s | %s" % [Net.identity, ", ".join(summary)])
+
+
+## Actions are registered in code rather than serialised into project.godot --
+## the .tscn/.godot encoding for InputEvent is verbose and near-unreviewable in
+## a diff, and this keeps the binding list readable.
+func _register_input() -> void:
+	var binds := {
+		"move_forward": [KEY_W, KEY_UP],
+		"move_back": [KEY_S, KEY_DOWN],
+		"move_left": [KEY_A, KEY_LEFT],
+		"move_right": [KEY_D, KEY_RIGHT],
+		"sprint": [KEY_SHIFT],
+		"interact": [KEY_E],
+		"drop": [KEY_Q],
+		"toggle_debug": [KEY_F3],
+	}
+	for action: String in binds:
+		if InputMap.has_action(action):
+			InputMap.action_erase_events(action)
+		else:
+			InputMap.add_action(action)
+		for key: int in binds[action]:
+			var ev := InputEventKey.new()
+			ev.physical_keycode = key
+			InputMap.action_add_event(action, ev)
