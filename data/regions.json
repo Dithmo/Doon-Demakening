@@ -1,0 +1,148 @@
+{
+  "Hagga Basin South": {
+    "marker_count": 52,
+    "crs_bbox": {
+      "x0": 44639.6,
+      "y0": 80763.33,
+      "x1": 88057.92,
+      "y1": 94598.15
+    },
+    "crs_centroid": [
+      66634.29384615383,
+      87330.69807692304
+    ]
+  },
+  "The O'odham": {
+    "marker_count": 6,
+    "crs_bbox": {
+      "x0": 8281.25,
+      "y0": 21125,
+      "x1": 22046.88,
+      "y1": 28796.88
+    },
+    "crs_centroid": [
+      14572.92,
+      25088.543333333335
+    ]
+  },
+  "Sheol": {
+    "marker_count": 10,
+    "crs_bbox": {
+      "x0": 8406.25,
+      "y0": 65015.63,
+      "x1": 32640.63,
+      "y1": 92218.75
+    },
+    "crs_centroid": [
+      22082.318000000003,
+      79019.702
+    ]
+  },
+  "Western Vermillius Gap": {
+    "marker_count": 44,
+    "crs_bbox": {
+      "x0": 38413.21,
+      "y0": 38981.78,
+      "x1": 58058.1,
+      "y1": 74910.21
+    },
+    "crs_centroid": [
+      45937.8565909091,
+      56843.26045454545
+    ]
+  },
+  "Eastern Vermillius Gap": {
+    "marker_count": 38,
+    "crs_bbox": {
+      "x0": 50213.68,
+      "y0": 45887.59,
+      "x1": 94520.79,
+      "y1": 70501.22
+    },
+    "crs_centroid": [
+      74406.83684210526,
+      60443.1568421053
+    ]
+  },
+  "Hagga Rift": {
+    "marker_count": 4,
+    "crs_bbox": {
+      "x0": 86946.24,
+      "y0": 42803.06,
+      "x1": 89592.36,
+      "y1": 54624.49
+    },
+    "crs_centroid": [
+      88269.3,
+      48713.774999999994
+    ]
+  },
+  "Mysa Tarill": {
+    "marker_count": 2,
+    "crs_bbox": {
+      "x0": 29389.17,
+      "y0": 35741.52,
+      "x1": 29389.17,
+      "y1": 35741.52
+    },
+    "crs_centroid": [
+      29389.17,
+      35741.52
+    ]
+  },
+  "Western Shield Wall": {
+    "marker_count": 0
+  },
+  "Eastern Shield Wall": {
+    "marker_count": 8,
+    "crs_bbox": {
+      "x0": 37750.29,
+      "y0": 6602.86,
+      "x1": 56476.69,
+      "y1": 23512.99
+    },
+    "crs_centroid": [
+      45250.24500000001,
+      14979.6375
+    ]
+  },
+  "Jabal Eifrit Al-janub": {
+    "marker_count": 4,
+    "crs_bbox": {
+      "x0": 64187.5,
+      "y0": 31296.88,
+      "x1": 75187.5,
+      "y1": 35875
+    },
+    "crs_centroid": [
+      69687.5,
+      33585.94
+    ]
+  },
+  "Jabal Eifrit Al-gharb": {
+    "marker_count": 2,
+    "crs_bbox": {
+      "x0": 56281.25,
+      "y0": 28312.5,
+      "x1": 56281.25,
+      "y1": 28312.5
+    },
+    "crs_centroid": [
+      56281.25,
+      28312.5
+    ]
+  },
+  "Jabal Eifrit Al-sharq": {
+    "marker_count": 6,
+    "crs_bbox": {
+      "x0": 76125,
+      "y0": 20515.63,
+      "x1": 93068.33,
+      "y1": 25188.35
+    },
+    "crs_centroid": [
+      82892.57,
+      22364.87
+    ]
+  }
+}

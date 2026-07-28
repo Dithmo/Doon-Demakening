@@ -1,0 +1,3316 @@
+{
+	"$schema": "https://awakening.wiki/extensions/DataMaps/schemas/v17.1.json",
+	"crs": {
+		"topLeft": [ 0, 0 ],
+		"bottomRight": [ 100000, 100000 ],
+		"order": "xy"
+	},
+	"background": "Hagga Basin.webp",
+	"settings": {
+		"enableSearch": "tabberWide",
+		"requireCustomMarkerIDs": true,
+		"backdropColor": "#171513",
+		"sortChecklistsBy": "groupDeclaration"
+	},
+	"groups": {
+		"Shipwrecks": {
+			"name": "Shipwreck",
+			"icon": "Map Marker Shipwreck.png", "size": [ 32, 32 ]
+		},
+		"EcoLabs": {
+			"name": "Ecology Lab",
+			"icon": "Map Marker EcoLab.png", "size": [ 32, 32 ]
+		},
+		"Caves": {
+			"name": "Cave",
+			"icon": "Map Marker Cave.png", "size": [ 32, 32 ]
+		},
+		"Camps": {
+			"name": "Enemy Camp",
+			"icon": "Map_Marker_Enemy_Camp.png", "size": [ 32, 32 ]
+		},
+		"Outposts": {
+			"name": "Outposts",
+			"icon": "Map_Marker_Enemy_Outpost.png", "size": [ 32, 32 ]
+		},
+		"MiningFacility": {
+			"name": "Mining Facility",
+			"icon": "Map_Marker_Mining_Facility.png", "size": [ 32, 32 ]
+		},
+		"TradingPosts": {
+			"name": "Trading Post",
+			"icon": "Map_Marker_Trading_Post.png", "size": [ 32, 32 ]
+		},
+		"Landmark": {
+			"name": "Landmark",
+			"icon": "Map_Marker_Landmark.png", "size": [ 32, 32 ]
+		},
+		"Aql": {
+			"name": "Trials of Aql",
+			"icon": "Map Marker Aql.png", "size": [ 32, 32 ],
+			"isCollectible": true
+		},
+		"Intel": {
+			"name": "Intel Points",
+			"icon": "T_UI_IconMapIntel_D.png", "size": [ 24, 24 ],
+			"isCollectible": true
+		},
+		"Trainers": {
+			"name": "Skill Trainer",
+			"icon": "Map_InteractLore.png", "size": [ 32, 32 ]
+		},
+		"Sandbikes": {
+			"name": "Salvaged Sandbikes",
+			"icon": "Map Marker Sandbike.png", "size": [ 24, 24 ]
+		},
+		"NPCs": {
+			"name": "NPC's",
+			"icon": "Map Marker NPC.png", "size": [ 20, 20 ]
+		},
+		"Spiceblows": {
+			"name": "Spice Blows",
+			"icon": "Map_Spice Field.png", "size": [ 24, 24 ]
+		},
+		"Loot": {
+			"name": "Unique Item Loot",
+			"icon": "T_UI_CatIconUnique_D.png", "size": [ 24, 24 ]
+		},
+		"Atreides": {
+			"name": "Atreides",
+			"icon": "Map_NPCAtreidesQuasrtermaster.png", "size": [ 24, 24 ]
+		},
+		"Harkonnen": {
+			"name": "Harkonnen",
+			"icon": "Map_NPCHarkonnenQuartermaster.png", "size": [ 24, 24 ]
+		},
+		"Agave": {
+			"name": "Agave Seeds",
+			"icon": "T_UI_IconMapMarkerSaguaro_D.png", "size": [ 24, 24 ]
+		},
+		"Representatives": {
+			"name": "Landsraad Representative",
+			"icon": "Map_NPCLandsraadRepresentative.png", "size": [ 32, 32 ],
+			"isCollectible": true
+		},
+		"Custom": {
+			"name": "Dropped Pin",
+			"pinColor": "#FF0000"
+		}
+	},
+	"markers": {
+		"Shipwrecks": [
+			{
+				"x": 75187.44, "y": 84624.31,
+				"name": "Wreck of the Alcyon",
+				"id": "the_wreck_of_the_alcyon",
+				"article": "Wreck of the Alcyon"
+			},
+			{
+				"x": 49509.09, "y": 47187.17,
+				"name": "Wreck of the Pallas",
+				"id": "the_wreck_of_the_pallas",
+				"article": "Wreck of the Pallas"
+			},
+			{
+				"x": 87181.1, "y": 41252.97,
+				"name": "Hagga Rift Shipwreck",
+				"id": "hagga_rift_shipwreck",
+				"article": "Hagga Rift Shipwreck"
+			},
+			{
+				"x": 28747.22, "y": 13601.78,
+				"name": "Wreck of the Alecto",
+				"id": "wreck_of_the_alecto",
+				"article": "Wreck of the Alecto"
+			},
+			{
+				"x": 17953.13, "y": 75531.25,
+				"name": "Wreck of the Delphis",
+				"id": "wreck_of_the_delphis",
+				"article": "Wreck of the Delphis"
+			},
+			{
+				"x": 39034.21, "y": 23512.99,
+				"name": "Wreck of the Limos",
+				"article": "Wreck of the Limos",
+				"id": "the_wreck_of_the_limos"
+			},
+			{
+				"x": 28562.5, "y": 71828.13,
+				"name": "Wreck of the Ourea (Forward Section)",
+				"id": "the_wreck_of_the_ourea_forward_section",
+				"article": "Wreck of the Ourea (Forward Section)"
+			},
+			{
+				"x": 8406.25, "y": 92218.75,
+				"name": "Wreck of the Euporia",
+				"id": "wreck_of_the_euporia",
+				"article": "Wreck of the Euporia"
+			},
+			{
+				"x": 25130.33, "y": 87239.12,
+				"name": "Wreck of the Leto",
+				"id": "wreck_of_the_leto",
+				"article": "Wreck of the Leto"
+			},
+			{
+				"x": 15671.88, "y": 65015.63,
+				"name": "Wreck of the Ourea (Aft Section)",
+				"id": "the_wreck_of_the_ourea_aft_section",
+				"article": "Wreck of the Ourea (Aft Section)"
+			},
+			{
+				"x": 79484.38, "y": 21390.63,
+				"name": "Wreck of the Tisiphone",
+				"id": "the_wreck_of_the_tisiphone",
+				"article": "Wreck of the Tisiphone"
+			},
+			{
+				"x": 71868.04, "y": 67604.58,
+				"name": "Wreck of the Actaeon",
+				"id": "the_wreck_of_the_actaeon",
+				"article": "Wreck of the Actaeon"
+			},
+			{
+				"x": 32640.63, "y": 78796.88,
+				"name": "Wreck of the Tartarus",
+				"id": "wreck_of_the_tartarus",
+				"article": "Wreck of the Tartarus"
+			}
+		],
+		"Camps": [
+			{
+				"x": 8937.5, "y": 44453.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 7984.38, "y": 42781.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 8312.5, "y": 41015.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 7359.38, "y": 41796.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 14218.75, "y": 37921.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 12500, "y": 37843.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 11875, "y": 35125,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 11250, "y": 34093.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 7875, "y": 32250,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 6765.63, "y": 31781.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 9328.13, "y": 29484.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 9125, "y": 27281.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 10546.88, "y": 29640.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 12562.5, "y": 31093.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 14750, "y": 30281.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 15781.25, "y": 28953.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 17796.88, "y": 26921.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 18843.75, "y": 27031.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 21043.71, "y": 23042.22,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 15953.13, "y": 24906.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 11750, "y": 25234.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 12995.75, "y": 24529.69,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 9250, "y": 27703.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 10991.58, "y": 21852.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 5218.75, "y": 24875,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 5406.25, "y": 22968.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 5781.25, "y": 17531.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 3812.5, "y": 18203.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 9625, "y": 18546.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 10703.13, "y": 16421.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 88778.17, "y": 26472.26,
+				"name": "Harkonnen Deserter Camp",
+				"id": "harkonnen_deserter_camp",
+				"article": "Harkonnen Deserter Camp"
+			},
+			{
+				"x": 14421.88, "y": 19375,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 19245.9, "y": 16615.65,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 19125, "y": 18921.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 19343.75, "y": 16890.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 22281.25, "y": 21015.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 21265.63, "y": 21500,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 24541.94, "y": 22839.85,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23359.38, "y": 28046.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 22281.25, "y": 27203.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 24125, "y": 27375,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 20949.77, "y": 40939.82,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 21748.3, "y": 41910.58,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 24457.05, "y": 39937.73,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 24582.31, "y": 41550.46,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23533.26, "y": 40548.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 25600.05, "y": 38137.12,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 16375, "y": 44312.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 11084.1, "y": 12016.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 15027.66, "y": 12954.41,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 15946.55, "y": 8685.41,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 18607.5, "y": 7039.06,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 17860.9, "y": 6560.47,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23163.66, "y": 9680.87,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 20713.29, "y": 11231.49,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 20100.7, "y": 11939.8,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 22417.06, "y": 11844.09,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 27385.01, "y": 5835.64,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 28590.64, "y": 7573.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 28943.89, "y": 12580.89,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 37077.02, "y": 1185.36,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 36419.4, "y": 5412.89,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 31377.68, "y": 9436.87,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 31706.49, "y": 8685.31,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 32802.52, "y": 9217.67,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 27281.89, "y": 13992.02,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 27720.91, "y": 14415.36,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 26231.38, "y": 14305.6,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 30025.76, "y": 16641.81,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 29827.59, "y": 26049.51,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 29138.65, "y": 26926.33,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 26915.29, "y": 27552.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 32849.49, "y": 22276.05,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 37379.32, "y": 15951.92,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 41539.41, "y": 14885.69,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 43089.51, "y": 11503.67,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 44608.29, "y": 12145.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 36983.07, "y": 28523.4,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 38893.29, "y": 25188.35,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 40365.1, "y": 19927.42,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 36215.22, "y": 19401.46,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 46174.04, "y": 27897.1,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 40051.95, "y": 15371.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 42197.03, "y": 15371.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 47410.99, "y": 11848.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 55944.34, "y": 9327.27,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 56304.46, "y": 3487.02,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 60485.02, "y": 6352.34,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 66468.75, "y": 15734.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 67187.5, "y": 16562.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 67796.88, "y": 15687.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 71265.63, "y": 15984.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 70453.13, "y": 16125,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 76203.13, "y": 15984.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 77984.38, "y": 16421.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 82484.38, "y": 15609.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80171.88, "y": 16187.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 93788.58, "y": 66492.9,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 94477.51, "y": 68168.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 92034.93, "y": 68669.29,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 90970.22, "y": 69827.95,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 89936.82, "y": 68387.46,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 89926.53, "y": 53062.45,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 90641.41, "y": 50929.32,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 90891.93, "y": 48549.37,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 89052.44, "y": 42328.61,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 88558.96, "y": 41065.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 87353.33, "y": 41863.61,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 86883.61, "y": 37628.77,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 83625, "y": 31921.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 81906.25, "y": 29781.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 83109.38, "y": 29031.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 74107.07, "y": 26433.64,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 74451.53, "y": 22268.74,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 72078.13, "y": 29265.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 68125, "y": 25796.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 67546.88, "y": 24484.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 63522.58, "y": 22096.51,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 60907.77, "y": 21172.71,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 57750, "y": 22859.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 39723.14, "y": 33236.31,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 49312.5, "y": 30921.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 49640.63, "y": 32656.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 50203.13, "y": 31812.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 48921.88, "y": 33781.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 52289.55, "y": 28787.49,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 53843.75, "y": 31000,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 57424.52, "y": 27594.59,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 61609.38, "y": 29890.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 63234.38, "y": 31906.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 61953.13, "y": 31484.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 68734.38, "y": 33515.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 67500, "y": 35531.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 66718.75, "y": 35468.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 63046.88, "y": 40750,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 69515.63, "y": 42750,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 68296.88, "y": 43578.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 69312.5, "y": 44375,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 70515.63, "y": 43515.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 75609.38, "y": 38328.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 74548.02, "y": 33035.6,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80218.75, "y": 38468.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80828.13, "y": 39671.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 79738.07, "y": 39663.58,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78093.75, "y": 43109.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78000, "y": 20796.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 81015.63, "y": 21296.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 81906.25, "y": 17359.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 83283.44, "y": 13526.71,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 89326.18, "y": 16717.62,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 90891.93, "y": 15574.62,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 90390.89, "y": 17296.95,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 91252.06, "y": 19426.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 89996.46, "y": 19994.99,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 94070.41, "y": 30198.75,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 91424.29, "y": 30605.85,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 93256.22, "y": 32093.31,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 79211.42, "y": 50506.56,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 76737.53, "y": 53857.27,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80135.21, "y": 54264.37,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 79712.46, "y": 58617.16,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78397.23, "y": 59118.2,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78945.24, "y": 61012.76,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78193.68, "y": 64316.5,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 77755.27, "y": 65522.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80526.65, "y": 67369.72,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 81074.66, "y": 67933.39,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78052.76, "y": 68450.09,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 77301.2, "y": 65631.73,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 74811.65, "y": 71863.43,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 75297.04, "y": 72348.81,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 72979.72, "y": 68136.94,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 72431.71, "y": 67588.92,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 71883.7, "y": 68152.59,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 70631.1, "y": 68356.14,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 69660.33, "y": 68324.83,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 64806.5, "y": 70375.96,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 64321.11, "y": 71926.06,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 62990.22, "y": 70125.44,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 67139.47, "y": 57489.82,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 55271.06, "y": 64473.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 55302.38, "y": 69655.72,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 53486.11, "y": 68058.65,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 55521.58, "y": 64144.27,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 52014.3, "y": 66007.51,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 51701.15, "y": 60229.89,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 53376.5, "y": 55736.18,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 51810.75, "y": 53747.67,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 57400.49, "y": 48017.02,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 91862.7, "y": 22244.73,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 54879.63, "y": 42646.49,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 54754.37, "y": 40798.9,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 53266.9, "y": 41440.86,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 46800.34, "y": 39828.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 45673, "y": 39640.24,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 43433.97, "y": 40062.99,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 43308.71, "y": 41190.34,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 44811.84, "y": 43147.53,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 41759.28, "y": 42581.89,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 40358.38, "y": 44754.7,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 42103.08, "y": 45042.09,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 42134.4, "y": 46388.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 41617.7, "y": 49019.1,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 38783.69, "y": 58006.52,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 39331.7, "y": 60793.56,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 38658.43, "y": 61388.54,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 38251.33, "y": 62187.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 39222.1, "y": 62014.84,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 39065.53, "y": 64473.08,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 40161.55, "y": 64927.14,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 44702.23, "y": 90652.46,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 46972.58, "y": 89932.21,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 50119.74, "y": 91826.77,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 49242.92, "y": 90339.31,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 54103.19, "y": 94044.24,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 61956.83, "y": 93502.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 61768.94, "y": 90934.29,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 65401.48, "y": 91607.57,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 66669.74, "y": 92672.28,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 65683.32, "y": 93298.58,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 68329.44, "y": 91952.03,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 73856.55, "y": 92045.98,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 76142.54, "y": 92437.42,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 76361.75, "y": 90621.14,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78647.75, "y": 89352.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 87168.88, "y": 91655.48,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 86867.95, "y": 90104.44,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 86993.21, "y": 91075.21,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23531.25, "y": 76000,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 12375, "y": 74609.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 5296.88, "y": 84421.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 10421.88, "y": 90531.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 15218.75, "y": 86171.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 20605.3, "y": 88601.32,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23705.49, "y": 85861.25,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 23204.45, "y": 84968.78,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 28812.5, "y": 82796.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 28375, "y": 73953.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 87541.22, "y": 90699.43,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 88715.54, "y": 88100.28,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 87744.77, "y": 88162.91,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 87932.66, "y": 89024.07,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 86272.96, "y": 89556.43,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 86053.76, "y": 86878.99,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 84534.98, "y": 82307,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 82389.9, "y": 83590.91,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 82734.36, "y": 82087.79,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 83532.9, "y": 83121.19,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 80808.49, "y": 84201.56,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 81137.29, "y": 85782.97,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 78318.94, "y": 83935.38,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 72337.77, "y": 82369.63,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 69754.27, "y": 82228.71,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 46659.42, "y": 85970.86,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 46409.78, "y": 84278.01,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 48256.49, "y": 82604.49,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 48209.52, "y": 81164,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 53492.39, "y": 81775.13,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 52693.6, "y": 81136.1,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 52797.17, "y": 84577.34,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 56539.32, "y": 87380.03,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 59107.16, "y": 86597.16,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 57243.91, "y": 86284.01,
+				"name": "NPC Camp"
+			}
+		],
+		"Caves": [
+			{
+				"x": 91674.81, "y": 49144.36,
+				"name": "Cave 1",
+				"id": "cave_1",
+				"article": "Cave 1"
+			},
+			{
+				"x": 67123.81, "y": 94112.77,
+				"name": "Vents of Eifrit",
+				"id": "vents_of_eifrit",
+				"article": "Vents of Eifrit"
+			},
+			{
+				"x": 41946.51, "y": 42388.08,
+				"name": "Lost Eyrie",
+				"id": "lost_eyrie",
+				"article": "Lost Eyrie"
+			},
+			{
+				"x": 54629.11, "y": 42834.38,
+				"name": "Cave"
+			},
+			{
+				"x": 57196.94, "y": 50694.45,
+				"name": "Cave"
+			},
+			{
+				"x": 41101, "y": 58241.38,
+				"name": "Cave"
+			},
+			{
+				"x": 57557.06, "y": 69593.09,
+				"name": "Cave"
+			},
+			{
+				"x": 64555.98, "y": 63627.57,
+				"name": "Cave"
+			},
+			{
+				"x": 62583.13, "y": 62484.57,
+				"name": "Cave"
+			},
+			{
+				"x": 63131.14, "y": 56566.03,
+				"name": "Cave"
+			},
+			{
+				"x": 67515.25, "y": 59415.69,
+				"name": "Cave"
+			},
+			{
+				"x": 65714.63, "y": 56018.01,
+				"name": "Cave"
+			},
+			{
+				"x": 63256.4, "y": 56785.23,
+				"name": "The Pustule",
+				"id": "the_pustule",
+				"article": "The Pustule"
+			},
+			{
+				"x": 37750.29, "y": 22620.51,
+				"name": "Shadrath's Tomb",
+				"id": "shadraths_tomb",
+				"article": "Shadrath's Tomb"
+			},
+			{
+				"x": 77019.37, "y": 54608.83,
+				"name": "Ghanima Cavern",
+				"id": "ghanima_cavern",
+				"article": "Ghanima Cavern"
+			},
+			{
+				"x": 78710.38, "y": 58084.81,
+				"name": "Smuggler's Bolthole",
+				"id": "smugglers_bolthole",
+				"article": "Smuggler's Bolthole"
+			},
+			{
+				"x": 80166.53, "y": 56487.74,
+				"name": "Cave"
+			},
+			{
+				"x": 76518.33, "y": 70501.22,
+				"name": "Zein's Grotto",
+				"id": "zeins_grotto",
+				"article": "Zein's Grotto"
+			},
+			{
+				"x": 39190.79, "y": 33079.74,
+				"name": "Cave"
+			},
+			{
+				"x": 56022.62, "y": 63893.75,
+				"name": "Iri's Haunt",
+				"id": "iris_haunt",
+				"article": "Iri's Haunt"
+			},
+			{
+				"x": 39691.83, "y": 62860.35,
+				"name": "Menol's Pocket",
+				"id": "menols_pocket",
+				"article": "Menol's Pocket"
+			},
+			{
+				"x": 58562.5, "y": 22078.13,
+				"name": "Cave"
+			},
+			{
+				"x": 9645.04, "y": 39054.12,
+				"name": "Cave"
+			},
+			{
+				"x": 7046.88, "y": 17406.25,
+				"name": "Batigh Grotto",
+				"id": "batigh_grotto",
+				"article": "Batigh Grotto"
+			},
+			{
+				"x": 6296.88, "y": 32328.13,
+				"name": "Cave"
+			},
+			{
+				"x": 15265.63, "y": 19453.13,
+				"name": "Cave"
+			},
+			{
+				"x": 18281.25, "y": 17250,
+				"name": "Cave"
+			},
+			{
+				"x": 50125, "y": 32109.38,
+				"name": "Beneath the Jumble",
+				"id": "beneath_the_jumble",
+				"article": "Beneath the Jumble"
+			},
+			{
+				"x": 55093.75, "y": 30765.63,
+				"name": "Cave"
+			},
+			{
+				"x": 66343.75, "y": 42078.13,
+				"name": "The Dustpan",
+				"id": "the_dustpan",
+				"article": "The Dustpan"
+			},
+			{
+				"x": 93929.49, "y": 37244.64,
+				"name": "Sandtide Grotto",
+				"id": "sandtide_grotto",
+				"article": "Sandtide Grotto"
+			},
+			{
+				"x": 92301.11, "y": 33220.66,
+				"name": "Farhold Storage",
+				"id": "farhold_storage",
+				"article": "Farhold Storage"
+			},
+			{
+				"x": 85991.13, "y": 16185.27,
+				"name": "Cave"
+			},
+			{
+				"x": 73359.38, "y": 15578.13,
+				"name": "Cave"
+			},
+			{
+				"x": 30396.82, "y": 22885.51,
+				"name": "Cave"
+			},
+			{
+				"x": 16520.86, "y": 11633.51,
+				"name": "Cave"
+			},
+			{
+				"x": 37077.02, "y": 7542.31,
+				"name": "Cave"
+			},
+			{
+				"x": 43684.49, "y": 25047.43,
+				"name": "Cave"
+			},
+			{
+				"x": 53266.9, "y": 53199.66,
+				"name": "Cave"
+			},
+			{
+				"x": 81747.94, "y": 83841.43,
+				"name": "Kaleff's Stand",
+				"id": "kaleffs_stand",
+				"article": "Kaleff's Stand"
+			},
+			{
+				"x": 84660.24, "y": 82839.35,
+				"name": "Western Safeway",
+				"id": "western_safeway",
+				"article": "Western Safeway"
+			},
+			{
+				"x": 87462.94, "y": 82447.91,
+				"name": "Shamal Tunnel",
+				"id": "shamal_tunnel",
+				"article": "Shamal Tunnel"
+			},
+			{
+				"x": 85771.92, "y": 90918.64,
+				"name": "Outer Safeway",
+				"id": "outer_safeway",
+				"article": "Outer Safeway"
+			},
+			{
+				"x": 88057.92, "y": 88460.4,
+				"name": "Edgeway Cavern",
+				"id": "edgeway_cavern",
+				"article": "Edgeway Cavern"
+			},
+			{
+				"x": 78694.72, "y": 91419.68,
+				"name": "Eastern Safeway",
+				"id": "eastern_safeway",
+				"article": "Eastern Safeway"
+			},
+			{
+				"x": 77661.32, "y": 91122.18,
+				"name": "Wali Hole",
+				"id": "wali_hole",
+				"article": "Wali Hole"
+			},
+			{
+				"x": 76533.98, "y": 91983.35,
+				"name": "The Stash",
+				"id": "the_stash",
+				"article": "The Stash"
+			},
+			{
+				"x": 62567.47, "y": 93204.63,
+				"name": "Southwatch Shelter",
+				"id": "southwatch_shelter",
+				"article": "Southwatch Shelter"
+			},
+			{
+				"x": 56100.91, "y": 92506.85,
+				"name": "The Backway",
+				"id": "the_backway",
+				"article": "The Backway"
+			},
+			{
+				"x": 49086.34, "y": 91591.91,
+				"name": "Selaya Cave",
+				"id": "selaya_cave",
+				"article": "Selaya Cave"
+			},
+			{
+				"x": 44639.6, "y": 90010.5,
+				"name": "The Shortway",
+				"id": "the_shortway",
+				"article": "The Shortway"
+			},
+			{
+				"x": 86946.24, "y": 42803.06,
+				"name": "Riftrun Passage",
+				"id": "riftrun_passage",
+				"article": "Riftrun Passage"
+			},
+			{
+				"x": 83454.61, "y": 42724.77,
+				"name": "Cave"
+			},
+			{
+				"x": 47129.15, "y": 83005.88,
+				"name": "Cave of Ghosts",
+				"id": "cave_of_ghosts",
+				"article": "Cave of Ghosts"
+			},
+			{
+				"x": 53125.98, "y": 81018.04,
+				"name": "The Twist",
+				"id": "the_twist",
+				"article": "The Twist"
+			},
+			{
+				"x": 55646.84, "y": 83371.71,
+				"name": "Old Griffin Hideaway",
+				"id": "old_griffin_hideaway",
+				"article": "Old Griffin Hideaway"
+			},
+			{
+				"x": 55646.84, "y": 87129.51,
+				"name": "Traitor's Grotto",
+				"id": "traitors_grotto",
+				"article": "Traitor's Grotto"
+			},
+			{
+				"x": 61988.14, "y": 81805.96,
+				"name": "Aren's Refuge",
+				"id": "arens_refuge",
+				"article": "Aren's Refuge"
+			},
+			{
+				"x": 89592.36, "y": 54624.49,
+				"name": "The Gasp",
+				"id": "the_gasp",
+				"article": "The Gasp"
+			},
+			{
+				"x": 28031.25, "y": 82421.88,
+				"name": "Cave"
+			},
+			{
+				"x": 26054.12, "y": 91122.18,
+				"name": "Cave"
+			},
+			{
+				"x": 8171.88, "y": 82031.25,
+				"name": "Cave"
+			},
+			{
+				"x": 13421.88, "y": 75218.75,
+				"name": "Limbo",
+				"id": "limbo",
+				"article": "Limbo"
+			},
+			{
+				"x": 13671.88, "y": 87781.25,
+				"name": "Cave"
+			},
+			{
+				"x": 68329.44, "y": 83387.37,
+				"name": "Cave"
+			},
+			{
+				"x": 40881.8, "y": 56096.3,
+				"name": "Cave"
+			},
+			{
+				"x": 66027.78, "y": 90605.48,
+				"name": "Cave"
+			},
+			{
+				"x": 8281.25, "y": 21125,
+				"name": "The Fable",
+				"id": "the_fable",
+				"article": "The Fable"
+			},
+			{
+				"x": 22046.88, "y": 28796.88,
+				"name": "Musky Cave",
+				"id": "musky_cave",
+				"article": "Musky Cave"
+			},
+			{
+				"x": 77849.21, "y": 52291.52,
+				"name": "Fila's Hideaway",
+				"id": "filas_hideaway",
+				"article": "Fila's Hideaway"
+			},
+			{
+				"x": 7734.38, "y": 41531.25,
+				"name": "Cave"
+			},
+			{
+				"x": 41461.13, "y": 44713.28,
+				"name": "Hidden Eyrie",
+				"id": "the_lost_aerie",
+				"article": "Hidden Eyrie"
+			},
+			{
+				"x": 68734.38, "y": 34468.75,
+				"name": "Poison Hollow",
+				"id": "poison_hollow",
+				"article": "Poison Hollow"
+			},
+			{
+				"x": 70390.63, "y": 44312.5,
+				"name": "Duskwraith Hideaway",
+				"id": "duskwraith_hideaway",
+				"article": "Duskwraith Hideaway"
+			}
+		],
+		"EcoLabs": [
+			{
+				"x": 23743.31, "y": 6784.02,
+				"name": "Testing Station 60",
+				"id": "testing_station_60",
+				"article": "Testing Station 60"
+			},
+			{
+				"x": 93068.33, "y": 25188.35,
+				"name": "Testing Station 63",
+				"id": "testing_station_63",
+				"article": "Testing Station 63"
+			},
+			{
+				"x": 10656.25, "y": 30703.13,
+				"name": "Testing Station 73",
+				"id": "testing_station_73",
+				"article": "Testing Station 73"
+			},
+			{
+				"x": 47739.79, "y": 7182.19,
+				"name": "Testing Station 17",
+				"id": "testing_station_17",
+				"article": "Testing Station 17"
+			},
+			{
+				"x": 56476.69, "y": 6602.86,
+				"name": "Testing Station 142",
+				"id": "testing_station_142",
+				"article": "Testing Station 142"
+			},
+			{
+				"x": 93851.21, "y": 64692.28,
+				"name": "Testing Station 10",
+				"id": "testing_station_10",
+				"article": "Testing Station 10"
+			},
+			{
+				"x": 76125, "y": 20515.63,
+				"name": "Testing Station 29",
+				"id": "testing_station_29",
+				"article": "Testing Station 29"
+			},
+			{
+				"x": 64634.26, "y": 84639.97,
+				"name": "Testing Station 2",
+				"id": "testing_station_2",
+				"article": "Testing Station 2"
+			},
+			{
+				"x": 64187.5, "y": 31296.88,
+				"name": "Testing Station 76",
+				"id": "testing_station_76",
+				"article": "Testing Station 76"
+			},
+			{
+				"x": 13390.63, "y": 25343.75,
+				"name": "Testing Station 163",
+				"id": "testing_station_163",
+				"article": "Testing Station 163"
+			},
+			{
+				"x": 50088.42, "y": 63189.16,
+				"name": "Testing Station 197",
+				"id": "testing_station_197",
+				"article": "Testing Station 197"
+			},
+			{
+				"x": 41680.33, "y": 45323.92,
+				"name": "Testing Station 13",
+				"id": "testing_station_13",
+				"article": "Testing Station 13"
+			},
+			{
+				"x": 75187.5, "y": 35875,
+				"name": "Testing Station 117",
+				"id": "testing_station_117",
+				"article": "Testing Station 117"
+			}
+		],
+		"TradingPosts": [
+			{
+				"x": 29248.26, "y": 35553.63,
+				"name": "The Crossroads Trading Post",
+				"id": "the_crossroads_trading_post",
+				"article": "The Crossroads Trading Post"
+			},
+			{
+				"x": 78632.09, "y": 56096.3,
+				"name": "The Anvil Trading Post",
+				"id": "the_anvil_trading_post",
+				"article": "The Anvil Trading Post"
+			},
+			{
+				"x": 51513.26, "y": 18126.8,
+				"name": "Pinnacle Trading Post",
+				"id": "pinnacle_trading_post",
+				"article": "Pinnacle Trading Post"
+			},
+			{
+				"x": 58026.79, "y": 82526.2,
+				"name": "Griffin's Reach Trading Post",
+				"id": "griffins_reach_trading_post",
+				"article": "Griffin's Reach Trading Post"
+			}
+		],
+		"Outposts": [
+			{
+				"x": 26235.45, "y": 3581,
+				"name": "Atreides Outpost"
+			},
+			{
+				"x": 41816.55, "y": 4035.7,
+				"name": "Atreides Outpost"
+			},
+			{
+				"x": 17796.88, "y": 61890.63,
+				"name": "Edge of Acheron",
+				"id": "edge_of_acheron",
+				"article": "Edge of Acheron"
+			},
+			{
+				"x": 9000, "y": 38875,
+				"name": "Harkonnen Outpost"
+			},
+			{
+				"x": 62896.28, "y": 60276.86,
+				"name": "Westview",
+				"id": "westview",
+				"article": "Westview"
+			},
+			{
+				"x": 33272.24, "y": 30872.03,
+				"name": "Ironwatch",
+				"id": "ironwatch",
+				"article": "Ironwatch"
+			},
+			{
+				"x": 27604.22, "y": 23199.84,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 51609.38, "y": 32578.13,
+				"name": "Eastern Jumble",
+				"id": "eastern_jumble",
+				"article": "Eastern Jumble"
+			},
+			{
+				"x": 56392.94, "y": 26403.4,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 56281.25, "y": 28312.5,
+				"name": "Piter's Net",
+				"id": "piters_net",
+				"article": "Piter's Net"
+			},
+			{
+				"x": 13984.38, "y": 27218.75,
+				"name": "House Of Fiqh",
+				"id": "house_of_fiqh",
+				"article": "House Of Fiqh"
+			},
+			{
+				"x": 67328.13, "y": 33250,
+				"name": "The Slant",
+				"id": "the_slant",
+				"article": "The Slant"
+			},
+			{
+				"x": 67015.63, "y": 38578.13,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 65781.25, "y": 41000,
+				"name": "The Sweep",
+				"id": "the_sweep",
+				"article": "The Sweep"
+			},
+			{
+				"x": 72480.99, "y": 37282,
+				"name": "The Glutton",
+				"id": "the_glutton",
+				"article": "The Glutton"
+			},
+			{
+				"x": 77734.38, "y": 39218.75,
+				"name": "Kant's Tower",
+				"id": "kants_tower",
+				"article": "Kant's Tower"
+			},
+			{
+				"x": 74211.01, "y": 30901.16,
+				"name": "Chattel Passage",
+				"id": "chattel_passage",
+				"article": "Chattel Passage"
+			},
+			{
+				"x": 81515.63, "y": 43531.25,
+				"name": "Runaway Station",
+				"id": "runaway_station",
+				"article": "Runaway Station"
+			},
+			{
+				"x": 80041.27, "y": 51680.88,
+				"name": "NPC Camp"
+			},
+			{
+				"x": 62437.5, "y": 26187.5,
+				"name": "Dayside",
+				"id": "dayside",
+				"article": "Dayside"
+			},
+			{
+				"x": 70171.88, "y": 24984.38,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 71031.25, "y": 25796.88,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 73906.25, "y": 28359.38,
+				"name": "Southwest Bunker (Top)",
+				"id": "southwest_bunker_top",
+				"article": "Southwest Bunker (Top)"
+			},
+			{
+				"x": 75156.25, "y": 29781.25,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 76671.88, "y": 26593.75,
+				"name": "Southwest Bunker (Bottom)",
+				"id": "southwest_bunker_bottom",
+				"article": "Southwest Bunker (Bottom)"
+			},
+			{
+				"x": 75546.88, "y": 26859.38,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 79906.25, "y": 27187.5,
+				"name": "The Spiral",
+				"id": "the_spiral",
+				"article": "The Spiral"
+			},
+			{
+				"x": 78906.77, "y": 27965.14,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 7351.11, "y": 11384.64,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 14587.36, "y": 3325.22,
+				"name": "Shield Wall Command",
+				"id": "shield_wall_command",
+				"article": "Shield Wall Command"
+			},
+			{
+				"x": 23623.1, "y": 3497.51,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 23680.54, "y": 11384.64,
+				"name": "The Depot",
+				"id": "the_depot",
+				"article": "The Depot"
+			},
+			{
+				"x": 30234.68, "y": 10157.12,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 38454.88, "y": 3909.77,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 29686.67, "y": 26566.21,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 33225.27, "y": 23105.89,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 40725.22, "y": 17907.6,
+				"name": "Sentinel City",
+				"id": "sentinel_city",
+				"article": "Sentinel City"
+			},
+			{
+				"x": 46283.64, "y": 23967.06,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 54597.79, "y": 14729.12,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 57040.36, "y": 11503.67,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 59640.63, "y": 19500,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 80546.88, "y": 19812.5,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 86382.57, "y": 17641.42,
+				"name": "Kel's Splinter",
+				"id": "kels_splinter",
+				"article": "Kel's Splinter"
+			},
+			{
+				"x": 92817.81, "y": 23215.5,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 93130.2, "y": 26950,
+				"name": "The Cells",
+				"id": "the_cells",
+				"article": "The Cells"
+			},
+			{
+				"x": 93256.22, "y": 33079.74,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 86194.68, "y": 24937.82,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 20015.63, "y": 19718.75,
+				"name": "House of Ilm",
+				"id": "house_of_ilm",
+				"article": "House of Ilm"
+			},
+			{
+				"x": 6125, "y": 25500,
+				"name": "Taqwa's Watch",
+				"id": "taqwas_watch",
+				"article": "Taqwa's Watch"
+			},
+			{
+				"x": 20437.5, "y": 17671.88,
+				"name": "Pyon Village 1",
+				"id": "pyon_village_1",
+				"article": "Pyon Village 1"
+			},
+			{
+				"x": 6281.25, "y": 30609.38,
+				"name": "Pyon Village 2",
+				"id": "pyon_village_2",
+				"article": "Pyon Village 2"
+			},
+			{
+				"x": 5281.25, "y": 32265.63,
+				"name": "Wormsight Spire",
+				"id": "wormsight_spire",
+				"article": "Wormsight Spire"
+			},
+			{
+				"x": 6703.13, "y": 18515.63,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 94884.6, "y": 37260.3,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 78866.95, "y": 50710.11,
+				"name": "The Bulwark",
+				"id": "the_bulwark",
+				"article": "The Bulwark"
+			},
+			{
+				"x": 77489.09, "y": 52542.04,
+				"name": "Slaver's Regret",
+				"id": "slavers_regret",
+				"article": "Slaver's Regret"
+			},
+			{
+				"x": 77238.57, "y": 67620.24,
+				"name": "Aren's Post",
+				"id": "arens_post",
+				"article": "Aren's Post"
+			},
+			{
+				"x": 76659.24, "y": 69420.85,
+				"name": "Scav's Hope",
+				"id": "scavs_hope",
+				"article": "Scav's Hope"
+			},
+			{
+				"x": 77676.98, "y": 70141.1,
+				"name": "Southeast Ironworks",
+				"id": "southeast_ironworks",
+				"article": "Southeast Ironworks"
+			},
+			{
+				"x": 75359.67, "y": 68309.17,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 64900.44, "y": 64974.12,
+				"name": "Southview",
+				"id": "southview",
+				"article": "Southview"
+			},
+			{
+				"x": 66481.85, "y": 60856.19,
+				"name": "Mendia's Gate",
+				"id": "mendias_gate",
+				"article": "Mendia's Gate"
+			},
+			{
+				"x": 69347.18, "y": 60683.95,
+				"name": "Eastview",
+				"id": "eastview",
+				"article": "Eastview"
+			},
+			{
+				"x": 65505.89, "y": 54184.96,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 56633.27, "y": 65647.39,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 58261.65, "y": 70391.62,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 56899.45, "y": 70047.15,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 58058.1, "y": 68747.58,
+				"name": "Southwest Ironworks",
+				"id": "southwest_ironworks",
+				"article": "Southwest Ironworks"
+			},
+			{
+				"x": 56664.58, "y": 65146.35,
+				"name": "The Roost",
+				"id": "the_roost",
+				"article": "The Roost"
+			},
+			{
+				"x": 53392.16, "y": 53872.93,
+				"name": "Salan's Refuge",
+				"id": "salans_refuge",
+				"article": "Salan's Refuge"
+			},
+			{
+				"x": 57917.19, "y": 50490.91,
+				"name": "Dead Man's Depot",
+				"id": "dead_mans_depot",
+				"article": "Dead Man's Depot"
+			},
+			{
+				"x": 45109.33, "y": 41065.08,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 44686.58, "y": 42380.31,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 43293.06, "y": 42035.84,
+				"name": "Northwest Ironworks",
+				"id": "northwest_ironworks",
+				"article": "Northwest Ironworks"
+			},
+			{
+				"x": 43637.52, "y": 43445.02,
+				"name": "Miner's Watch",
+				"id": "miners_watch",
+				"article": "Miner's Watch"
+			},
+			{
+				"x": 40834.83, "y": 55563.94,
+				"name": "Enemy Outpost"
+			},
+			{
+				"x": 39676.17, "y": 58476.24,
+				"name": "Flatrock Outpost",
+				"id": "flatrock_outpost",
+				"article": "Flatrock Outpost"
+			},
+			{
+				"x": 39942.35, "y": 63643.23,
+				"name": "Menol's Folly",
+				"id": "menols_folly",
+				"article": "Menol's Folly"
+			},
+			{
+				"x": 63475.61, "y": 89666.03,
+				"name": "Threeway Outpost",
+				"id": "threeway_outpost",
+				"article": "Threeway Outpost"
+			},
+			{
+				"x": 67092.49, "y": 91482.31,
+				"name": "Keyhole Rock",
+				"id": "keyhole_rock",
+				"article": "Keyhole Rock"
+			},
+			{
+				"x": 65652, "y": 94065.8,
+				"name": "Broken Stone Station",
+				"id": "broken_stone_station",
+				"article": "Broken Stone Station"
+			},
+			{
+				"x": 83141.46, "y": 84718.26,
+				"name": "Hollow Arches",
+				"id": "hollow_arches",
+				"article": "Hollow Arches"
+			},
+			{
+				"x": 69488.1, "y": 83872.75,
+				"name": "Breaker Station",
+				"id": "breaker_station",
+				"article": "Breaker Station"
+			},
+			{
+				"x": 52027.94, "y": 85875.59,
+				"name": "Dewgap Gateway",
+				"id": "dewgap_gateway",
+				"article": "Dewgap Gateway"
+			},
+			{
+				"x": 51814.93, "y": 80763.33,
+				"name": "Sim's Jackpot",
+				"id": "sims_jackpot",
+				"article": "Sim's Jackpot"
+			},
+			{
+				"x": 69253.23, "y": 94598.15,
+				"name": "The Scrape",
+				"id": "the_scrape",
+				"article": "The Scrape"
+			},
+			{
+				"x": 76312.5, "y": 29468.75,
+				"name": "CHOAM Mineral Extraction Facility 17",
+				"id": "choam_mineral_extraction_facility_17",
+				"article": "CHOAM Mineral Extraction Facility 17"
+			},
+			{
+				"x": 82171.88, "y": 26468.75,
+				"name": "CHOAM Mineral Extraction Facility 4",
+				"id": "choam_mineral_extraction_facility_4",
+				"article": "CHOAM Mineral Extraction Facility 4"
+			},
+			{
+				"x": 85474.43, "y": 37917.91,
+				"name": "CHOAM Mineral Extraction Facility 2",
+				"id": "choam_mineral_extraction_facility_2",
+				"article": "CHOAM Mineral Extraction Facility 2"
+			},
+			{
+				"x": 84488.01, "y": 38810.39,
+				"name": "CHOAM Mineral Extraction Facility 1",
+				"id": "choam_mineral_extraction_facility_1",
+				"article": "CHOAM Mineral Extraction Facility 1"
+			}
+		],
+		"Landmark": [
+			{
+				"x": 20921.88, "y": 32765.63,
+				"name": "Mysa Tarill",
+				"id": "mysa_tarill",
+				"article": "Mysa Tarill"
+			},
+			{
+				"x": 40177.21, "y": 16936.83,
+				"name": "The Sentinel ('Godzilla Rock')",
+				"id": "the_sentinel",
+				"article": "The Sentinel"
+			},
+			{
+				"x": 80886.77, "y": 67228.8,
+				"name": "Spy Nest",
+				"id": "spy-nest"
+			},
+			{
+				"x": 43711.19, "y": 73914.87,
+				"name": "The Mithra",
+				"id": "the-mithra",
+				"article": "The Mithra"
+			}
+		],
+		"Atreides": [
+			{
+				"x": 50151.05, "y": 27443.03,
+				"name": "Fortress - Helius' Reach",
+				"id": "fortress__helius_reach",
+				"article": "Fortress - Helius' Reach"
+			},
+			{
+				"x": 51043.53, "y": 25924.25,
+				"name": "Atreides Landsraad Representative",
+				"id": "atreides_landsraad_representative",
+				"article": "Atreides Landsraad Representative"
+			}
+		],
+		"Harkonnen": [
+			{
+				"x": 88214.5, "y": 57959.55,
+				"name": "Fortress",
+				"id": "fortress",
+				"article": "Fortress"
+			},
+			{
+				"x": 87431.62, "y": 52682.96,
+				"name": "Harkonnen Landsraad Representative",
+				"id": "harkonnen_landsraad_representative",
+				"article": "Harkonnen Landsraad Representative"
+			}
+		],
+		"Aql": [
+			{
+				"id": "1st_trial", "x": 66027.78, "y": 90605.48,
+				"name": "1st Trial",
+				"article": "The First Trial Of Aql"
+			},
+			{
+				"id": "2nd_trial", "x": 78193.68, "y": 66806.05,
+				"name": "2nd Trial",
+				"article": "The Second Trial Of Aql"
+			},
+			{
+				"id": "3rd_trial", "x": 40881.8, "y": 56096.3,
+				"name": "3rd Trial",
+				"article": "The Third Trial Of Aql"
+			},
+			{
+				"id": "4th_trial", "x": 66293.96, "y": 59055.57,
+				"name": "4th Trial",
+				"article": "The Fourth Trial Of Aql"
+			},
+			{
+				"id": "5th_trial", "x": 90453.52, "y": 43116.21,
+				"name": "5th Trial",
+				"article": "The Fifth Trial Of Aql"
+			},
+			{
+				"id": "6th_trial", "x": 93522.4, "y": 16701.97,
+				"name": "6th Trial",
+				"article": "The Sixth Trial Of Aql"
+			},
+			{
+				"id": "7th_trial", "x": 71562.5, "y": 27218.75,
+				"name": "7th Trial",
+				"article": "The Seventh Trial Of Aql"
+			},
+			{
+				"x": 39973.66, "y": 29040.1,
+				"name": "The Sietch",
+				"id": "the_sietch",
+				"article": "The Sietch"
+			}
+		],
+		"Intel": [
+			{
+				"x": 69331.52, "y": 94754.73,
+				"name": "2 Intel Points",
+				"article": "The Scrape#Intel",
+				"description": "Located in [[The Scrape]]"
+			},
+			{
+				"x": 69300.21, "y": 84091.95,
+				"name": "3 Intel Points",
+				"article": "Breaker Station#Intel",
+				"description": "Located in [[Breaker Station]]"
+			},
+			{
+				"x": 66093.75, "y": 41125,
+				"name": "10 Intel Points",
+				"article": "The Sweep#Intel",
+				"description": "Located in [[The Sweep]]"
+			},
+			{
+				"x": 77625, "y": 39515.63,
+				"name": "10 Intel Points",
+				"article": "Kant's Tower#Intel",
+				"description": "Located in [[Kant's Tower]]"
+			},
+			{
+				"x": 63046.88, "y": 26187.5,
+				"name": "10 Intel Points",
+				"article": "Dayside#Intel",
+				"description": "Located in [[Dayside]]"
+			},
+			{
+				"x": 74078.72, "y": 30538.73,
+				"name": "10 Intel Points",
+				"article": "Chattel Passage#Intel",
+				"description": "Located in [[Chattel Passage]]"
+			},
+			{
+				"x": 72736.72, "y": 37439.75,
+				"name": "10 Intel Points",
+				"article": "The Glutton#Intel",
+				"description": "Located in [[The Glutton]]"
+			},
+			{
+				"x": 72468.31, "y": 37597.66,
+				"name": "10 Intel Points",
+				"article": "The Glutton#Intel",
+				"description": "Located in [[The Glutton]]"
+			},
+			{
+				"x": 40083.26, "y": 18111.14,
+				"name": "10 Intel Points",
+				"article": "Sentinel City#Intel",
+				"description": "Located in [[Sentinel City]]"
+			},
+			{
+				"x": 85959.81, "y": 17891.94,
+				"name": "10 Intel Points",
+				"article": "Kel's Splinter#Intel",
+				"description": "Located in [[Kel's Splinter]]"
+			},
+			{
+				"x": 75656.25, "y": 27000,
+				"name": "10 Intel Points",
+				"article": "Southwest Bunker (Bottom)#Intel",
+				"description": "Located in [[Southwest Bunker (Bottom)]]"
+			},
+			{
+				"x": 76671.88, "y": 26609.38,
+				"name": "10 Intel Points",
+				"article": "Southwest Bunker (Bottom)#Intel",
+				"description": "Located in [[Southwest Bunker (Bottom)]]"
+			},
+			{
+				"x": 81796.88, "y": 43296.88,
+				"name": "10 Intel Points",
+				"article": "Runaway Station#Intel",
+				"description": "Located in [[Runaway Station]]"
+			},
+			{
+				"x": 67640.63, "y": 33109.38,
+				"name": "10 Intel Points",
+				"article": "The Slant#Intel",
+				"description": "Located in [[The Slant]]"
+			},
+			{
+				"x": 56468.75, "y": 28250,
+				"name": "10 Intel Points",
+				"article": "Piter's Net#Intel",
+				"description": "Located in [[Piter's Net]]"
+			},
+			{
+				"x": 51890.63, "y": 32734.38,
+				"name": "10 Intel Points",
+				"article": "Eastern Jumble#Intel",
+				"description": "Located in [[Eastern Jumble]]"
+			},
+			{
+				"x": 42588.47, "y": 23716.54,
+				"name": "20 Intel Points"
+			},
+			{
+				"x": 13078.13, "y": 27171.88,
+				"name": "20 Intel Points",
+				"article": "House Of Fiqh#Intel",
+				"description": "Located in [[House Of Fiqh]]"
+			},
+			{
+				"x": 23393.38, "y": 4014.39,
+				"name": "20 Intel Points"
+			},
+			{
+				"x": 9136.46, "y": 38957.34,
+				"name": "20 Intel Points (Harkonnen base on cliff)",
+				"id": "20_intel_points_harkonnen_base_on_cliff",
+				"article": "20 Intel Points (Harkonnen base on cliff)"
+			},
+			{
+				"x": 14013.06, "y": 3133.78,
+				"name": "20 Intel Points",
+				"article": "Shield Wall Command#Intel",
+				"description": "Located in [[Shield Wall Command]]"
+			},
+			{
+				"x": 19187.5, "y": 19843.75,
+				"name": "20 Intel Points",
+				"article": "House of Ilm#Intel",
+				"description": "Located in [[House of Ilm]]"
+			},
+			{
+				"x": 22857.36, "y": 11767.51,
+				"name": "20 Intel Points",
+				"article": "The Depot#Intel",
+				"description": "Located in [[The Depot]]"
+			},
+			{
+				"x": 19984.38, "y": 31015.63,
+				"name": "20 Intel Points",
+				"article": "Mysa Tarill#Intel",
+				"description": "Located in [[Mysa Tarill]]"
+			},
+			{
+				"x": 17578.13, "y": 62000,
+				"name": "30 Intel Points",
+				"id": "30_intel_points",
+				"article": "30 Intel Points"
+			},
+			{
+				"x": 41273.64, "y": 4221.15,
+				"name": "20 Intel Points"
+			},
+			{
+				"x": 26866.24, "y": 3423.85,
+				"name": "20 Intel Points"
+			},
+			{
+				"x": 32849.49, "y": 30762.42,
+				"name": "20 Intel Points",
+				"article": "Ironwatch#Intel",
+				"description": "Located in [[Ironwatch]]"
+			},
+			{
+				"x": 27525.93, "y": 22949.32,
+				"name": "20 Intel Points"
+			},
+			{
+				"x": 6531.25, "y": 25328.13,
+				"name": "20 Intel Points",
+				"article": "Taqwa's Watch#Intel",
+				"description": "Located in [[Taqwa's Watch]]"
+			},
+			{
+				"x": 73335.99, "y": 25720.78,
+				"name": "10 Intel Points"
+			},
+			{
+				"x": 51857.72, "y": 80455.42,
+				"name": "3 Intel Points",
+				"article": "Sim's Jackpot#Intel",
+				"description": "Located in [[Sim's Jackpot]]"
+			},
+			{
+				"x": 82922.25, "y": 84467.74,
+				"name": "3 Intel Points",
+				"article": "Hollow Arches#Intel",
+				"description": "Located in [[Hollow Arches]]"
+			},
+			{
+				"x": 67202.1, "y": 91638.88,
+				"name": "3 Intel Points",
+				"article": "Keyhole Rock#Intel",
+				"description": "Located in [[Keyhole Rock]]"
+			},
+			{
+				"x": 63005.88, "y": 89806.95,
+				"name": "3 Intel Points",
+				"article": "Threeway Outpost#Intel",
+				"description": "Located in [[Threeway Outpost]]"
+			},
+			{
+				"x": 65871.21, "y": 93846.59,
+				"name": "3 Intel Points",
+				"article": "Broken Stone Station#Intel",
+				"description": "Located in [[Broken Stone Station]]"
+			},
+			{
+				"x": 51962.36, "y": 85486.78,
+				"name": "3 Intel Points",
+				"article": "Dewgap Gateway#Intel",
+				"description": "Located in [[Dewgap Gateway]]"
+			},
+			{
+				"x": 77473.43, "y": 52917.82,
+				"name": "5 Intel Points",
+				"article": "Slaver's Regret#Intel",
+				"description": "Located in [[Slaver's Regret]]"
+			},
+			{
+				"x": 78819.98, "y": 50490.91,
+				"name": "5 Intel Points",
+				"article": "The Bulwark#Intel",
+				"description": "Located in [[The Bulwark]]"
+			},
+			{
+				"x": 76706.22, "y": 69217.31,
+				"name": "5 Intel Points",
+				"article": "Scav's Hope#Intel",
+				"description": "Located in [[Scav's Hope]]"
+			},
+			{
+				"x": 57870.21, "y": 50459.59,
+				"name": "5 Intel Points",
+				"article": "Dead Man's Depot#Intel",
+				"description": "Located in [[Dead Man's Depot]]"
+			},
+			{
+				"x": 53595.71, "y": 53919.9,
+				"name": "5 Intel Points",
+				"article": "Salan's Refuge#Intel",
+				"description": "Located in [[Salan's Refuge]]"
+			},
+			{
+				"x": 69221.92, "y": 60417.78,
+				"name": "5 Intel Points",
+				"article": "Eastview#Intel",
+				"description": "Located in [[Eastview]]"
+			},
+			{
+				"x": 66419.22, "y": 60840.53,
+				"name": "5 Intel Points",
+				"article": "Mendia's Gate#Intel",
+				"description": "Located in [[Mendia's Gate]]"
+			},
+			{
+				"x": 40286.81, "y": 63737.17,
+				"name": "5 Intel Points",
+				"article": "Menol's Folly#Intel",
+				"description": "Located in [[Menol's Folly]]"
+			},
+			{
+				"x": 58245.99, "y": 69201.65,
+				"name": "5 Intel Points",
+				"article": "Southwest Ironworks#Intel",
+				"description": "Located in [[Southwest Ironworks]]"
+			},
+			{
+				"x": 64524.66, "y": 65318.58,
+				"name": "5 Intel Points",
+				"article": "Southview#Intel",
+				"description": "Located in [[Southview]]"
+			},
+			{
+				"x": 77473.43, "y": 67291.43,
+				"name": "5 Intel Points",
+				"article": "Aren's Post#Intel",
+				"description": "Located in [[Aren's Post]]"
+			},
+			{
+				"x": 56194.86, "y": 65506.47,
+				"name": "5 Intel Points",
+				"article": "The Roost#Intel",
+				"description": "Located in [[The Roost]]"
+			},
+			{
+				"x": 39347.36, "y": 58210.07,
+				"name": "5 Intel Points",
+				"article": "Flatrock Outpost#Intel",
+				"description": "Located in [[Flatrock Outpost]]"
+			},
+			{
+				"x": 62614.44, "y": 60668.3,
+				"name": "5 Intel Points",
+				"article": "Westview#Intel",
+				"description": "Located in [[Westview]]"
+			}
+		],
+		"Loot": [
+			{
+				"x": 76135.8, "y": 84139.58,
+				"name": "Kaleff's Drinker (Wreck of the Alcyon)",
+				"id": "kaleffs_drinker",
+				"article": "Kaleff's Drinker Schematic"
+			},
+			{
+				"x": 66012.13, "y": 94206.72,
+				"name": "Aren's Vengance",
+				"article": "Aren's Vengance",
+				"id": "arens_vengance"
+			},
+			{
+				"x": 55767.32, "y": 83887.96,
+				"name": "Way of the Fallen (Old Griffin Hideaway)",
+				"id": "way_of_the_fallen",
+				"article": "Way of the Fallen Schematic"
+			},
+			{
+				"x": 43762.78, "y": 25360.58,
+				"name": "Industrial Blood Extractor",
+				"article": "Industrial Blood Extractor",
+				"id": "industrial_blood_extractor"
+			},
+			{
+				"x": 72547.26, "y": 36981.79,
+				"name": "Advanced Body Scanner",
+				"article": "Advanced Body Scanner",
+				"id": "advanced_body_scanner"
+			},
+			{
+				"x": 89654.99, "y": 55031.59,
+				"name": "Advanced Compact Compactor",
+				"article": "Advanced Compact Compactor"
+			},
+			{
+				"x": 63406.25, "y": 31281.25,
+				"name": "Steel Dew Gloves",
+				"article": "Steel Dew Gloves",
+				"id": "steel_dew_gloves"
+			},
+			{
+				"x": 56993.39, "y": 6368,
+				"name": "House Last Words",
+				"article": "House Last Words",
+				"id": "house_last_words"
+			},
+			{
+				"x": 9109.38, "y": 38906.25,
+				"name": "Alumite Oathbreaker Boots",
+				"article": "Alumite Oathbreaker Boots",
+				"id": "alumite_oathbreaker_boots"
+			},
+			{
+				"x": 73953.13, "y": 28312.5,
+				"name": "Steel Pincushion Chestpiece",
+				"article": "Steel Pincushion Chestpiece",
+				"id": "steel_pincushion_chestpiece"
+			},
+			{
+				"x": 5890.63, "y": 18843.75,
+				"name": "Alumite Suspensor-aided Harness",
+				"article": "Alumite Suspensor-aided Harness",
+				"id": "alumite_suspensoraided_harness"
+			},
+			{
+				"x": 74640.63, "y": 37078.13,
+				"name": "Advanced Filtered Exsanguination Tool",
+				"article": "Advanced Filtered Exsanguination Tool",
+				"id": "advanced_filtered_exsanguination_tool"
+			},
+			{
+				"x": 57734.38, "y": 21937.5,
+				"name": "Advanced Compact Compactor",
+				"article": "Advanced Compact Compactor"
+			},
+			{
+				"x": 52061.27, "y": 86213.31,
+				"name": "Hollower Stillsuit",
+				"id": "hollower_stillsuit",
+				"article": "Hollower Stillsuit Schematics"
+			},
+			{
+				"x": 73492.36, "y": 82472.36,
+				"name": "Aren's Armor",
+				"id": "arens_armor",
+				"article": "Aren's Armor Schematics"
+			},
+			{
+				"x": 38413.21, "y": 57011.55,
+				"name": "Flatrock Clifftop",
+				"id": "flatrock_clifftop",
+				"article": "Flatrock Clifftop Chest"
+			},
+			{
+				"x": 65526.74, "y": 54730,
+				"name": "Suk Alusuk Chest",
+				"id": "suk_alusuk_chest",
+				"article": "Suk Alusuk Chest"
+			},
+			{
+				"x": 69080.36, "y": 58069.71,
+				"name": "Eastview Chest",
+				"id": "eastview_chest",
+				"article": "Eastview Chest"
+			},
+			{
+				"x": 55775, "y": 49495.98,
+				"name": "Anomaly Chest",
+				"id": "anomaly_chest",
+				"article": "Anomaly Chest"
+			},
+			{
+				"x": 50213.68, "y": 45887.59,
+				"name": "Pallas Chest",
+				"id": "pallas_chest",
+				"article": "Pallas Chest"
+			},
+			{
+				"x": 78683.98, "y": 91546.79,
+				"name": "Hajra Literjon Mk1",
+				"id": "hajra_literjon_mk1",
+				"article": "Hajra Literjon Mk1 Schematic"
+			},
+			{
+				"x": 42818.94, "y": 38981.78,
+				"name": "Vermillius North Chest",
+				"id": "vermillius_north_chest",
+				"article": "Vermillius North Chest"
+			},
+			{
+				"x": 42676.06, "y": 41792.23,
+				"name": "Testing Station 13 Chest",
+				"id": "testing_station_13_chest",
+				"article": "Testing Station 13 Chest"
+			},
+			{
+				"x": 94520.79, "y": 64156.78,
+				"name": "Testing Station 10 Chest",
+				"id": "testing_station_10_chest",
+				"article": "Testing Station 10 Chest"
+			},
+			{
+				"x": 80160.49, "y": 53486.58,
+				"name": "Ghanima Cavern Chest",
+				"id": "ghanima_cavern_chest",
+				"article": "Ghanima Cavern Chest"
+			},
+			{
+				"x": 67657.74, "y": 92237.5,
+				"name": "Keyhole Rock Chest",
+				"id": "keyhole_rock_chest",
+				"article": "Keyhole Rock Chest"
+			},
+			{
+				"x": 39723.02, "y": 55630.15,
+				"name": "Oathbreaker Armor",
+				"id": "oathbreaker_armor",
+				"article": "Oathbreaker Armor Schematics"
+			},
+			{
+				"x": 65849.26, "y": 59030.03,
+				"name": "Misrabar Top Chest",
+				"id": "misrabar_top_chest",
+				"article": "Misrabar Top Chest"
+			},
+			{
+				"x": 51059.19, "y": 63455.34,
+				"name": "Testing Station 197 Chest",
+				"id": "testing_station_197_chest",
+				"article": "Testing Station 197 Chest"
+			},
+			{
+				"x": 64278.35, "y": 84582.46,
+				"name": "The Emperor's Wings Mk1 (Testing Station 2)",
+				"id": "the_emperors_wings_mk1",
+				"article": "The Emperor's Wings Mk1 Schematic"
+			},
+			{
+				"x": 66043.69, "y": 95436.15,
+				"name": "Aren's Vengeance (Broken Stone Station)",
+				"id": "arens_vengeance",
+				"article": "Aren's Vengeance Schematic"
+			}
+		],
+		"Representatives": [
+			{
+				"x": 53595.71, "y": 53058.74,
+				"name": "House Novebruns",
+				"id": "novebruns",
+				"article": "House Novebruns"
+			},
+			{
+				"x": 93021.36, "y": 65177.66,
+				"name": "House Hurata",
+				"id": "hurata",
+				"article": "House Hurata"
+			},
+			{
+				"x": 29639.69, "y": 35804.15,
+				"name": "House Taligari",
+				"id": "_taligari",
+				"article": "House Taligari"
+			},
+			{
+				"x": 51137.48, "y": 18377.32,
+				"name": "House Sor",
+				"id": "sor",
+				"article": "House Sor"
+			},
+			{
+				"x": 78585.12, "y": 56973.12,
+				"name": "House Tseida",
+				"id": "tseida",
+				"article": "House Tseida"
+			},
+			{
+				"x": 57635.35, "y": 82119.11,
+				"name": "House Argosaz",
+				"id": "argosaz",
+				"article": "House Argosaz"
+			},
+			{
+				"x": 42367.26, "y": 28583.94,
+				"name": "House Hagal",
+				"id": "hagal",
+				"article": "House Hagal"
+			},
+			{
+				"x": 16953.13, "y": 59281.25,
+				"name": "House Wydras",
+				"id": "wydras",
+				"article": "House Wydras"
+			},
+			{
+				"x": 48788.85, "y": 27286.45,
+				"name": "House Vernius",
+				"id": "vernius",
+				"article": "House Vernius"
+			},
+			{
+				"x": 50401.57, "y": 27599.6,
+				"name": "House Richese",
+				"id": "richese",
+				"article": "House Richese"
+			},
+			{
+				"x": 17328.13, "y": 28156.25,
+				"name": "House Kenola",
+				"id": "kenola",
+				"article": "House Kenola"
+			},
+			{
+				"x": 85584.03, "y": 54890.67,
+				"name": "House Dyvetz",
+				"id": "dyvetz",
+				"article": "House Dyvetz"
+			},
+			{
+				"x": 89130.17, "y": 56724.61,
+				"name": "House Moritani",
+				"id": "moritani",
+				"article": "House Moritani"
+			},
+			{
+				"x": 91768.75, "y": 52228.89,
+				"name": "House Ecaz",
+				"id": "ecaz",
+				"article": "House Ecaz"
+			},
+			{
+				"x": 89482.76, "y": 41644.4,
+				"name": "House Thorvald",
+				"id": "thorvald",
+				"article": "House Thorvald"
+			},
+			{
+				"x": 23450.81, "y": 4799.27,
+				"name": "House Lindaren",
+				"id": "lindaren",
+				"article": "House Lindaren"
+			},
+			{
+				"x": 81591.36, "y": 21272.73,
+				"name": "House Imota",
+				"id": "imota",
+				"article": "House Imota"
+			},
+			{
+				"x": 66841.97, "y": 34422.53,
+				"name": "House Mikarrol",
+				"id": "mikarrol",
+				"article": "House Mikarrol"
+			}
+		],
+		"Trainers": [
+			{
+				"x": 65307.54, "y": 84311.16,
+				"name": "Planetologist Trainer",
+				"id": "planetologist_trainer",
+				"article": "Planetologist Trainer"
+			},
+			{
+				"x": 57604.03, "y": 82948.96,
+				"name": "Trooper Trainer",
+				"id": "trooper_trainer",
+				"article": "Trooper Trainer"
+			},
+			{
+				"x": 88558.96, "y": 57348.9,
+				"name": "Mentat Trainer",
+				"id": "mentat_trainer",
+				"article": "Mentat Trainer"
+			},
+			{
+				"x": 50476.96, "y": 25469.36,
+				"name": "Bene Gesserit Trainer",
+				"id": "bene_gesserit_trainer",
+				"article": "Bene Gesserit Trainer"
+			},
+			{
+				"x": 52076.93, "y": 18659.16,
+				"name": "Swordmaster Trainer",
+				"id": "swordmaster_trainer",
+				"article": "Swordmaster Trainer"
+			}
+		],
+		"Sandbikes": [
+			{
+				"x": 78624.91, "y": 48785.54,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 76808.79, "y": 51901.39,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 73177.39, "y": 26253.15,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 74352.61, "y": 31067.63,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 74086.45, "y": 31098.95,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 73084.45, "y": 30817.1,
+				"name": "Scrap Sandbike"
+			},
+			{
+				"x": 43629.59, "y": 41171.22,
+				"name": "Scrap Sandbike"
+			}
+		],
+		"Spiceblows": [
+			{
+				"x": 20015.63, "y": 61515.63,
+				"name": "Spice field"
+			},
+			{
+				"x": 10598.88, "y": 56872.9,
+				"name": "Spice field"
+			},
+			{
+				"x": 13698.83, "y": 51823.29,
+				"name": "Spice field"
+			},
+			{
+				"x": 23825.34, "y": 54480.98,
+				"name": "Spice field"
+			},
+			{
+				"x": 34759.71, "y": 58758.08,
+				"name": "Spice field"
+			},
+			{
+				"x": 19810.16, "y": 44322.71,
+				"name": "Spice field"
+			},
+			{
+				"x": 35339.44, "y": 32747,
+				"name": "Spice field"
+			},
+			{
+				"x": 41836.59, "y": 35057.61,
+				"name": "Spice field"
+			}
+		],
+		"NPCs": [
+			{
+				"x": 4078.13, "y": 23890.63,
+				"name": "Captain Tighe Skorda",
+				"article": "Captain Tighe Skorda",
+				"id": "captain_tighe_skorda"
+			},
+			{
+				"x": 51560.23, "y": 17829.31,
+				"name": "Tleilaxu Trader",
+				"article": "Tleilaxu Trader",
+				"id": "tleilaxu_trader"
+			},
+			{
+				"x": 89905.51, "y": 54937.64,
+				"name": "Lanov",
+				"id": "lanov",
+				"article": "Lanov"
+			},
+			{
+				"x": 58199.02, "y": 82667.12,
+				"name": "Myr Charki",
+				"id": "myr_charki",
+				"article": "Myr Charki"
+			},
+			{
+				"x": 58167.71, "y": 82494.89,
+				"name": "Ihor",
+				"id": "ihor",
+				"article": "Ihor"
+			},
+			{
+				"x": 78365.91, "y": 56581.68,
+				"name": "Tyg Rolsum",
+				"id": "tyg_rolsum",
+				"article": "Tyg Rolsum"
+			},
+			{
+				"x": 79023.53, "y": 56346.82,
+				"name": "Lieutenant Anton Tolliver",
+				"id": "lieutenant_anton_tolliver",
+				"article": "Lieutenant Anton Tolliver"
+			},
+			{
+				"x": 78866.95, "y": 55798.81,
+				"name": "Levenbrech Maxim Kazmir",
+				"id": "levenbrech_maxim_kazmir",
+				"article": "Levenbrech Maxim Kazmir"
+			},
+			{
+				"x": 78365.91, "y": 56190.24,
+				"name": "Mobula Gang Member (Anvil)",
+				"id": "mobula_gang_member_anvil",
+				"article": "Mobula Gang Member (Anvil)"
+			},
+			{
+				"x": 87635.17, "y": 57646.39,
+				"name": "Harkonnen Acquisitor",
+				"id": "harkonnen_acquisitor",
+				"article": "Harkonnen Acquisitor"
+			},
+			{
+				"x": 88355.41, "y": 56785.23,
+				"name": "Simone Von Konig",
+				"id": "simone_von_konig",
+				"article": "Simone Von Konig"
+			},
+			{
+				"x": 88355.41, "y": 56221.56,
+				"name": "Mobula Gang Member (Harkonnen)",
+				"id": "mobula_gang_member_harkonnen",
+				"article": "Mobula Gang Member (Harkonnen)"
+			},
+			{
+				"x": 51967.33, "y": 17907.6,
+				"name": "Traj Axxari",
+				"id": "traj_axxari",
+				"article": "Traj Axxari"
+			},
+			{
+				"x": 51106.16, "y": 17876.28,
+				"name": "Gloos Bohannon",
+				"id": "gloos_bohannon",
+				"article": "Gloos Bohannon"
+			},
+			{
+				"x": 50276.31, "y": 27521.32,
+				"name": "Atreides Steward",
+				"id": "atreides_steward",
+				"article": "Atreides Steward"
+			},
+			{
+				"x": 50025.79, "y": 27443.03,
+				"name": "Andrea Ganan",
+				"id": "andrea_ganan",
+				"article": "Andrea Ganan"
+			},
+			{
+				"x": 49994.48, "y": 27630.92,
+				"name": "Duncan Idaho",
+				"id": "duncan_idaho",
+				"article": "Duncan Idaho"
+			},
+			{
+				"x": 29389.17, "y": 35741.52,
+				"name": "Zoe",
+				"id": "zoe",
+				"article": "Zoe"
+			},
+			{
+				"x": 29044.71, "y": 35537.97,
+				"name": "Tripp Yates",
+				"id": "tripp_yates",
+				"article": "Tripp Yates"
+			},
+			{
+				"x": 91048.51, "y": 49598.43,
+				"name": "Katrina Chloros",
+				"id": "katrina_chloros",
+				"article": "Katrina Chloros"
+			},
+			{
+				"x": 43029.72, "y": 74726.86,
+				"name": "Lieutenant Drangh",
+				"id": "lieutenant_drangh",
+				"article": "Lieutenant Drangh"
+			},
+			{
+				"x": 42820.04, "y": 74491.12,
+				"name": "Quartermaster Hix",
+				"id": "quartermaster_hix",
+				"article": "Quartermaster Hix"
+			},
+			{
+				"x": 43527.72, "y": 74910.21,
+				"name": "Chief Hanso",
+				"id": "chief_hanso",
+				"article": "Chief Hanso"
+			}
+		],
+		"Agave": [
+			{
+				"x": 4728.57, "y": 32562.74,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 7781.79, "y": 32390.5,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 6059.46, "y": 30088.85,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 5245.27, "y": 28037.71,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 3632.55, "y": 27442.72,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 2583.49, "y": 26127.49,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 6591.82, "y": 26675.51,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 7938.37, "y": 28617.04,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 9065.71, "y": 28961.5,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 9785.95, "y": 30370.68,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 10694.09, "y": 31638.94,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 12494.71, "y": 29133.74,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 10960.27, "y": 25360.27,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 8329.8, "y": 25062.78,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 7327.72, "y": 23183.88,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 5480.13, "y": 20866.56,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 8423.75, "y": 21320.63,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 9128.34, "y": 20302.89,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 13715.99, "y": 23825.84,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 18428.91, "y": 26127.49,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 20949.77, "y": 26597.22,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 21184.63, "y": 20506.44,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 19806.77, "y": 22150.48,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 17458.14, "y": 20271.58,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 18929.95, "y": 18940.69,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 18460.22, "y": 16858.24,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 20542.67, "y": 16451.14,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 13997.83, "y": 20302.89,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 14310.98, "y": 18940.69,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 15955.02, "y": 18157.81,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 14201.38, "y": 16686,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 12181.55, "y": 16983.5,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 12165.9, "y": 18596.22,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 13590.73, "y": 18517.94,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 12807.86, "y": 19613.96,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 8658.61, "y": 18455.31,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 7499.95, "y": 16686,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 6920.63, "y": 16263.25,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			},
+			{
+				"x": 5401.85, "y": 18611.88,
+				"name": "Agave Seeds",
+				"article": "Agave Seeds"
+			}
+		],
+		"Custom": []
+	}
+}

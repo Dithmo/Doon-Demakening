@@ -1,0 +1,7 @@
+# Fetched from the wiki by tools/fetch_map_data.py, not vendored
+data/*.webp
+data/*.png
+
+# Godot
+.godot/
+*.import
