@@ -4,6 +4,8 @@ Dune: Awakening is a survival crafting/building MMO. This is the whole-game
 build order. `terrain-plan.md` covers one input to Phase 5 and is not the
 project plan.
 
+**Decided:** server-authoritative multiplayer from day one; tight content spine.
+
 ## What the real game contains
 
 Taken from the community wiki's own category structure, not from memory:
@@ -40,12 +42,46 @@ the reason a gathering run is a decision rather than a chore. It needs an
 economy to threaten before it means anything, which is why it lands in Phase 4
 and not Phase 1.
 
+## Architecture: server-authoritative from day one
+
+The client never owns game state. It sends intent; the server simulates and
+replicates results. Non-negotiable for hydration, inventory, crafting, building
+placement and loot, because every one of those is trivially cheatable
+client-side.
+
+**Solo play is a one-client session against a local headless server.** This is
+the mitigation that makes the multiplayer choice affordable: you do not lose
+fast solo iteration, you just always run the split. Build the headless server
+target and a `run N clients` script in Phase 0 and never test any other way — an
+MP bug found in week 1 is cheap, the same bug found in Phase 4 is not.
+
+Rules that stay true for the whole project:
+
+- **Prediction for movement only.** Player locomotion predicts and reconciles.
+  Everything else — pick up, craft, place, drink, attack — is request → server
+  validates → replicated result. A 100 ms delay on "drink" is unnoticeable; a
+  desynced inventory is fatal.
+- **Gameplay code never reads local state directly.** All reads go through the
+  replicated store, so there is exactly one code path on host and client.
+- **Server owns the clock.** Time-of-day drives heat, hydration drain and dew
+  harvesting; if it drifts per-client the whole survival loop desyncs.
+- **The terrain pipeline output is shared, static, and identical both sides.**
+  Server needs the mask for worm logic and validation; client needs mesh plus
+  mask for prediction. Since `terrain-plan.md` emits plain files, this is free —
+  ship the same artefacts to both, version them, and refuse mismatched clients.
+- **Persistence is server-side.** Built structures and containers outlive the
+  session that made them.
+
+Godot 4 gives you `MultiplayerSpawner`, `MultiplayerSynchronizer` and RPCs over
+ENet. That covers replication; it does not cover authority discipline, which is
+on us.
+
 ## Dependency order
 
 Nothing here is arbitrary — each phase is blocked on the one before it.
 
 ```
-Foundations (player, terrain iface, inventory, item DB)
+Foundations (net spine, player, terrain iface, inventory, item DB)
      |
 Water loop  ->  Economy (gather/craft)  ->  Base (place/power/store)
                                                   |
@@ -55,92 +91,103 @@ Water loop  ->  Economy (gather/craft)  ->  Base (place/power/store)
                                                   |
                                           Progression -> Content
                                                   |
-                                          Stretch (vehicles, Deep Desert, MP)
+                                          Stretch (vehicles, Deep Desert, guilds)
 ```
 
 **Inventory and the item database are the root.** Crafting, building, loot,
 gathering, vendors and equipment all resolve to item IDs. Build it once, early,
 and generously — a data-driven `ItemDef` resource with stack size, slot, weight,
 and a `use` behaviour hook. Getting this wrong is the single most expensive
-mistake available, because everything downstream references it.
+mistake available, because everything downstream references it, and under
+server authority a late change means migrating persisted state too.
 
 ## Phases
 
-Each phase ends in something you can actually play. That is the whole point of
-the ordering.
+Each phase ends in something you can actually play, with at least two clients
+connected. That is the whole point of the ordering.
 
 ### Phase 0 — Foundations
-Godot project, character controller, camera, a flat test world. `TerrainData`
-interface (`sample_height`, `sample_surface`) backed by a synthetic region.
-Inventory model + item database + a working inventory UI. Save/load.
+Godot project with **client and headless-server targets**, ENet transport,
+connect/join/disconnect, and a script to launch a server plus N clients.
+Character controller with predicted movement and reconciliation. `TerrainData`
+interface (`sample_height`, `sample_surface`) backed by a synthetic region,
+loaded identically both sides. Server-owned inventory + item database + client
+inventory UI driven purely by replicated state. Server-side persistence.
 
-*Test:* walk around, pick up a debug item, see it in the bag, reload and it's
-still there.
+*Test:* two clients connect, both walk around, one picks up a debug item and the
+other sees it leave the world; restart the server and inventories persist.
 *Not fun yet. Nothing after this works without it.*
 
 ### Phase 1 — The water loop ← smallest recognisably-Dune build
-Hydration stat draining in real time. Heat exhaustion tied to time-of-day and
-shade. One water source (a dew harvester, since it only works dusk→dawn and so
-imposes a schedule for free). One drinkable item. Death and respawn.
+Server-simulated hydration draining in real time, replicated to owning clients.
+Heat exhaustion tied to a server-authoritative time-of-day and shade. One water
+source — a dew harvester, since it only works dusk→dawn and so imposes a
+schedule for free. One drinkable item. Death and respawn.
 
-*Test:* can you die of thirst, and can you plan a night route to avoid it?
+*Test:* can you die of thirst, and can you plan a night route to avoid it? Do
+two players agree on what time it is?
 *This is the vertical slice. If this isn't tense, stop and fix it before
 building anything else.*
 
 ### Phase 2 — Economy
-Resource nodes (plant fibre, ore, salvage). A gathering tool (cutteray).
-Fabricator placeable + recipe data. Refining. First meaningful craft: the
-**stillsuit**, which cuts water drain substantially.
+Resource nodes with server-owned depletion and respawn (contested harvesting is
+the first real concurrency test). A gathering tool (cutteray). Fabricator
+placeable + recipe data. Refining. First meaningful craft: the **stillsuit**,
+which cuts water drain substantially.
 
-*Test:* gather → refine → craft a stillsuit → measurably survive longer.
+*Test:* gather → refine → craft a stillsuit → measurably survive longer. Two
+players racing the same node get one winner and no duplication.
 *That's your first real progression beat, and it's pure economy.*
 
 ### Phase 3 — Base
-Placement with snapping, structural pieces, storage containers. Power
-(generator + wind turbine). Windtrap and cistern producing water passively.
-Stilltent as a portable safe point.
+Placement with snapping and **server-side validation** — overlap, terrain fit,
+and ownership, since this is where griefing lives. Structural pieces, storage
+containers with concurrent-access rules. Power (generator + wind turbine).
+Windtrap and cistern producing water passively while offline. Stilltent as a
+portable safe point.
 
-*Test:* build a base with a windtrap, go on a run, come back to stored water.
+*Test:* build a base with a windtrap, log out, come back to stored water. A
+second player cannot build inside your walls.
 *The base converts water from a per-trip crisis into infrastructure — that shift
 is the game's mid-game.*
 
 ### Phase 4 — Threat
-Now, and not before: sandworms on sand, keyed to the traversability mask.
-Thumpers as bait and as a tool. Melee + ranged combat with the Dune shield rule
-(slow blade penetrates). Enemy camps. Corpse blood extraction, which ties
-combat back into the water economy.
+Now, and not before: sandworms on sand, keyed to the traversability mask, as
+**replicated world entities** with server-owned aggro — per-player threat
+accumulation, one shared worm. Thumpers as bait and as a tool. Melee + ranged
+combat with the Dune shield rule (slow blade penetrates), server-hit-validated.
+Enemy camps. Corpse blood extraction, tying combat back into the water economy.
 
 *Test:* a loaded return trip across open sand is genuinely frightening because
-you can lose the run.
+you can lose the run — and two players can bait a worm for each other.
 
 ### Phase 5 — The real world
 Swap the synthetic region for Hagga Basin South via `terrain-plan.md`. Real
 mask, real heights, the 655 POIs — wrecks as loot sites, caves as worm-safe
-shelters, camps as threat spawns.
+shelters, camps as threat spawns. Version the terrain artefacts and reject
+mismatched clients.
 
 *Test:* navigate between two named shipwrecks using the actual wiki map.
 
 ### Phase 6 — Progression and content
-Player level, the five specializations, trainers, contracts, testing stations,
-a Journey questline. Solari and vendors.
+Player level, the five specializations, trainers, contracts, testing stations, a
+Journey questline. Solari and vendors. All progression state server-owned.
 
 *Test:* a new character has a directed 2–3 hour path.
 
 ### Phase 7 — Stretch, in value order
-Vehicles (groundcar first — it changes water logistics most). Deep Desert +
-Coriolis storms resetting the map. Ornithopters. Multiplayer, Guilds, Landsraad.
+Vehicles (groundcar first — it changes water logistics most, and is the hardest
+thing to replicate well). Deep Desert + Coriolis storms resetting the map.
+Ornithopters. Guilds and Landsraad.
 
 ## Where the demake cuts
+
+Tight spine, ~30–50 items:
 
 - **One weapon family per class**, not eleven. A blade and a dart pistol.
 - **Flat recipe trees.** One fabricator tier, not Basic/Advanced/Mk6.
 - **No modular vehicles.** A groundcar is a groundcar.
 - **Static world.** Coriolis storms are Phase 7; the map doesn't reset.
-- **Solo-first.** See below.
-
-## The one decision that can't be deferred
-
-**Single-player or multiplayer.** This is not a Phase 7 question — it decides
-whether Phase 0's inventory, building and save systems are authoritative-server
-or local. Retrofitting multiplayer onto a solo codebase is a rewrite, not a
-feature. Everything above assumes solo unless decided otherwise now.
+- **Small sessions.** Design for ~8 players on one server, not an MMO shard.
+  This keeps replication naive and lets you skip interest management until it
+  actually hurts.
