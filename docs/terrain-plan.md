@@ -1,5 +1,9 @@
 # Hagga Basin South — terrain source plan
 
+> Scope: this document covers **one input to Phase 5** of `game-plan.md` —
+> turning wiki map data into terrain. It is not the project plan. For build
+> order across the whole game, start with `game-plan.md`.
+
 Revision of an earlier three-layer plan, after verifying its assumptions against
 the actual wiki data. The layered structure survives. Several of the numbers and
 one of its central claims did not.
