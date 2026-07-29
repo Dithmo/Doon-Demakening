@@ -1,0 +1,43 @@
+{
+  "name": "hagga_basin_south",
+  "size_m": [
+    4500.0,
+    1560.0
+  ],
+  "cell_size": 2.0,
+  "height_cells": [
+    2250,
+    780
+  ],
+  "height_scale": 64.0,
+  "mask_cell_size": 1.0,
+  "mask_cells": [
+    4500,
+    1560
+  ],
+  "surface_classes": {
+    "sand": 0,
+    "rock": 1,
+    "cliff": 2
+  },
+  "synthetic": false,
+  "source": {
+    "render": "File:Hagga Basin.webp (awakening.wiki, CC-BY-SA)",
+    "crop_px": [
+      3100,
+      6300,
+      7600,
+      7860
+    ],
+    "crs_bbox": [
+      37888.046932290395,
+      76998.28892691273,
+      92886.82473722806,
+      96064.53189929113
+    ],
+    "metres_per_px": 1.0,
+    "shadow_azimuth_deg": 120.0,
+    "sun_altitude_deg": 30.0,
+    "wind_deg": 143.5
+  }
+}

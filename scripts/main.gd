@@ -5,6 +5,8 @@ extends Node3D
 
 const WORLD_SCRIPT := preload("res://scripts/world/world.gd")
 const VIEW_SCRIPT := preload("res://scripts/client/client_view.gd")
+## Region the rules suite runs against. See --run-tests below.
+const TEST_REGION := "res://data/regions/synthetic_test"
 
 var world: Node
 
@@ -13,6 +15,15 @@ func _ready() -> void:
 	_register_input()
 
 	if Args.has("--run-tests"):
+		# Pin the rules suite to the small synthetic region unless told
+		# otherwise. These are tests of rules, and they should not change
+		# meaning because the world did: Phase 5 swapped the default region to
+		# the real 4500 m map, where a fixture standing at (20, 20) sits 11 m
+		# above sea level instead of 2 m, which silently pushed deployed
+		# stations out of a reach check that measures in three dimensions.
+		if not Args.has("--region"):
+			Terrain.load_region(TEST_REGION)
+			Pois.load_from(Terrain.region_dir)
 		var suite: RefCounted = load("res://tests/survival_tests.gd").new()
 		get_tree().quit(1 if suite.run() > 0 else 0)
 		return
@@ -64,6 +75,14 @@ func _log_position() -> void:
 		world.build_mirror.size(), world.claim_mirror.size(),
 		world.my_threat, int(world.worm_mirror["state"]),
 		Terrain.surface_name(Terrain.sample_surface(world.local_pos.x, world.local_pos.z))])
+	if Net.bot_profile == "pilgrim":
+		var dest: Dictionary = Pois.find_named(Net.goto_poi)
+		if not dest.is_empty():
+			var d := Vector2(float(dest["x"]) - world.local_pos.x,
+				float(dest["z"]) - world.local_pos.z).length()
+			print("[pilgrim] %s -> %s dist=%.1f %s"
+				% [Net.identity, dest["name"], d,
+				"ARRIVED" if d < world.ARRIVED_M else "walking"])
 	if Args.has("--debug-steer"):
 		var g: Vector3 = world.debug_goal
 		print("      steer goal=%v dist=%.1f want=%v  walkX=%s walkZ=%s"

@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 ItemDB="*res://scripts/items/item_db.gd"
 RecipeDB="*res://scripts/items/recipe_db.gd"
 Terrain="*res://scripts/terrain/terrain_data.gd"
+Pois="*res://scripts/world/pois.gd"
 Clock="*res://scripts/world/world_clock.gd"
 Net="*res://scripts/net/net.gd"
 Store="*res://scripts/persistence/store.gd"

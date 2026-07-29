@@ -51,7 +51,9 @@
       "harvests": 3,
       "respawn_seconds": 150.0,
       "tool": "tool_gather",
-      "count": 12
+      "count": 12,
+      "anchor": "loot",
+      "_comment": "Anchored to the wiki's shipwreck and unique-loot markers, so salvage is at the wrecks the map draws."
     }
   ]
 }

@@ -27,6 +27,13 @@ import sys
 import time
 
 GODOT = os.environ.get("GODOT", "/opt/godot/godot")
+
+## Phases 0-4 are pinned to the synthetic region. Their thresholds -- travel
+## times, node counts, spacing -- were tuned against a 512 m test map, and
+## Phase 5 swapped the game's default to a 4500 x 1560 m real one. Pinning
+## keeps each suite a test of its own subsystem instead of a re-tuning
+## exercise; the real region gets its own harness in test_phase5.py.
+SYNTHETIC_REGION = "res://data/regions/synthetic_test"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27260"))
 
@@ -61,7 +68,7 @@ def launch(extra, user_dir, seconds, port):
     # --peaceful: these suites are about gathering and building, not the worm.
     return Proc([GODOT, "--headless", "--path", str(ROOT), "--",
                  "--port", str(port), "--run-seconds", str(seconds),
-                 "--peaceful"] + extra, env)
+                 "--peaceful", "--region", SYNTHETIC_REGION] + extra, env)
 
 
 def session(user_dir, seconds, port, extra, clients):

@@ -1,0 +1,6 @@
+# Build-time only. The game does not need these -- they produce
+# data/regions/*, which is what ships. Install with:
+#   python3 -m pip install -r tools/requirements.txt
+numpy
+pillow
+scipy

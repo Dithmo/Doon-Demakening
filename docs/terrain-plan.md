@@ -11,6 +11,12 @@ one of its central claims did not.
 Everything below marked **verified** was checked against fetched data, not
 inferred. Reproduce with `python3 tools/fetch_map_data.py`.
 
+> **Built.** This plan is implemented in `tools/build_region.py` and the region
+> it produces is what the game loads. What building it changed is recorded in
+> "Corrections from building it" at the end — three of the numbers here were
+> wrong, and one of them would have shipped 300 m of out-of-bounds filler as
+> playable ground.
+
 ## What changed from the earlier plan
 
 | Earlier claim | Status |
@@ -167,12 +173,58 @@ cleanly to a data table.
 ## Order of work
 
 1. `tools/fetch_map_data.py` — **done**, reproducible, 655 markers + region boxes.
-2. Layer 1 mask over the Hagga Basin South crop. Prototype confirms the approach;
-   needs the fill and chrome-clip steps.
-3. Layer 2a shadow heights — highest value per unit effort, and validates against
-   2b/2c which are refinements.
-4. Godot import: heightmap → `HeightMapShape3D`, mask → gameplay lookup.
-5. Layer 3 POI placement.
+2. Layer 1 mask over the Hagga Basin South crop — **done**.
+3. Layer 2a shadow heights — **done**.
+4. Godot import: heightmap → mask → gameplay lookup — **done**.
+5. Layer 3 POI placement — **done**.
+
+Build it with:
+
+```
+python3 -m pip install -r tools/requirements.txt
+python3 tools/fetch_map_data.py     # 655 markers + the 8182^2 render
+python3 tools/build_region.py       # -> data/regions/hagga_basin_south
+```
+
+## Corrections from building it
+
+The layered method survived intact. Several numbers did not, and two of the
+mistakes were the kind that produce a world that looks fine and plays wrong.
+
+| Claim in this plan | What building it found |
+| --- | --- |
+| Crop = POI hull padded, extended "south to the map edge (y=8182)" | **Wrong, and costly.** The out-of-bounds hatch starts at y=7887 and below it the render is flat filler with no terrain in it. That crop would have shipped ~300 m of invented ground behind a "you cannot go here" sign. |
+| Region is ~3950 × 1725 m | **~4500 × 1560 m.** The real borders are visible: each sub-region carries its own colour wash, and Hagga Basin South holds a flat plateau at hue ~27 / sat ~0.45 that its neighbours do not. Sweeping hue along both axes finds the edges directly, which beats padding a POI hull by a guess. |
+| Shadow azimuth 120° | **Confirmed, 125° measured.** But *only* on raw luminance. Measured on the tint-normalised image it reports 155°, because flattening low-frequency brightness is exactly what a 40 m shadow is. |
+| Tallest outcrops ~40 px of shadow → ~23 m | **Right order.** Median 4 m, p90 27 m, tallest clamped at 34 m. Most rock here is low crust, not mesa. |
+| Threshold texture energy near the 88th percentile | **Held**, but the *window sizes* mattered more than the percentile. A 17 px detail window fired on rock edges and left stringy fragments; 33 px with 31 px smoothing gives solid bodies. |
+
+Three things this plan did not anticipate at all:
+
+**Sand shadows had to be measured against a shadow-free reference.** A plain
+local mean is dragged down by the very shadows it is the reference for, which
+shrank every outcrop to a few metres. Re-weighting the mean by what the previous
+pass called lit, three times, is what made depth measurable.
+
+**Shape-from-shading needed regularising, not just inverting.** Dividing by
+`i(k·u)` amplifies wavevectors running across the sun, where shading carries no
+information — the first build filled the region with a herringbone of diagonal
+ridges tens of metres tall. A Wiener-style damped inverse fixes it. And the sign
+is negative: a slope tilted toward the sun is brighter. Getting that backwards
+inverts every dune, and nothing about the output looks wrong until you check.
+
+**The check that matters is a forward render.** Re-shading the recovered height
+with the same light and correlating against the source scores **+0.74**, where a
+shuffled height field scores 0.00. That is the one test that separates
+"recovered the actual dunes" from "produced a plausible dune-like field", and it
+is what caught the sign error.
+
+One gameplay constraint fed back into the terrain: rock aprons are widened per
+outcrop until their outside slope lands near 26°, because an outcrop ringed in
+unclimbable cliff is refuge nobody can reach. That was the bug that made every
+rock in the Phase 2 synthetic region unreachable, and it would have silently
+broken Phase 4's whole answer to the worm. The build reports reachability for
+exactly this reason: 97% of the region, 99.8% of rock.
 
 ## Legal note
 

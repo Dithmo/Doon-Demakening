@@ -251,13 +251,46 @@ players; there is no ranged projectile travel (a dart resolves instantly at
 range); worms never appear in the deep desert because there is no deep desert
 yet; and one worm serves the whole map.
 
-### Phase 5 — The real world
+### Phase 5 — The real world — **done**
 Swap the synthetic region for Hagga Basin South via `terrain-plan.md`. Real
 mask, real heights, the 655 POIs — wrecks as loot sites, caves as worm-safe
 shelters, camps as threat spawns. Version the terrain artefacts and reject
 mismatched clients.
 
-*Test:* navigate between two named shipwrecks using the actual wiki map.
+*Test:* navigate between two named landmarks using the actual wiki map,
+`python3 tools/test_phase5.py`.
+
+Done: the game's default region is now **Hagga Basin South, 4500 × 1560 m**,
+recovered from the wiki's own map render by `tools/build_region.py` — a
+traversability mask at one byte per metre, a heightmap at 2 m, and 97 markers
+projected into world space. World coordinates round-trip back to the wiki's CRS
+to within 6 mm, so a player reading the community map is reading this world.
+
+The elevation is *recovered*, not invented. Outcrop heights come from the length
+of the shadow each one casts under the render's baked sun; dune relief comes
+from shape-from-shading, which works here because the light direction is known.
+Re-rendering the recovered height with that same light and correlating it
+against the source scores **+0.74**, against 0.00 for a shuffled control. Only
+the sub-metre grain is noise, and that is the one part the source genuinely
+cannot hold.
+
+The markers are what stop it being scenery: 20 caves are worm-safe shelter, 51
+camps and outposts are where the 153 hostiles stand, and salvage sits on all 10
+wreck and loot markers rather than scattered at random. Caves matter
+mechanically more than they look — Hagga Basin South is mostly open dune with
+rock in scattered clumps, so there are stretches where the nearest outcrop is
+further away than the worm's warning gives you, and the caves are what make
+those crossable rather than simply fatal.
+
+Phases 0–4 are pinned to the synthetic region now. Their thresholds were tuned
+against a 512 m map, and re-tuning five suites for a 4500 m one would have
+turned a swap into a rewrite; each stays a test of its own subsystem.
+
+Not done: the region is one crop of one basin, so the rest of Hagga Basin and
+all the deep desert are still absent; caves are marker-radius volumes rather
+than actual interiors; wrecks are salvage nodes rather than places you enter;
+and the heightmap feeds gameplay sampling but there is no mesh or collider built
+from it yet.
 
 ### Phase 6 — Progression and content
 Player level, the five specializations, trainers, contracts, testing stations, a

@@ -33,27 +33,51 @@ var _next_id: int = 1
 var _rng := RandomNumberGenerator.new()
 
 
-## Scatter camps of hostiles. Phase 5 replaces this with the 263 real camp
-## positions from the wiki data (docs/terrain-plan.md).
+## Populate the map's camps.
+##
+## On the real region these are the wiki's own camp and outpost markers, so the
+## fighting is where the map says it is and a player reading the community map
+## is reading this world. Scattering is the fallback for synthetic regions,
+## which have no markers.
 func seed(camps: int = 6, per_camp: int = 3, seed_value: int = 91177) -> void:
 	_rng.seed = seed_value
-	var placed := 0
-	var tries := 0
-	while placed < camps and tries < 3000:
-		tries += 1
-		var x := _rng.randf_range(20.0, Terrain.size_m.x - 20.0)
-		var z := _rng.randf_range(20.0, Terrain.size_m.y - 20.0)
-		if not Terrain.is_reachable(x, z):
-			continue
+	var anchors: Array = Pois.positions("threat")
+	if anchors.is_empty():
+		anchors = _scatter(camps)
+	else:
+		anchors = _reachable_only(anchors)
+	for centre: Vector3 in anchors:
 		for i in range(per_camp):
 			var a := TAU * float(i) / float(per_camp)
-			var nx := x + cos(a) * 3.0
-			var nz := z + sin(a) * 3.0
+			var nx := centre.x + cos(a) * 3.0
+			var nz := centre.z + sin(a) * 3.0
 			if not Terrain.is_reachable(nx, nz):
 				continue
 			_spawn(Vector3(nx, Terrain.sample_height(nx, nz), nz))
-		placed += 1
-	print("[hostiles] seeded %d npc(s) across %d camp(s)" % [npcs.size(), placed])
+	print("[hostiles] seeded %d npc(s) across %d camp(s)" % [npcs.size(), anchors.size()])
+
+
+## Markers can land on ground the region does not connect to its own centre --
+## a wiki pin is placed by eye on a picture, and the mask is derived. One that
+## did would be a camp nobody could ever walk to.
+func _reachable_only(points: Array) -> Array:
+	var out: Array = []
+	for p: Vector3 in points:
+		if Terrain.is_reachable(p.x, p.z):
+			out.append(p)
+	return out
+
+
+func _scatter(camps: int) -> Array:
+	var out: Array = []
+	var tries := 0
+	while out.size() < camps and tries < 3000:
+		tries += 1
+		var x := _rng.randf_range(20.0, Terrain.size_m.x - 20.0)
+		var z := _rng.randf_range(20.0, Terrain.size_m.y - 20.0)
+		if Terrain.is_reachable(x, z):
+			out.append(Vector3(x, Terrain.sample_height(x, z), z))
+	return out
 
 
 func _spawn(pos: Vector3) -> int:

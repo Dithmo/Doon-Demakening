@@ -20,6 +20,10 @@ signal worm_changed
 signal hostiles_changed
 
 const PICKUP_RANGE := 3.0
+## Close enough to a POI to count as having got there. A wiki marker is a pin
+## dropped on a picture, not a survey point, so demanding metres would be
+## testing the cartography rather than the navigation.
+const ARRIVED_M := 12.0
 ## Rejecting inputs that claim more time than they could have taken stops a
 ## client speed-hacking by inflating dt. Server clamps to its own tick anyway;
 ## this just bounds the queue.
@@ -168,6 +172,12 @@ func _on_peer_joined(id: int) -> void:
 	var vit := Vitals.new()
 	var equipped: Dictionary = {}
 	var pos := Movement.find_spawn(Vector3(Terrain.size_m.x * 0.5, 0.0, Terrain.size_m.y * 0.5))
+	if not Net.spawn_poi.is_empty():
+		var at: Dictionary = Pois.find_named(Net.spawn_poi)
+		if at.is_empty():
+			push_warning("world: no POI named '%s' to spawn at" % Net.spawn_poi)
+		else:
+			pos = Movement.find_spawn(Vector3(float(at["x"]), 0.0, float(at["z"])))
 	if not saved.is_empty():
 		var p: Array = saved.get("pos", [])
 		if p.size() == 3:
@@ -301,7 +311,13 @@ func _threat_tick(delta: float) -> void:
 	for id: int in _players:
 		var p: Dictionary = _players[id]
 		var pos: Vector3 = p["pos"]
-		var on_sand := Terrain.sample_surface(pos.x, pos.z) == Terrain.Surface.SAND
+		# A cave mouth counts as being off the sand. Hagga Basin South is mostly
+		# open dune with rock in scattered clumps, so on the real map there are
+		# stretches where the nearest outcrop is further than the worm's warning
+		# gives you -- the 20 caves are what makes those stretches crossable
+		# rather than simply fatal.
+		var on_sand := Terrain.sample_surface(pos.x, pos.z) == Terrain.Surface.SAND \
+			and not Pois.shelter_at(pos.x, pos.z)
 		var moving := bool(p.get("moving", false))
 		_worm.accrue(id, delta, on_sand, moving, bool(p.get("sprinting", false)),
 			Combat.threat_multiplier(p["equipped"]))
@@ -831,6 +847,7 @@ func _client_tick(delta: float) -> void:
 		# Sprinting doubles water loss, so the bot only does it with water spare.
 		sprint = dir != Vector2.ZERO and (Net.bot_profile == "reckless"
 			or Net.bot_profile == "prey" or Net.bot_profile == "quarry"
+			or Net.bot_profile == "pilgrim"
 			or float(vitals_mirror["hydration"]) > 60.0)
 	else:
 		if Input.is_action_pressed("move_forward"): dir.y -= 1.0
@@ -1298,6 +1315,20 @@ func _bot_direction() -> Vector2:
 			return _steer_to(_bot_dune)
 		_bot_orbit += 0.03
 		return Vector2(cos(_bot_orbit), sin(_bot_orbit))
+
+	if Net.bot_profile == "pilgrim":
+		# Navigate by the map's own landmarks. Deliberately dead simple steering
+		# with no pathfinding: the point of the test is that the region is
+		# *crossable* -- that the mask leaves open ground between the places the
+		# wiki names -- and a pathfinder would hide exactly the failure worth
+		# knowing about.
+		var dest: Dictionary = Pois.find_named(Net.goto_poi)
+		if dest.is_empty():
+			return Vector2.ZERO
+		var target := Vector3(float(dest["x"]), 0.0, float(dest["z"]))
+		if Vector2(target.x - local_pos.x, target.z - local_pos.z).length() < ARRIVED_M:
+			return Vector2.ZERO
+		return _steer_to(target)
 
 	if Net.bot_profile == "fighter":
 		var nid := _nearest_npc_anywhere()

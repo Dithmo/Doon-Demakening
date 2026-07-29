@@ -23,6 +23,13 @@ import time
 
 GODOT = os.environ.get("GODOT", "/opt/godot/godot")
 
+## Phases 0-4 are pinned to the synthetic region. Their thresholds -- travel
+## times, node counts, spacing -- were tuned against a 512 m test map, and
+## Phase 5 swapped the game's default to a 4500 x 1560 m real one. Pinning
+## keeps each suite a test of its own subsystem instead of a re-tuning
+## exercise; the real region gets its own harness in test_phase5.py.
+SYNTHETIC_REGION = "res://data/regions/synthetic_test"
+
 # What World._on_peer_joined hands a brand-new player. Stated explicitly so
 # that adding to the starting kit fails loudly here instead of silently
 # skewing the "gathered off the ground" arithmetic.
@@ -63,7 +70,8 @@ def launch(name, extra, user_dir, seconds):
     env = dict(os.environ)
     env["HOME"] = str(user_dir)
     args = [GODOT, "--headless", "--path", str(ROOT)]
-    args += ["--", "--port", str(PORT), "--run-seconds", str(seconds)] + extra + ["--peaceful"]
+    args += ["--", "--port", str(PORT), "--run-seconds", str(seconds)] + extra \
+        + ["--peaceful", "--region", SYNTHETIC_REGION]
     return Proc(name, args, ROOT, env)
 
 

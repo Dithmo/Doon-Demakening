@@ -59,6 +59,10 @@ func load_kinds() -> bool:
 			# carrying this use hook.
 			"tool": str(d.get("tool", "")),
 			"count": int(d.get("count", 10)),
+			# Anchored kinds are placed at POIs of a role rather than scattered.
+			# Salvage belongs at the wrecks the map actually draws: that is what
+			# makes a shipwreck somewhere you go rather than a silhouette.
+			"anchor": str(d.get("anchor", "")),
 		}
 	print("[nodes] loaded %d kind(s)" % kinds.size())
 	return true
@@ -71,6 +75,18 @@ func seed(seed_value: int = 424242) -> void:
 		var k: Dictionary = kinds[kind_id]
 		var placed := 0
 		var tries := 0
+		var anchor := str(k["anchor"])
+		if not anchor.is_empty():
+			for p: Vector3 in Pois.positions(anchor):
+				if not Terrain.is_reachable(p.x, p.z):
+					continue
+				_spawn(kind_id, p)
+				placed += 1
+			if placed > 0:
+				continue
+			# No markers for that role -- a synthetic region, or a crop that
+			# caught none. Fall through and scatter rather than ship a kind
+			# that silently does not exist.
 		while placed < int(k["count"]) and tries < 4000:
 			tries += 1
 			var x := _rng.randf_range(6.0, Terrain.size_m.x - 6.0)

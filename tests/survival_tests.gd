@@ -47,6 +47,8 @@ func run() -> int:
 	_test_worm()
 	print("\n=== Hostiles and blood ===")
 	_test_hostiles()
+	print("\n=== Points of interest ===")
+	_test_pois()
 
 	print()
 	if _failures.is_empty():
@@ -786,3 +788,54 @@ func _test_hostiles() -> void:
 	_check(slot >= 0 and ItemUse.apply(slot, kit, thirsty, {}, {})["ok"],
 		"a blood sack can be drunk")
 	_check(thirsty.hydration > 40.0, "and it restores water")
+
+
+func _test_pois() -> void:
+	# The POI store is loaded from whichever region the run is using, and the
+	# unit suite runs on whatever the default is -- so these test the *rules*
+	# against a set built here, not the shipped data. Whether the shipped data
+	# is right is tools/test_phase5.py's job, and it checks it by round-tripping
+	# world coordinates back to the wiki's own CRS.
+	var p := preload("res://scripts/world/pois.gd").new()
+	p.all = []
+	p._by_role = {}
+	p._shelters = PackedVector2Array()
+	for spec: Array in [
+			["shelter", "Deep Hole", 100.0, 100.0],
+			["shelter", "Second Hole", 400.0, 100.0],
+			["threat", "A Camp", 250.0, 250.0],
+			["loot", "A Wreck", 700.0, 300.0]]:
+		var poi := {"role": spec[0], "group": "", "name": spec[1],
+			"x": spec[2], "z": spec[3]}
+		p.all.append(poi)
+		if not p._by_role.has(spec[0]):
+			p._by_role[spec[0]] = []
+		(p._by_role[spec[0]] as Array).append(poi)
+		if spec[0] == "shelter":
+			p._shelters.append(Vector2(spec[2], spec[3]))
+	p.loaded = true
+
+	_check(p.of_role("shelter").size() == 2, "POIs are indexed by role")
+	_check(p.of_role("nothing").is_empty(), "an unknown role is empty, not an error")
+
+	# Shelter is a hard radius, because the worm reads it as a hard boundary --
+	# the same reason sample_surface is nearest-neighbour rather than smoothed.
+	_check(p.shelter_at(100.0, 100.0), "standing on a cave is shelter")
+	_check(p.shelter_at(100.0, 100.0 + Pois.SHELTER_RADIUS - 0.5),
+		"and so is the edge of its mouth")
+	_check(not p.shelter_at(100.0, 100.0 + Pois.SHELTER_RADIUS + 0.5),
+		"a step outside it is not")
+	_check(not p.shelter_at(250.0, 250.0), "a camp is not shelter")
+
+	# Nearest is horizontal: a marker up a mesa is as far as it walks, not as
+	# far as it flies.
+	var near: Dictionary = p.nearest("shelter", 380.0, 110.0)
+	_check(not near.is_empty() and str(near["name"]) == "Second Hole",
+		"nearest picks the closer marker of a role")
+	_check(p.nearest("spice", 0.0, 0.0).is_empty(),
+		"nearest of an absent role is empty")
+
+	_check(str(p.find_named("a wreck").get("name", "")) == "A Wreck",
+		"markers are found by name, case-insensitively")
+	_check(p.find_named("No Such Place").is_empty(),
+		"and an unknown name finds nothing")

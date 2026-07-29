@@ -10,10 +10,17 @@ extends Node
 
 enum Surface { SAND = 0, ROCK = 1, CLIFF = 2 }
 
-const DEFAULT_REGION := "res://data/regions/synthetic_test"
+## Hagga Basin South, recovered from the community wiki's map render by
+## tools/build_region.py. The synthetic regions are still there and still
+## build -- the phase harnesses pin themselves to one so their tuned numbers
+## keep meaning what they meant -- but the game's world is the real place now.
+const DEFAULT_REGION := "res://data/regions/hagga_basin_south"
 
 var loaded: bool = false
 var region_name: String = ""
+## Where the region was loaded from. Pois reads its own file out of the same
+## directory, because POIs are region data and travel with it.
+var region_dir: String = ""
 ## Content hash of the region files. Client and server must agree on this or
 ## prediction silently diverges -- Net refuses mismatched clients.
 var fingerprint: String = ""
@@ -37,15 +44,33 @@ var _reachable: PackedByteArray = PackedByteArray()
 var reachable_fraction: float = 0.0
 
 
+## Region used when the real one has not been built yet. Small, seeded, and
+## checked in, so the game always has *something* to stand on.
+const FALLBACK_REGION := "res://data/regions/synthetic_test"
+
+
 func _ready() -> void:
-	if not loaded:
-		load_region(Args.value("--region", DEFAULT_REGION))
+	if loaded:
+		return
+	var wanted := Args.value("--region", DEFAULT_REGION)
+	if load_region(wanted):
+		return
+	# The real region's height and mask are derived artefacts and the repo does
+	# not carry them -- same rule as the wiki render itself. A fresh clone would
+	# otherwise refuse to start, so fall back and say exactly how to fix it,
+	# rather than failing with a missing-file error about a path nobody chose.
+	if wanted == DEFAULT_REGION:
+		push_warning("Terrain: %s is not built yet -- falling back to %s.\n"
+			% [wanted, FALLBACK_REGION]
+			+ "  Build it with:  python3 -m pip install -r tools/requirements.txt\n"
+			+ "                  python3 tools/fetch_map_data.py\n"
+			+ "                  python3 tools/build_region.py")
+		load_region(FALLBACK_REGION)
 
 
 func load_region(dir_path: String) -> bool:
 	var meta_text := _read_text(dir_path.path_join("region.json"))
 	if meta_text.is_empty():
-		push_error("Terrain: no region.json at %s" % dir_path)
 		return false
 
 	var meta: Variant = JSON.parse_string(meta_text)
@@ -65,6 +90,12 @@ func load_region(dir_path: String) -> bool:
 
 	var raw_h := _read_bytes(dir_path.path_join("height.r16"))
 	var raw_m := _read_bytes(dir_path.path_join("mask.u8"))
+	# Distinguish "not built" from "built wrong". They call for opposite
+	# reactions -- run the pipeline, or go and find out what it produced -- and
+	# reporting a missing file as "0 bytes, expected 3510000" sends you looking
+	# for corruption that is not there.
+	if not _has_file(dir_path, "height.r16") or not _has_file(dir_path, "mask.u8"):
+		return false
 	if raw_h.size() != _hx * _hz * 2:
 		push_error("Terrain: height.r16 is %d bytes, expected %d" % [raw_h.size(), _hx * _hz * 2])
 		return false
@@ -82,7 +113,12 @@ func load_region(dir_path: String) -> bool:
 	_mask = raw_m
 
 	_build_reachability()
-	fingerprint = _hash(meta_text, raw_h, raw_m)
+	# POIs go into the fingerprint alongside the terrain. They decide where
+	# shelter and camps are, so a client holding a different set disagrees with
+	# the server about the world in a way that has to be refused at the
+	# handshake, not discovered when the worm takes someone standing in a cave.
+	fingerprint = _hash(meta_text, raw_h, raw_m, _read_bytes(dir_path.path_join("pois.json")))
+	region_dir = dir_path
 	loaded = true
 	print("[terrain] %s  %.0fx%.0f m  height %dx%d @ %.1f m  mask %dx%d @ %.1f m  reach %.0f%%  fp=%s"
 		% [region_name, size_m.x, size_m.y, _hx, _hz, _cell, _mx, _mz, _mask_cell,
@@ -229,15 +265,22 @@ func _read_text(p: String) -> String:
 	return "" if f == null else f.get_as_text()
 
 
+func _has_file(dir_path: String, name: String) -> bool:
+	return FileAccess.file_exists(dir_path.path_join(name))
+
+
 func _read_bytes(p: String) -> PackedByteArray:
 	var f := FileAccess.open(p, FileAccess.READ)
 	return PackedByteArray() if f == null else f.get_buffer(f.get_length())
 
 
-func _hash(meta: String, h: PackedByteArray, m: PackedByteArray) -> String:
+func _hash(meta: String, h: PackedByteArray, m: PackedByteArray,
+		p: PackedByteArray) -> String:
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
 	ctx.update(meta.to_utf8_buffer())
 	ctx.update(h)
 	ctx.update(m)
+	if not p.is_empty():
+		ctx.update(p)
 	return ctx.finish().hex_encode().substr(0, 12)

@@ -1,0 +1,778 @@
+[
+ {
+  "group": "Shipwrecks",
+  "role": "loot",
+  "name": "Wreck of the Alcyon",
+  "article": "Wreck of the Alcyon",
+  "x": 3051.84,
+  "z": 623.96
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 557.54,
+  "z": 1117.18
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 743.3,
+  "z": 1058.25
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1000.8,
+  "z": 1213.27
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 929.06,
+  "z": 1091.56
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1326.72,
+  "z": 1394.7
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1969.31,
+  "z": 1350.34
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1953.93,
+  "z": 1140.24
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2251.15,
+  "z": 1195.33
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2354.92,
+  "z": 1282.45
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2274.21,
+  "z": 1333.69
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2490.71,
+  "z": 1223.52
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2942.94,
+  "z": 1231.2
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3129.98,
+  "z": 1263.23
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3147.92,
+  "z": 1114.62
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3334.96,
+  "z": 1010.85
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4032.16,
+  "z": 1199.25
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4007.54,
+  "z": 1072.35
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4017.78,
+  "z": 1151.77
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4062.62,
+  "z": 1121.03
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4158.71,
+  "z": 908.36
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4079.28,
+  "z": 913.49
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 4094.65,
+  "z": 983.95
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3958.85,
+  "z": 1027.51
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3940.92,
+  "z": 808.44
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3816.65,
+  "z": 434.36
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3641.14,
+  "z": 539.41
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3669.33,
+  "z": 416.42
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3734.66,
+  "z": 500.98
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3511.75,
+  "z": 589.37
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3538.65,
+  "z": 718.76
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 3308.06,
+  "z": 567.59
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2818.68,
+  "z": 439.48
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 2607.29,
+  "z": 427.95
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 717.67,
+  "z": 734.14
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 697.25,
+  "z": 595.63
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 848.35,
+  "z": 458.7
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 844.5,
+  "z": 340.84
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1276.75,
+  "z": 390.84
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1211.39,
+  "z": 338.56
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1219.86,
+  "z": 620.12
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1526.05,
+  "z": 849.43
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1736.15,
+  "z": 785.38
+ },
+ {
+  "group": "Camps",
+  "role": "threat",
+  "name": "NPC Camp",
+  "article": "",
+  "x": 1583.7,
+  "z": 759.76
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Vents of Eifrit",
+  "article": "Vents of Eifrit",
+  "x": 2392.07,
+  "z": 1400.31
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Kaleff's Stand",
+  "article": "Kaleff's Stand",
+  "x": 3588.62,
+  "z": 559.91
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Western Safeway",
+  "article": "Western Safeway",
+  "x": 3826.9,
+  "z": 477.92
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Shamal Tunnel",
+  "article": "Shamal Tunnel",
+  "x": 4056.22,
+  "z": 445.89
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Outer Safeway",
+  "article": "Outer Safeway",
+  "x": 3917.86,
+  "z": 1138.96
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Edgeway Cavern",
+  "article": "Edgeway Cavern",
+  "x": 4104.9,
+  "z": 937.83
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Eastern Safeway",
+  "article": "Eastern Safeway",
+  "x": 3338.8,
+  "z": 1179.96
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Wali Hole",
+  "article": "Wali Hole",
+  "x": 3254.25,
+  "z": 1155.62
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "The Stash",
+  "article": "The Stash",
+  "x": 3162.01,
+  "z": 1226.08
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Southwatch Shelter",
+  "article": "Southwatch Shelter",
+  "x": 2019.27,
+  "z": 1326.0
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "The Backway",
+  "article": "The Backway",
+  "x": 1490.18,
+  "z": 1268.91
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Selaya Cave",
+  "article": "Selaya Cave",
+  "x": 916.24,
+  "z": 1194.05
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "The Shortway",
+  "article": "The Shortway",
+  "x": 552.41,
+  "z": 1064.66
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Cave of Ghosts",
+  "article": "Cave of Ghosts",
+  "x": 756.11,
+  "z": 491.54
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "The Twist",
+  "article": "The Twist",
+  "x": 1246.77,
+  "z": 328.9
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Old Griffin Hideaway",
+  "article": "Old Griffin Hideaway",
+  "x": 1453.02,
+  "z": 521.47
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Traitor's Grotto",
+  "article": "Traitor's Grotto",
+  "x": 1453.02,
+  "z": 828.94
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Aren's Refuge",
+  "article": "Aren's Refuge",
+  "x": 1971.87,
+  "z": 393.36
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Cave",
+  "article": "",
+  "x": 2490.71,
+  "z": 522.75
+ },
+ {
+  "group": "Caves",
+  "role": "shelter",
+  "name": "Cave",
+  "article": "",
+  "x": 2302.39,
+  "z": 1113.34
+ },
+ {
+  "group": "EcoLabs",
+  "role": "harvest",
+  "name": "Testing Station 2",
+  "article": "Testing Station 2",
+  "x": 2188.38,
+  "z": 625.24
+ },
+ {
+  "group": "TradingPosts",
+  "role": "trade",
+  "name": "Griffin's Reach Trading Post",
+  "article": "Griffin's Reach Trading Post",
+  "x": 1647.75,
+  "z": 452.29
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Threeway Outpost",
+  "article": "Threeway Outpost",
+  "x": 2093.57,
+  "z": 1036.47
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Keyhole Rock",
+  "article": "Keyhole Rock",
+  "x": 2389.51,
+  "z": 1185.08
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Broken Stone Station",
+  "article": "Broken Stone Station",
+  "x": 2271.65,
+  "z": 1396.46
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Hollow Arches",
+  "article": "Hollow Arches",
+  "x": 3702.63,
+  "z": 631.65
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Breaker Station",
+  "article": "Breaker Station",
+  "x": 2585.52,
+  "z": 562.47
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Dewgap Gateway",
+  "article": "Dewgap Gateway",
+  "x": 1156.93,
+  "z": 726.34
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "Sim's Jackpot",
+  "article": "Sim's Jackpot",
+  "x": 1139.5,
+  "z": 308.06
+ },
+ {
+  "group": "Outposts",
+  "role": "threat",
+  "name": "The Scrape",
+  "article": "The Scrape",
+  "x": 2566.3,
+  "z": 1440.02
+ },
+ {
+  "group": "Aql",
+  "role": "landmark",
+  "name": "1st Trial",
+  "article": "The First Trial Of Aql",
+  "x": 2302.39,
+  "z": 1113.34
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "2 Intel Points",
+  "article": "The Scrape#Intel",
+  "x": 2572.7,
+  "z": 1452.83
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Breaker Station#Intel",
+  "x": 2570.14,
+  "z": 580.4
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Sim's Jackpot#Intel",
+  "x": 1143.0,
+  "z": 282.86
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Hollow Arches#Intel",
+  "x": 3684.7,
+  "z": 611.15
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Keyhole Rock#Intel",
+  "x": 2398.48,
+  "z": 1197.89
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Threeway Outpost#Intel",
+  "x": 2055.14,
+  "z": 1048.0
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Broken Stone Station#Intel",
+  "x": 2289.58,
+  "z": 1378.53
+ },
+ {
+  "group": "Intel",
+  "role": "intel",
+  "name": "3 Intel Points",
+  "article": "Dewgap Gateway#Intel",
+  "x": 1151.56,
+  "z": 694.53
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Kaleff's Drinker (Wreck of the Alcyon)",
+  "article": "Kaleff's Drinker Schematic",
+  "x": 3129.43,
+  "z": 584.3
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Aren's Vengance",
+  "article": "Aren's Vengance",
+  "x": 2301.11,
+  "z": 1407.99
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Way of the Fallen (Old Griffin Hideaway)",
+  "article": "Way of the Fallen Schematic",
+  "x": 1462.88,
+  "z": 563.71
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Hollower Stillsuit",
+  "article": "Hollower Stillsuit Schematics",
+  "x": 1159.65,
+  "z": 753.97
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Aren's Armor",
+  "article": "Aren's Armor Schematics",
+  "x": 2913.14,
+  "z": 447.89
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Hajra Literjon Mk1",
+  "article": "Hajra Literjon Mk1 Schematic",
+  "x": 3337.92,
+  "z": 1190.36
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Keyhole Rock Chest",
+  "article": "Keyhole Rock Chest",
+  "x": 2435.76,
+  "z": 1246.87
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "The Emperor's Wings Mk1 (Testing Station 2)",
+  "article": "The Emperor's Wings Mk1 Schematic",
+  "x": 2159.25,
+  "z": 620.54
+ },
+ {
+  "group": "Loot",
+  "role": "loot",
+  "name": "Aren's Vengeance (Broken Stone Station)",
+  "article": "Aren's Vengeance Schematic",
+  "x": 2303.69,
+  "z": 1508.59
+ },
+ {
+  "group": "Representatives",
+  "role": "landmark",
+  "name": "House Argosaz",
+  "article": "House Argosaz",
+  "x": 1615.72,
+  "z": 418.99
+ },
+ {
+  "group": "Trainers",
+  "role": "trainer",
+  "name": "Planetologist Trainer",
+  "article": "Planetologist Trainer",
+  "x": 2243.46,
+  "z": 598.34
+ },
+ {
+  "group": "Trainers",
+  "role": "trainer",
+  "name": "Trooper Trainer",
+  "article": "Trooper Trainer",
+  "x": 1613.16,
+  "z": 486.88
+ },
+ {
+  "group": "NPCs",
+  "role": "landmark",
+  "name": "Myr Charki",
+  "article": "Myr Charki",
+  "x": 1661.84,
+  "z": 463.82
+ },
+ {
+  "group": "NPCs",
+  "role": "landmark",
+  "name": "Ihor",
+  "article": "Ihor",
+  "x": 1659.28,
+  "z": 449.73
+ }
+]

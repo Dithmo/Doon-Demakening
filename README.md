@@ -35,6 +35,7 @@ python3 tools/test_phase1.py                            # the water loop
 python3 tools/test_phase2.py                            # the economy
 python3 tools/test_phase3.py                            # bases and power
 python3 tools/test_phase4.py                            # worms and combat
+python3 tools/test_phase5.py                            # the real Hagga Basin
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -45,8 +46,10 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter`,
+`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim`,
 `--peaceful` (server: suppress worm and hostiles, for test isolation),
+`--spawn-at "<wiki POI name>"` (server: where new players start),
+`--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
 `--debug-steer`.
 
 ## Layout
@@ -54,7 +57,7 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 | Path | What |
 | --- | --- |
 | `docs/game-plan.md` | Whole-game build order. **Start here.** |
-| `docs/terrain-plan.md` | Wiki map → terrain pipeline (feeds Phase 5) |
+| `docs/terrain-plan.md` | Wiki map → terrain pipeline, and what building it corrected |
 | `scripts/net/` | Transport, roles, handshake |
 | `scripts/world/` | World authority, clock, nodes, stations, base, worm |
 | `scripts/terrain/` | `sample_height` / `sample_surface` contract |
@@ -66,12 +69,25 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 
 ## Regenerating data
 
-Region and wiki files are reproducible rather than vendored:
+Region and wiki files are reproducible rather than vendored, so the heightmap
+and mask are built rather than checked in. **A fresh clone has to build the real
+region before it can play on it** — until then the game falls back to the
+synthetic one and says so.
 
 ```bash
-python3 tools/gen_synthetic_region.py     # test terrain
-python3 tools/fetch_map_data.py           # Hagga Basin markers + base render
+python3 -m pip install -r tools/requirements.txt
+python3 tools/gen_synthetic_region.py     # small test terrain
+python3 tools/fetch_map_data.py           # 655 markers + the 8182^2 render
+python3 tools/build_region.py             # -> Hagga Basin South, the real map
 ```
+
+`build_region.py` recovers elevation from the render's baked sun rather than
+inventing it: outcrop heights come from the length of the shadow each one casts,
+dune relief from shape-from-shading. Pass `--debug DIR` to dump the intermediate
+images, and `--measure-sun` to re-derive the sun angle from the picture instead
+of trusting the constant. It prints a shading-fidelity score — the recovered
+terrain re-rendered under the same light, correlated against the source — which
+should be around +0.74; a low or negative number means the sun vector is wrong.
 
 ## Notes
 

@@ -52,7 +52,17 @@ var screenshot_path: String = ""
 ##   quarry   -- the same, but runs for the nearest rock the moment the worm
 ##               surfaces; proves cover actually saves you
 ##   fighter  -- hunts hostiles, then draws water from what it kills
+##   pilgrim  -- walks to a named wiki POI and stops; the Phase 5 harness uses
+##               it to prove the real map is navigable by its own landmarks
 var bot_profile: String = "survive"
+## Named POI a `pilgrim` bot walks to. Client-side: steering is the client's
+## business, and the server validates the movement that results.
+var goto_poi: String = ""
+## Named POI new players start at. **Server-side** -- spawn position is decided
+## by the server like every other authoritative fact, so passing this to a
+## client alone does nothing at all. Both take the wiki's own marker names, so
+## a test reads as the journey it is making rather than a pair of coordinates.
+var spawn_poi: String = ""
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
 var start_hydration: float = -1.0
@@ -108,6 +118,8 @@ func _parse_args() -> void:
 	screenshot_path = Args.value("--screenshot", "")
 	run_seconds = Args.number("--run-seconds", 0.0)
 	bot_profile = Args.value("--bot-profile", "survive")
+	goto_poi = Args.value("--goto", "")
+	spawn_poi = Args.value("--spawn-at", "")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")
 	peaceful = Args.has("--peaceful")
