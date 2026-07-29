@@ -378,6 +378,57 @@ take no damage and cannot be destroyed; guilds have no invitations or ranks —
 anyone may join by name and the founder's seat passes to whoever is left; and
 Landsraad standing is a scoreboard that does not yet buy anything.
 
+### Phase 8 — The client — **done**
+Everything Phases 0–7 built, made reachable by a person rather than a bot.
+
+*Test:* `python3 tools/test_phase8.py`.
+
+This phase exists because of a specific failure of method, and it is worth
+naming. Every rule in this project is server-owned and every rule is tested, and
+all of that testing is headless and bot-driven — which was the right call, and
+caught real bugs in every phase. But it meant **presentation drifted two whole
+phases behind the simulation without a single check ever failing.** Vehicles were
+replicated and drawn by nobody. Progression, trading, guilds and vehicle cargo
+had no interface at all, so the only things that had ever used them were bots and
+debug flags. And the ground was still built as one mesh in one pass.
+
+Three things, in the order they mattered:
+
+**Tiled terrain.** `_build_terrain` built the whole region at once: fine for
+Phase 0's 512 m map at 65k quads, and 1.76 *million* quads with ~17 million
+terrain samples on the real one. A windowed client on Hagga Basin South ran for
+over four minutes without drawing a frame. `TerrainView` now builds 96 m tiles,
+two per frame, within a 420 m radius, and drops them past 560 m — the gap is
+hysteresis, or walking back and forth across a boundary rebuilds the same tile
+forever. Fog is tuned to that radius so the world hazes out instead of ending.
+
+**Vehicles are visible**, and the camera follows where you are going. It used to
+be pinned facing north, which meant walking south moved you toward the lens with
+the ground you were heading into off-screen — unremarkable to a bot, unplayable
+for a person. Driving takes the vehicle's heading, so a groundcar turns the view
+with it.
+
+**A paged panel** — Journey, Skills, Contracts, Market, Guild, Hold — on Tab,
+with the number keys acting on numbered rows. Deliberately text: a mouse-driven
+inventory is a great deal of scaffolding for a demake, and a numbered list is
+faster to build and faster to use. Every page renders from the replicated
+mirrors and never from a local guess, and the dispatch lives beside the pages
+rather than in the view, so **a headless client can press a row through the same
+code path the keyboard uses.** That is what makes the interface testable at all
+rather than only screenshot-able: `--panel MARKET --press 1` produces
+`[trade] shopper ok: sold 1 Water for 12 solari` on the server.
+
+Also: a key bound to two actions now warns at startup. Phase 8 bound "ask what
+is on offer" to R, which was already "work the node in front of you", so every
+harvest pestered the trader. Found by hand, and there is no reason the next one
+should be.
+
+Not done: no mouse-look and no aiming — the camera follows movement rather than
+a cursor; no name entry, so founding a guild uses a fixed placeholder name; the
+panel cannot buy, only sell; there is no map screen, and the wiki's 97 markers
+are invisible until you walk into them; and vehicle *appearance* is checked by
+eye rather than automatically, since asserting on pixels is worse than useless.
+
 ## Where the demake cuts
 
 Tight spine, ~30–50 items:

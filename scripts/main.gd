@@ -9,6 +9,7 @@ const VIEW_SCRIPT := preload("res://scripts/client/client_view.gd")
 const TEST_REGION := "res://data/regions/synthetic_test"
 
 var world: Node
+var _pressed: bool = false
 
 
 func _ready() -> void:
@@ -48,6 +49,14 @@ func _ready() -> void:
 	# Headless clients still need to log enough for the harness to assert on.
 	if Net.is_client():
 		world.inventory_changed.connect(_log_inventory)
+	# Panels render from the replicated mirrors and nothing else, so logging one
+	# tests the interface without needing a window. The view draws the same text.
+	if Net.is_client() and not Net.panel_page.is_empty():
+		var beat2 := Timer.new()
+		beat2.wait_time = 3.0
+		beat2.timeout.connect(_log_panel)
+		add_child(beat2)
+		beat2.start()
 	if Net.auto:
 		var beat := Timer.new()
 		beat.wait_time = 2.0
@@ -123,6 +132,22 @@ func _on_run_elapsed() -> void:
 	get_tree().quit(0)
 
 
+func _log_panel() -> void:
+	var page := Panels.PAGE_NAMES.find(Net.panel_page.to_upper())
+	if page < 0:
+		push_warning("main: no panel page called '%s'" % Net.panel_page)
+		return
+	var body: Dictionary = Panels.render(page, world)
+	print("[panel] %s" % Panels.header(page, world))
+	for line: String in str(body["text"]).split("\n"):
+		print("[panel] %s" % line)
+	print("[panel] rows=%d" % (body["actions"] as Array).size())
+	if Net.panel_press > 0 and not _pressed:
+		_pressed = true
+		var ok: bool = Panels.act(page, world, Net.panel_press - 1, body["actions"])
+		print("[panel] pressed row %d: %s" % [Net.panel_press, "sent" if ok else "no such row"])
+
+
 func _log_inventory() -> void:
 	var summary: Array = []
 	for s: Dictionary in world.inventory_mirror:
@@ -154,7 +179,31 @@ func _register_input() -> void:
 		"extract": [KEY_Z],
 		"drop": [KEY_Q],
 		"toggle_debug": [KEY_F3],
+		# Phase 8: the interface for everything Phases 6 and 7 built.
+		"panel": [KEY_TAB],
+		# H, not R: R is already "work the node in front of you", and two actions
+		# on one key means every harvest also pesters the trader.
+		"ask": [KEY_H],
+		"vehicle": [KEY_Y],
+		"refuel": [KEY_U],
+		"pack": [KEY_P],
+		"guild": [KEY_N],
 	}
+	for n in range(1, 10):
+		binds["row_%d" % n] = [KEY_1 + n - 1]
+	# Two actions on one key is a bug that does not announce itself: both fire,
+	# and the one you did not want happens quietly. Phase 8 bound "ask the trader
+	# what is on offer" to R, which was already "work the node in front of you",
+	# and every harvest also pestered the trader. Caught by hand; now caught here.
+	var claimed: Dictionary = {}
+	for action: String in binds:
+		for key: int in binds[action]:
+			if claimed.has(key):
+				push_warning("input: key %s is bound to both '%s' and '%s'"
+					% [OS.get_keycode_string(key), claimed[key], action])
+			else:
+				claimed[key] = action
+
 	for action: String in binds:
 		if InputMap.has_action(action):
 			InputMap.action_erase_events(action)

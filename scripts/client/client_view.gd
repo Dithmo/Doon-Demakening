@@ -5,6 +5,11 @@ extends Node3D
 
 var world: Node
 
+## Guild name used by the [N] key. Typing one needs a text field, which is more
+## UI scaffolding than this demake's interface has earned; the name is a
+## placeholder, not a design decision.
+const DEFAULT_GUILD := "House Doon"
+
 var _cam: Camera3D
 var _player_mesh: MeshInstance3D
 var _hud: Label
@@ -25,10 +30,19 @@ var _sun: DirectionalLight3D
 var _env: Environment
 var _notice: Label
 var _notice_until: float = 0.0
+var _terrain: TerrainView
+var _cam_yaw: float = 0.0
+var _cam_last: Vector3 = Vector3.ZERO
+var _vehicle_root: Node3D
+var _vehicle_meshes: Dictionary = {}
+var _panel: Label
+var _page: int = -1          ## -1 = closed
+var _actions: Array = []
 
 
 func _ready() -> void:
-	_build_terrain()
+	_terrain = TerrainView.new()
+	add_child(_terrain)
 	_build_lighting()
 
 	_player_mesh = _capsule(Color(0.86, 0.74, 0.52))
@@ -51,6 +65,12 @@ func _ready() -> void:
 	layer.add_child(_hud)
 	add_child(layer)
 
+	_panel = Label.new()
+	_panel.position = Vector2(12, 300)
+	_panel.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+	_panel.add_theme_font_size_override("font_size", 13)
+	layer.add_child(_panel)
+
 	_notice = Label.new()
 	_notice.position = Vector2(12, 200)
 	_notice.add_theme_color_override("font_color", Color(1.0, 0.86, 0.6))
@@ -63,6 +83,8 @@ func _ready() -> void:
 	add_child(_build_root)
 	_threat_root = Node3D.new()
 	add_child(_threat_root)
+	_vehicle_root = Node3D.new()
+	add_child(_vehicle_root)
 	_worm_mesh = MeshInstance3D.new()
 	var mound := SphereMesh.new()
 	mound.radius = Sandworm.STRIKE_RADIUS * 0.5
@@ -82,6 +104,11 @@ func _ready() -> void:
 	_alarm.add_theme_font_size_override("font_size", 26)
 	layer.add_child(_alarm)
 
+	# --panel opens a page for a screenshot or a manual look.
+	if not Net.panel_page.is_empty():
+		_page = Panels.PAGE_NAMES.find(Net.panel_page.to_upper())
+
+	world.vehicles_changed.connect(_refresh_vehicles)
 	world.worm_changed.connect(_refresh_worm)
 	world.hostiles_changed.connect(_refresh_hostiles)
 	world.build_changed.connect(_refresh_build)
@@ -100,10 +127,26 @@ func _show_notice(text: String) -> void:
 
 func _process(_delta: float) -> void:
 	var p: Vector3 = world.local_pos
+	_terrain.update_around(p)
 	_player_mesh.position = p + Vector3.UP * 0.9
-	# Fixed over-the-shoulder framing; a proper orbit camera is not Phase 0 work.
-	_cam.position = p + Vector3(0.0, 6.5, 9.0)
-	_cam.look_at(p + Vector3.UP * 1.2, Vector3.UP)
+
+	# The camera follows where you are going. It used to be pinned facing north,
+	# which meant walking south moved you *toward* the lens with the ground you
+	# were heading into off-screen behind you -- fine for a bot, unplayable for
+	# a person. Driving takes the vehicle's heading instead, so a groundcar
+	# turns the view with it.
+	var travelled := Vector2(p.x - _cam_last.x, p.z - _cam_last.z)
+	if world.driving != 0 and world.vehicle_mirror.has(world.driving):
+		_cam_yaw = float(world.vehicle_mirror[world.driving]["heading"])
+	elif travelled.length() > 0.05:
+		_cam_yaw = lerp_angle(_cam_yaw, atan2(travelled.x, -travelled.y), 0.12)
+	_cam_last = p
+
+	var back := Vector3(-sin(_cam_yaw), 0.0, cos(_cam_yaw))
+	var high := 7.5 if world.driving == 0 else 10.0
+	var far := 10.0 if world.driving == 0 else 15.0
+	_cam.position = p + back * far + Vector3.UP * high
+	_cam.look_at(p + Vector3.UP * 1.5, Vector3.UP)
 
 	for id: int in world.remote_players:
 		if not _remote_nodes.has(id):
@@ -122,6 +165,8 @@ func _process(_delta: float) -> void:
 			_remote_nodes.erase(id)
 
 	_advance_sky()
+	_refresh_panel()
+	_refresh_vehicles()
 	_refresh_worm()
 	if Time.get_ticks_msec() / 1000.0 > _notice_until and not _notice.text.is_empty():
 		_notice.text = ""
@@ -173,6 +218,55 @@ func _unhandled_input(event: InputEvent) -> void:
 			if not (world.inventory_mirror[i] as Dictionary).is_empty():
 				world.drop_slot(i)
 				break
+	elif event.is_action_pressed("panel"):
+		# Tab cycles pages and wraps round to closed, so one key both opens and
+		# dismisses it.
+		_page += 1
+		if _page >= Panels.PAGE_NAMES.size():
+			_page = -1
+		_refresh_panel()
+	elif event.is_action_pressed("ask"):
+		world.ask_contracts()
+	elif event.is_action_pressed("vehicle"):
+		if world.driving != 0:
+			world.exit_vehicle()
+		else:
+			world.enter_vehicle()
+	elif event.is_action_pressed("refuel"):
+		world.refuel_vehicle()
+	elif event.is_action_pressed("pack"):
+		world.pack_vehicle()
+	elif event.is_action_pressed("guild"):
+		if world.my_guild == 0:
+			world.found_guild(DEFAULT_GUILD)
+		else:
+			world.leave_guild()
+	else:
+		for n in range(1, Panels.MAX_ROWS + 1):
+			if event.is_action_pressed("row_%d" % n):
+				_act_on_row(n - 1)
+				return
+
+
+## What a number key does depends on the open page. The dispatch itself lives in
+## Panels, next to the pages that define the rows, so the keyboard and the
+## harness go through one implementation.
+func _act_on_row(i: int) -> void:
+	if _page < 0:
+		return
+	Panels.act(_page, world, i, _actions)
+
+
+func _refresh_panel() -> void:
+	if _panel == null:
+		return
+	if _page < 0:
+		_panel.text = ""
+		_actions = []
+		return
+	var body: Dictionary = Panels.render(_page, world)
+	_actions = body["actions"]
+	_panel.text = "%s\n%s\n[Tab] next page" % [Panels.header(_page, world), body["text"]]
 
 
 func _refresh_hud() -> void:
@@ -344,6 +438,44 @@ func _refresh_build() -> void:
 ## The worm is only visible once it has surfaced. Before that the player has
 ## the threat meter and the warning line, which is deliberate -- you are meant
 ## to read the sand, not watch a dot approach.
+
+## Vehicles were replicated from Phase 7 and drawn by nobody, so driving one
+## looked exactly like sprinting very fast across empty sand. Refreshed every
+## frame rather than on signal, because a driven vehicle moves continuously and
+## the signal only fires at the sync rate.
+func _refresh_vehicles() -> void:
+	if _vehicle_root == null:
+		return
+	for vid: int in world.vehicle_mirror:
+		var v: Dictionary = world.vehicle_mirror[vid]
+		var def := ItemDB.get_def(str(v["item_id"]))
+		if not _vehicle_meshes.has(vid):
+			var flies := bool(def.get("flies", false))
+			var body := BoxMesh.new()
+			# A thopter reads as wings: wide, thin and long. A groundcar is a
+			# blockier, taller box. Crude, but you can tell them apart at
+			# a hundred metres, which is the whole job.
+			body.size = Vector3(6.5, 1.1, 3.2) if flies else Vector3(2.6, 1.5, 4.4)
+			var mi := MeshInstance3D.new()
+			mi.mesh = body
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.36, 0.42, 0.46) if flies \
+				else Color(0.55, 0.45, 0.30)
+			mat.metallic = 0.5
+			mat.roughness = 0.55
+			mi.material_override = mat
+			_vehicle_root.add_child(mi)
+			_vehicle_meshes[vid] = mi
+		var node: MeshInstance3D = _vehicle_meshes[vid]
+		node.position = v["pos"] as Vector3
+		node.rotation = Vector3(0.0, float(v["heading"]), 0.0)
+
+	for vid: int in _vehicle_meshes.keys():
+		if not world.vehicle_mirror.has(vid):
+			(_vehicle_meshes[vid] as Node).queue_free()
+			_vehicle_meshes.erase(vid)
+
+
 func _refresh_worm() -> void:
 	var state := int(world.worm_mirror["state"])
 	var showing := state == Sandworm.State.SURFACING or state == Sandworm.State.STRIKING
@@ -432,48 +564,6 @@ func _capsule(col: Color) -> MeshInstance3D:
 ## Build a mesh straight from the heightmap. Vertex colour encodes the surface
 ## mask so the sand/rock boundary the worm will read in Phase 4 is visible now
 ## -- being able to see the mask is what makes it debuggable.
-func _build_terrain() -> void:
-	var step := 2.0
-	var nx := int(Terrain.size_m.x / step)
-	var nz := int(Terrain.size_m.y / step)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for jz in range(nz):
-		for ix in range(nx):
-			var x0 := float(ix) * step
-			var z0 := float(jz) * step
-			var x1 := x0 + step
-			var z1 := z0 + step
-			var corners := [
-				Vector3(x0, Terrain.sample_height(x0, z0), z0),
-				Vector3(x1, Terrain.sample_height(x1, z0), z0),
-				Vector3(x1, Terrain.sample_height(x1, z1), z1),
-				Vector3(x0, Terrain.sample_height(x0, z1), z1),
-			]
-			for tri: Array in [[0, 2, 1], [0, 3, 2]]:
-				for k: int in tri:
-					var v: Vector3 = corners[k]
-					st.set_color(_surface_color(Terrain.sample_surface(v.x, v.z)))
-					st.add_vertex(v)
-	st.generate_normals()
-
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.95
-	mi.material_override = mat
-	add_child(mi)
-
-
-func _surface_color(s: int) -> Color:
-	match s:
-		Terrain.Surface.ROCK: return Color(0.42, 0.33, 0.26)
-		Terrain.Surface.CLIFF: return Color(0.25, 0.19, 0.16)
-	return Color(0.83, 0.66, 0.42)
-
-
 func _build_lighting() -> void:
 	_sun = DirectionalLight3D.new()
 	_sun.light_energy = 1.15
@@ -490,7 +580,13 @@ func _build_lighting() -> void:
 	e.ambient_light_energy = 0.6
 	e.fog_enabled = true
 	e.fog_light_color = Color(0.82, 0.71, 0.56)
-	e.fog_density = 0.004
+	# Tuned to TerrainView.VIEW_M: the ground now ends at a finite radius, and
+	# fog is what makes that read as haze rather than as a cliff into the void.
+	# 0.0075 was too strong -- it flattened the near field into featureless
+	# beige, hiding the dunes as well as the edge. This fogs the horizon by
+	# roughly half and leaves the ground in front of you legible.
+	e.fog_density = 0.002
+	e.fog_aerial_perspective = 0.5
 	env.environment = e
 	_env = e
 	add_child(env)

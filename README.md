@@ -38,6 +38,7 @@ python3 tools/test_phase4.py                            # worms and combat
 python3 tools/test_phase5.py                            # the real Hagga Basin
 python3 tools/test_phase6.py                            # progression and content
 python3 tools/test_phase7.py                            # vehicles and guilds
+python3 tools/test_phase8.py                            # the client (needs xvfb-run)
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -54,6 +55,8 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
 `--learn <skill id>` (client: attempt to learn once, for testing the trainer rule),
 `--guild <name>` / `--deliver` (client: join or found a guild, then give to the Landsraad),
+`--panel JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD` and `--press N` (client: open a
+panel page, log it, and press one of its rows — works headless),
 `--debug-steer`.
 
 ## Layout
@@ -67,7 +70,7 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 | `scripts/terrain/` | `sample_height` / `sample_surface` contract |
 | `scripts/items/` | Item database, recipes, inventory, use hooks, combat |
 | `scripts/player/` | Shared movement, survival vitals, progression and skills |
-| `scripts/client/` | Presentation only; owns no game state |
+| `scripts/client/` | Presentation only; owns no game state. Tiled terrain, paged panels |
 | `tools/` | Data pipeline and test harnesses |
 | `tests/` | In-engine unit tests (`-- --run-tests`) |
 

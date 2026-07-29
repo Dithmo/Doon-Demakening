@@ -76,6 +76,13 @@ var learn_skill: String = ""
 ## first sellable stack to the Landsraad. Same purpose as --learn: it makes the
 ## rule testable directly instead of via a bot that has to be talked into it.
 var guild_name: String = ""
+## Client debug: open this panel page at start and log its contents. Panels are
+## pure text derived from the replicated mirrors, so this makes the interface
+## itself assertable from a headless run rather than only from a screenshot.
+var panel_page: String = ""
+## Client debug: press this row on the open panel page, once. Closes the loop
+## between an interface and the server for the harness.
+var panel_press: int = 0
 var deliver_to_landsraad: bool = false
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
@@ -136,6 +143,8 @@ func _parse_args() -> void:
 	spawn_poi = Args.value("--spawn-at", "")
 	learn_skill = Args.value("--learn", "")
 	guild_name = Args.value("--guild", "")
+	panel_page = Args.value("--panel", "")
+	panel_press = Args.integer("--press", 0)
 	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")
