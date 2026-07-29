@@ -22,6 +22,11 @@ import sys
 import time
 
 GODOT = os.environ.get("GODOT", "/opt/godot/godot")
+
+# What World._on_peer_joined hands a brand-new player. Stated explicitly so
+# that adding to the starting kit fails loudly here instead of silently
+# skewing the "gathered off the ground" arithmetic.
+STARTING_KIT = {"water": 3, "cutteray": 1, "dew_harvester": 1}
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27099"))
 
@@ -133,10 +138,12 @@ def main():
     for who, items in inv1.items():
         for k, v in items.items():
             picked[k] = picked.get(k, 0) + v
-    # Each client starts with water x3 + cutteray x1; anything above that was
-    # picked up off the ground under server validation.
-    gathered = sum(v for k, v in picked.items() if k not in ("cutteray",))
-    check(gathered > 6, f"clients gathered items off the ground (total {gathered})")
+    # Anything held beyond the starting kit was picked up off the ground under
+    # server validation.
+    n_players = len(inv1)
+    gathered = sum(max(0, v - STARTING_KIT.get(k, 0) * n_players)
+                   for k, v in picked.items())
+    check(gathered > 0, f"clients gathered items off the ground (total {gathered})")
 
     # Exclusivity: two clients racing the same ground item must not both bank
     # it. This is the concurrency property server authority exists to provide.
@@ -145,8 +152,8 @@ def main():
     check(len(picks) > 0, f"server logged pickups ({len(picks)})")
     check(len(ids) == len(set(ids)), "no entity was picked up twice")
     banked = sum(int(p[2]) for p in picks)
-    check(gathered - 6 == banked,
-          f"items banked ({gathered - 6}) match entities removed ({banked})")
+    check(gathered == banked,
+          f"items banked ({gathered}) match entities removed ({banked})")
 
     # Despawn must reach the client that did NOT do the picking up.
     remaining = re.search(r"server saw (\d+) entity", server.text())

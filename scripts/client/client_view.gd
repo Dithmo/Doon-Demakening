@@ -12,6 +12,10 @@ var _remote_root: Node3D
 var _entity_root: Node3D
 var _remote_nodes: Dictionary = {}
 var _entity_nodes: Dictionary = {}
+var _sun: DirectionalLight3D
+var _env: Environment
+var _notice: Label
+var _notice_until: float = 0.0
 
 
 func _ready() -> void:
@@ -38,8 +42,21 @@ func _ready() -> void:
 	layer.add_child(_hud)
 	add_child(layer)
 
+	_notice = Label.new()
+	_notice.position = Vector2(12, 200)
+	_notice.add_theme_color_override("font_color", Color(1.0, 0.86, 0.6))
+	_notice.add_theme_font_size_override("font_size", 17)
+	layer.add_child(_notice)
+
 	world.entities_changed.connect(_refresh_entities)
 	world.inventory_changed.connect(_refresh_hud)
+	world.vitals_changed.connect(_refresh_hud)
+	world.notice.connect(_show_notice)
+
+
+func _show_notice(text: String) -> void:
+	_notice.text = text
+	_notice_until = Time.get_ticks_msec() / 1000.0 + 3.0
 
 
 func _process(_delta: float) -> void:
@@ -65,12 +82,40 @@ func _process(_delta: float) -> void:
 			(_remote_nodes[id] as Node).queue_free()
 			_remote_nodes.erase(id)
 
+	_advance_sky()
+	if Time.get_ticks_msec() / 1000.0 > _notice_until and not _notice.text.is_empty():
+		_notice.text = ""
 	_refresh_hud()
+
+
+## Drive the visible sun from the same Clock the server charges water against,
+## so what looks like shade is shade.
+func _advance_sky() -> void:
+	var sun := Clock.sun_to()
+	if sun.length_squared() > 0.001:
+		_sun.look_at_from_position(Vector3.ZERO, -sun, Vector3.UP)
+	var alt := Clock.sun_altitude()
+	var day := clampf(alt, 0.0, 1.0)
+	_sun.light_energy = lerpf(0.0, 1.3, day)
+	_sun.light_color = Color(1.0, 0.94, 0.82).lerp(Color(1.0, 0.72, 0.45),
+		clampf(1.0 - day * 2.5, 0.0, 1.0))
+	var sky := Color(0.05, 0.06, 0.11).lerp(Color(0.78, 0.68, 0.55), clampf(alt * 2.0 + 0.35, 0.0, 1.0))
+	_env.background_color = sky
+	_env.fog_light_color = sky
+	_env.ambient_light_energy = lerpf(0.12, 0.62, clampf(alt * 2.0 + 0.3, 0.0, 1.0))
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact"):
 		world.try_pickup()
+	elif event.is_action_pressed("drink"):
+		var i: int = world.find_use("hydrate")
+		if i >= 0:
+			world.use_slot(i)
+	elif event.is_action_pressed("harvest"):
+		var i: int = world.find_use("tool_dew")
+		if i >= 0:
+			world.use_slot(i)
 	elif event.is_action_pressed("drop"):
 		for i in (world.inventory_mirror as Array).size():
 			if not (world.inventory_mirror[i] as Dictionary).is_empty():
@@ -83,9 +128,22 @@ func _refresh_hud() -> void:
 		return
 	var lines: Array = []
 	var s: int = world.local_surface
-	lines.append("%s  |  peers %d" % [Net.identity, world.remote_players.size() + 1])
-	lines.append("pos %.1f, %.1f   surface %s"
-		% [world.local_pos.x, world.local_pos.z, Terrain.surface_name(s)])
+	var v: Dictionary = world.vitals_mirror
+	lines.append("%s  |  peers %d  |  day %d  %s  %s"
+		% [Net.identity, world.remote_players.size() + 1, Clock.day_number,
+		Clock.hhmm(), Clock.phase_name()])
+	lines.append("WATER  %s %3.0f" % [_bar(float(v["hydration"]) / Vitals.MAX), v["hydration"]])
+	lines.append("HEAT   %s %3.0f" % [_bar(float(v["heat"]) / Vitals.MAX), v["heat"]])
+	lines.append("HEALTH %s %3.0f" % [_bar(float(v["health"]) / Vitals.MAX), v["health"]])
+	lines.append("pos %.1f, %.1f   surface %s   %s"
+		% [world.local_pos.x, world.local_pos.z, Terrain.surface_name(s),
+		"IN SHADE" if world.shaded_mirror else "EXPOSED"])
+
+	var worn: Array = []
+	for slot: int in world.equipped_mirror:
+		worn.append(ItemDB.display_name(str(world.equipped_mirror[slot])))
+	if worn:
+		lines.append("worn: " + ", ".join(worn))
 
 	var carried: Array = []
 	for slot: Dictionary in world.inventory_mirror:
@@ -93,10 +151,21 @@ func _refresh_hud() -> void:
 			carried.append("%s x%d" % [ItemDB.display_name(slot["id"]), slot["count"]])
 	lines.append("bag: " + (", ".join(carried) if carried else "(empty)"))
 
+	var hints: Array = []
 	if world.nearest_entity() != 0:
-		lines.append("[E] pick up")
-	lines.append("[Q] drop first slot")
+		hints.append("[E] pick up")
+	if world.find_use("hydrate") >= 0:
+		hints.append("[F] drink")
+	if world.find_use("tool_dew") >= 0:
+		hints.append("[G] harvest dew" + ("" if Clock.is_night() else " (needs dark)"))
+	hints.append("[Q] drop")
+	lines.append(" ".join(hints))
 	_hud.text = "\n".join(lines)
+
+
+func _bar(frac: float) -> String:
+	var filled := int(round(clampf(frac, 0.0, 1.0) * 20.0))
+	return "[" + "#".repeat(filled) + "-".repeat(20 - filled) + "]"
 
 
 func _refresh_entities() -> void:
@@ -180,13 +249,11 @@ func _surface_color(s: int) -> Color:
 
 
 func _build_lighting() -> void:
-	var sun := DirectionalLight3D.new()
-	# Matches the baked sun measured off the wiki render (docs/terrain-plan.md):
-	# image-space azimuth 120 deg, low in the sky.
-	sun.rotation_degrees = Vector3(-32.0, 120.0, 0.0)
-	sun.light_energy = 1.15
-	sun.light_color = Color(1.0, 0.94, 0.82)
-	add_child(sun)
+	_sun = DirectionalLight3D.new()
+	_sun.light_energy = 1.15
+	_sun.light_color = Color(1.0, 0.94, 0.82)
+	_sun.shadow_enabled = true
+	add_child(_sun)
 
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
@@ -199,4 +266,5 @@ func _build_lighting() -> void:
 	e.fog_light_color = Color(0.82, 0.71, 0.56)
 	e.fog_density = 0.004
 	env.environment = e
+	_env = e
 	add_child(env)

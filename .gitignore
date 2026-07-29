@@ -12,8 +12,9 @@ data/regions/*/mask.u8
 export_presets.cfg
 
 # Test/diagnostic scratch
-.test_home/
+.test_home*/
 .diag/
+*.log
 
 # Python
 __pycache__/

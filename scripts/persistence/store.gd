@@ -47,10 +47,15 @@ func player_state(who: String) -> Dictionary:
 	return (_data["players"] as Dictionary).get(who, {})
 
 
-func put_player(who: String, pos: Vector3, inventory: Array) -> void:
+func put_player(who: String, pos: Vector3, inventory: Array,
+		vitals: Dictionary = {}, equipped: Dictionary = {}) -> void:
 	(_data["players"] as Dictionary)[who] = {
 		"pos": [pos.x, pos.y, pos.z],
 		"inventory": inventory,
+		"vitals": vitals,
+		# JSON object keys are strings; Vitals/World cast them back to the slot
+		# enum on load.
+		"equipped": equipped,
 	}
 	_dirty = true
 

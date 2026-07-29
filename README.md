@@ -21,18 +21,25 @@ godot --headless -- --server [--port N] [--region res://data/regions/NAME]
 godot           -- --client [--host H] [--port N] [--identity NAME]
 ```
 
-Controls: `WASD` move, `Shift` sprint, `E` pick up, `Q` drop.
+Controls: `WASD` move, `Shift` sprint, `E` pick up, `F` drink,
+`G` harvest dew (after dark only), `Q` drop.
 
 ## Testing
 
 ```bash
-python3 tools/test_phase0.py
+godot --headless -- --run-tests                          # survival rules, seconds
+python3 tools/test_phase0.py                            # net spine + inventory
+python3 tools/test_phase1.py                            # the water loop
 ```
 
-Runs three headless sessions — two bot clients against a real server — and
-asserts handshake, movement, pickup exclusivity, cross-client despawn,
-persistence across a server restart, and rejection of a client whose terrain
-does not match the server's.
+The Python harnesses drive real bot clients against a real headless server and
+assert on what the session actually logs — handshake, pickup exclusivity,
+persistence, terrain-mismatch rejection, day-versus-night water drain, shade,
+dew-harvest refusal in daylight, death and respawn.
+
+Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
+the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
+`--start-hydration N`, `--bot-profile survive|reckless`.
 
 ## Layout
 
@@ -44,9 +51,10 @@ does not match the server's.
 | `scripts/world/` | World authority and replication |
 | `scripts/terrain/` | `sample_height` / `sample_surface` contract |
 | `scripts/items/` | Item database and inventory model |
-| `scripts/player/` | Shared movement, run identically both sides |
+| `scripts/player/` | Shared movement and survival vitals |
 | `scripts/client/` | Presentation only; owns no game state |
-| `tools/` | Data pipeline and test harness |
+| `tools/` | Data pipeline and test harnesses |
+| `tests/` | In-engine unit tests (`-- --run-tests`) |
 
 ## Regenerating data
 

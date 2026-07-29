@@ -111,6 +111,36 @@ func sample_surface(x: float, z: float) -> Surface:
 	return _mask[iz * _mx + ix] as Surface
 
 
+## True when terrain blocks the line to the sun from head height here.
+##
+## Marched against the heightmap rather than approximated from the surface
+## class, because shade has to move as the sun does -- the west face of an
+## outcrop is shelter in the morning and an oven in the afternoon. That
+## time-dependence is what makes shade a thing you route around rather than a
+## property of a tile.
+##
+## Cost is bounded by MAX_SHADE_STEPS regardless of sun angle; a very low sun
+## casts shadows longer than we march, so this under-reports shade near dawn
+## and dusk. Acceptable: exposure is near zero then anyway.
+const MAX_SHADE_STEPS := 48
+const SHADE_STEP_M := 2.5
+const EYE_HEIGHT := 1.7
+
+func is_shaded(x: float, z: float, sun: Vector3) -> bool:
+	if not loaded or sun.y <= 0.02:
+		return true  # sun on or below the horizon
+	var base := sample_height(x, z) + EYE_HEIGHT
+	for i in range(1, MAX_SHADE_STEPS + 1):
+		var d := float(i) * SHADE_STEP_M
+		var px := x + sun.x * d
+		var pz := z + sun.z * d
+		if px < 0.0 or pz < 0.0 or px > size_m.x or pz > size_m.y:
+			return false
+		if sample_height(px, pz) > base + sun.y * d:
+			return true
+	return false
+
+
 func is_walkable(x: float, z: float) -> bool:
 	if x < 0.0 or z < 0.0 or x > size_m.x or z > size_m.y:
 		return false

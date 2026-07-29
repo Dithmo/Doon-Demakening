@@ -106,7 +106,7 @@ server authority a late change means migrating persisted state too.
 Each phase ends in something you can actually play, with at least two clients
 connected. That is the whole point of the ordering.
 
-### Phase 0 — Foundations — **in progress**
+### Phase 0 — Foundations — **done**
 Godot project with **client and headless-server targets**, ENet transport,
 connect/join/disconnect, and a script to launch a server plus N clients.
 Character controller with predicted movement and reconciliation. `TerrainData`

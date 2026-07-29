@@ -12,6 +12,11 @@ var world: Node
 func _ready() -> void:
 	_register_input()
 
+	if Args.has("--run-tests"):
+		var suite: RefCounted = load("res://tests/survival_tests.gd").new()
+		get_tree().quit(1 if suite.run() > 0 else 0)
+		return
+
 	world = WORLD_SCRIPT.new()
 	world.name = "World"
 	add_child(world)
@@ -49,10 +54,12 @@ func _capture() -> void:
 
 
 func _log_position() -> void:
-	print("[bot] %s pos %.1f,%.1f  surface %s  seen %d  nearest %d"
-		% [Net.identity, world.local_pos.x, world.local_pos.z,
-		Terrain.surface_name(Terrain.sample_surface(world.local_pos.x, world.local_pos.z)),
-		world.entity_mirror.size(), world.nearest_entity()])
+	var v: Dictionary = world.vitals_mirror
+	print("[bot] %s t=%.3f %s water=%.1f heat=%.1f hp=%.1f %s pos %.1f,%.1f seen %d"
+		% [Net.identity, Clock.time_of_day, Clock.phase_name(),
+		v["hydration"], v["heat"], v["health"],
+		"shade" if world.shaded_mirror else "sun",
+		world.local_pos.x, world.local_pos.z, world.entity_mirror.size()])
 
 
 func _on_run_elapsed() -> void:
@@ -87,6 +94,8 @@ func _register_input() -> void:
 		"move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT],
 		"interact": [KEY_E],
+		"drink": [KEY_F],
+		"harvest": [KEY_G],
 		"drop": [KEY_Q],
 		"toggle_debug": [KEY_F3],
 	}

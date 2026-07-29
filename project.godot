@@ -16,6 +16,7 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 ; Store asks Net which role it is before deciding whether to persist anything.
 ItemDB="*res://scripts/items/item_db.gd"
 Terrain="*res://scripts/terrain/terrain_data.gd"
+Clock="*res://scripts/world/world_clock.gd"
 Net="*res://scripts/net/net.gd"
 Store="*res://scripts/persistence/store.gd"
 

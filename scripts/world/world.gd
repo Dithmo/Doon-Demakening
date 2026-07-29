@@ -10,6 +10,8 @@ extends Node
 signal inventory_changed
 signal entities_changed
 signal local_state_changed(pos: Vector3, surface: int)
+signal vitals_changed
+signal notice(text: String)
 
 const PICKUP_RANGE := 3.0
 ## Rejecting inputs that claim more time than they could have taken stops a
@@ -17,6 +19,15 @@ const PICKUP_RANGE := 3.0
 ## this just bounds the queue.
 const MAX_QUEUED_INPUTS := 12
 const SYNC_HZ := 15.0
+## Vitals move slowly; no reason to spend bandwidth at movement rate.
+const VITALS_HZ := 4.0
+## Clients extrapolate the clock between these, so it only needs to correct
+## accumulated drift.
+const CLOCK_SYNC_SECONDS := 10.0
+## Shade is a bounded raymarch over the heightmap -- the most expensive thing
+## in the server loop. At walking pace a player crosses ~0.15 m per physics
+## tick, so re-solving it 30 times a second buys nothing.
+const SHADE_HZ := 4.0
 
 # --- server state ------------------------------------------------------------
 ## peer id -> {identity, pos, inventory: Inventory, queue: Array, last_seq: int}
@@ -24,6 +35,9 @@ var _players: Dictionary = {}
 var _entities: Dictionary = {}  ## entity id -> {item_id, count, pos}
 var _next_entity_id: int = 1
 var _sync_accum: float = 0.0
+var _vitals_accum: float = 0.0
+var _clock_accum: float = 0.0
+var _shade_accum: float = 0.0
 
 # --- client state ------------------------------------------------------------
 var local_pos: Vector3 = Vector3.ZERO
@@ -31,10 +45,17 @@ var local_surface: int = Terrain.Surface.SAND
 var inventory_mirror: Array = []
 var entity_mirror: Dictionary = {}
 var remote_players: Dictionary = {}  ## peer id -> Vector3
+## Replicated copy of our own vitals. Display only -- never simulated here.
+var vitals_mirror: Dictionary = {
+	"hydration": Vitals.MAX, "heat": 0.0, "health": Vitals.MAX, "alive": true,
+}
+var equipped_mirror: Dictionary = {}
+var shaded_mirror: bool = false
 
 var _input_seq: int = 0
 var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
 var _bot_cooldown: int = 0
+var _bot_use_cd: int = 0
 var _bot_stalled: int = 0
 var _bot_unstick: int = 0
 var _bot_last_pos: Vector3 = Vector3.ZERO
@@ -56,26 +77,38 @@ func _on_peer_joined(id: int) -> void:
 	var saved := Store.player_state(who)
 
 	var inv := Inventory.new()
+	var vit := Vitals.new()
+	var equipped: Dictionary = {}
 	var pos := Movement.find_spawn(Vector3(Terrain.size_m.x * 0.5, 0.0, Terrain.size_m.y * 0.5))
 	if not saved.is_empty():
 		var p: Array = saved.get("pos", [])
 		if p.size() == 3:
 			pos = Movement.find_spawn(Vector3(float(p[0]), float(p[1]), float(p[2])))
 		inv.from_data(saved.get("inventory", []))
+		vit.from_data(saved.get("vitals", {}))
+		for k: Variant in saved.get("equipped", {}):
+			equipped[int(k)] = str(saved["equipped"][k])
 		print("[world] restored '%s' at %v" % [who, pos])
 	else:
 		# Seed a new arrival with just enough to prove the loop works.
 		inv.add("water", 3)
 		inv.add("cutteray", 1)
+		inv.add("dew_harvester", 1)
+		if Net.start_hydration >= 0.0:
+			vit.hydration = clampf(Net.start_hydration, 0.0, Vitals.MAX)
 
 	_players[id] = {
-		"identity": who, "pos": pos, "inventory": inv,
+		"identity": who, "pos": pos, "inventory": inv, "vitals": vit,
+		"equipped": equipped, "cooldowns": {}, "spawn": pos,
 		"queue": [], "last_seq": 0,
 	}
 	_persist_player(id)
 
 	_full_state.rpc_id(id, _entity_wire(), pos)
 	_sync_inventory.rpc_id(id, inv.to_data())
+	_sync_equipment.rpc_id(id, equipped)
+	_push_vitals(id)
+	_sync_clock.rpc_id(id, Clock.time_of_day, Clock.day_number)
 
 
 func _on_peer_left(id: int) -> void:
@@ -102,10 +135,64 @@ func _server_tick(delta: float) -> void:
 			p["pos"] = Movement.step(p["pos"], cmd["dir"], cmd["sprint"], delta)
 			p["last_seq"] = int(cmd["seq"])
 
+	_simulate_vitals(delta)
+
 	_sync_accum += delta
 	if _sync_accum >= 1.0 / SYNC_HZ:
 		_sync_accum = 0.0
 		_broadcast_players()
+
+	_vitals_accum += delta
+	if _vitals_accum >= 1.0 / VITALS_HZ:
+		_vitals_accum = 0.0
+		for id: int in _players:
+			_push_vitals(id)
+
+	_clock_accum += delta
+	if _clock_accum >= CLOCK_SYNC_SECONDS:
+		_clock_accum = 0.0
+		_sync_clock.rpc(Clock.time_of_day, Clock.day_number)
+
+
+## Water is the clock. Everything the player decides -- where to stand, how
+## fast to move, what to wear -- reaches the simulation through here.
+func _simulate_vitals(delta: float) -> void:
+	var exposure := Clock.exposure()
+	var sun := Clock.sun_to()
+	_shade_accum += delta
+	var resolve_shade := _shade_accum >= 1.0 / SHADE_HZ
+	if resolve_shade:
+		_shade_accum = 0.0
+
+	for id: int in _players:
+		var p: Dictionary = _players[id]
+		var vit: Vitals = p["vitals"]
+		var pos: Vector3 = p["pos"]
+		if resolve_shade or not p.has("shaded"):
+			p["shaded"] = Terrain.is_shaded(pos.x, pos.z, sun)
+		var shaded: bool = p["shaded"]
+		var activity: float = 1.0
+		if bool(p.get("sprinting", false)):
+			activity = Vitals.SPRINT_DRAIN_MULT
+		if vit.tick(delta, exposure, shaded, activity, ItemUse.insulation(p["equipped"])):
+			_kill(id)
+
+
+func _kill(id: int) -> void:
+	var p: Dictionary = _players[id]
+	var cause := "dehydration" if p["vitals"].hydration <= 0.0 else "heatstroke"
+	print("[death] %s died of %s at %s" % [p["identity"], cause, Clock.hhmm()])
+	p["vitals"].revive()
+	p["pos"] = Movement.find_spawn(p["spawn"])
+	_persist_player(id)
+	_player_died.rpc_id(id, cause, p["pos"])
+	_push_vitals(id)
+
+
+func _push_vitals(id: int) -> void:
+	var p: Dictionary = _players[id]
+	var v: Vitals = p["vitals"]
+	_sync_vitals.rpc_id(id, v.hydration, v.heat, v.health, bool(p.get("shaded", false)))
 
 
 func _broadcast_players() -> void:
@@ -121,7 +208,8 @@ func _broadcast_players() -> void:
 
 func _persist_player(id: int) -> void:
 	var p: Dictionary = _players[id]
-	Store.put_player(p["identity"], p["pos"], (p["inventory"] as Inventory).to_data())
+	Store.put_player(p["identity"], p["pos"], (p["inventory"] as Inventory).to_data(),
+		(p["vitals"] as Vitals).to_data(), p["equipped"])
 
 
 func _entity_wire() -> Array:
@@ -203,6 +291,9 @@ func _submit_input(seq: int, dx: float, dz: float, sprint: bool) -> void:
 	if queue.size() >= MAX_QUEUED_INPUTS:
 		return  # flooding or a stalled client; drop rather than let it bank time
 	queue.append({"seq": seq, "dir": Vector2(dx, dz), "sprint": sprint})
+	# Sprinting costs water, so the simulation needs to know about it even
+	# though movement itself is resolved from the queue.
+	_players[id]["sprinting"] = sprint and (dx != 0.0 or dz != 0.0)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -237,6 +328,30 @@ func _request_pickup(entity_id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _request_use(slot_index: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	# All validation -- time of day, cooldown, capacity -- happens here. The
+	# client only ever asks which slot.
+	var result := ItemUse.apply(slot_index, p["inventory"], p["vitals"],
+		p["equipped"], p["cooldowns"])
+	if result["changed"]:
+		_persist_player(id)
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_sync_equipment.rpc_id(id, p["equipped"])
+		_push_vitals(id)
+	print("[use] %s %s: %s"
+		% [p["identity"], "ok" if result["ok"] else "refused", result["msg"]])
+	_notice.rpc_id(id, result["msg"])
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _request_drop(slot_index: int) -> void:
 	if not Net.is_server():
 		return
@@ -264,8 +379,11 @@ func _client_tick(delta: float) -> void:
 	var dir := Vector2.ZERO
 	var sprint := false
 	if Net.auto:
+		_bot_survive()
 		dir = _bot_direction()
-		sprint = dir != Vector2.ZERO
+		# Sprinting doubles water loss, so the bot only does it with water spare.
+		sprint = dir != Vector2.ZERO and (Net.bot_profile == "reckless"
+			or float(vitals_mirror["hydration"]) > 60.0)
 	else:
 		if Input.is_action_pressed("move_forward"): dir.y -= 1.0
 		if Input.is_action_pressed("move_back"): dir.y += 1.0
@@ -330,6 +448,39 @@ func _sync_inventory(data: Array) -> void:
 	inventory_changed.emit()
 
 
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _sync_vitals(hydration: float, heat: float, health: float, shaded: bool) -> void:
+	vitals_mirror["hydration"] = hydration
+	vitals_mirror["heat"] = heat
+	vitals_mirror["health"] = health
+	shaded_mirror = shaded
+	vitals_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_equipment(data: Dictionary) -> void:
+	equipped_mirror = data
+	inventory_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_clock(t: float, day: int) -> void:
+	Clock.sync_from_server(t, day)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _player_died(cause: String, respawn: Vector3) -> void:
+	local_pos = respawn
+	_pending.clear()
+	notice.emit("You died of %s." % cause)
+	print("[death] %s died of %s" % [Net.identity, cause])
+
+
+@rpc("authority", "call_remote", "reliable")
+func _notice(text: String) -> void:
+	notice.emit(text)
+
+
 @rpc("authority", "call_remote", "reliable")
 func _entity_spawned(eid: int, item_id: String, count: int, pos: Vector3) -> void:
 	entity_mirror[eid] = {"item_id": item_id, "count": count, "pos": pos}
@@ -343,6 +494,33 @@ func _entity_removed(eid: int) -> void:
 
 
 # --- client intent helpers ---------------------------------------------------
+
+## Bot survival: drink before dying, harvest dew while it is dark, otherwise
+## keep gathering. Crude, but it exercises the whole water loop unattended --
+## which is the only way to test a 20-minute day in a 60-second run.
+func _bot_survive() -> void:
+	if Net.bot_profile == "reckless":
+		return
+	_bot_use_cd -= 1
+	if _bot_use_cd > 0:
+		return
+	if float(vitals_mirror["hydration"]) < 55.0:
+		var drink := find_use("hydrate")
+		if drink >= 0:
+			use_slot(drink)
+			_bot_use_cd = 10
+			return
+	# Deliberately not gated on time of day: the client asks, the server decides.
+	var dew := find_use("tool_dew")
+	if dew >= 0:
+		use_slot(dew)
+		_bot_use_cd = 30
+		return
+	var suit := find_use("equip")
+	if suit >= 0:
+		use_slot(suit)
+		_bot_use_cd = 10
+
 
 ## Bot steering: head for the closest known pickup, grabbing anything in range.
 ## Deliberately uses only replicated state, exactly like a human client would.
@@ -402,3 +580,18 @@ func try_pickup() -> void:
 
 func drop_slot(i: int) -> void:
 	_request_drop.rpc_id(1, i)
+
+
+func use_slot(i: int) -> void:
+	_request_use.rpc_id(1, i)
+
+
+## First slot holding an item with the given use hook, or -1.
+func find_use(hook: String) -> int:
+	for i in inventory_mirror.size():
+		var s: Dictionary = inventory_mirror[i]
+		if s.is_empty():
+			continue
+		if str(ItemDB.get_def(s["id"]).get("use", "")) == hook:
+			return i
+	return -1

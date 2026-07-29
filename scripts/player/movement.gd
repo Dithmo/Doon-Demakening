@@ -13,8 +13,6 @@ extends RefCounted
 
 const WALK_SPEED := 4.4
 const SPRINT_SPEED := 7.6
-## Sprinting costs water. Phase 1 reads this; Phase 0 just tracks it.
-const SPRINT_DRAIN_MULT := 2.2
 
 ## Per-axis slide resolution, so walking into a cliff at an angle glides along
 ## it instead of sticking.
