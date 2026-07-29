@@ -19,6 +19,8 @@ signal container_changed
 signal worm_changed
 signal hostiles_changed
 signal progress_changed
+signal vehicles_changed
+signal guilds_changed
 
 const PICKUP_RANGE := 3.0
 ## Close enough to a POI to count as having got there. A wiki marker is a pin
@@ -50,11 +52,19 @@ var _field := NodeField.new()
 ## first use, so it costs nothing on the server or for any other profile.
 var _bot_path := CoarsePath.new()
 var _learn_attempted: bool = false
+var _bot_drive_ticks: int = 0
+var _bot_stowed: bool = false
+var _bot_drive_done: bool = false
+var _guild_tries: int = 0
+var _delivered: bool = false
+var _bot_debug_cd: int = 0
 var _stations := StationField.new()
 var _claims := Claims.new()
 var _build := BuildGrid.new()
 var _worm := Sandworm.new()
 var _hostiles := Hostiles.new()
+var _vehicles := VehicleField.new()
+var _guilds := Guilds.new()
 var _node_accum: float = 0.0
 var _produce_accum: float = 0.0
 ## Wall-clock of the last production tick, persisted so a restart can pay out
@@ -102,6 +112,16 @@ var quest_mirror: Dictionary = {
 }
 ## Contracts on offer wherever we last asked: [[id, name, text, solari, giver]]
 var offers_mirror: Array = []
+## vehicle id -> {item_id, pos, heading, fuel, altitude, driver}
+var vehicle_mirror: Dictionary = {}
+## The vehicle this client is driving, or 0. Prediction switches on this: a
+## driver predicts VehicleMotion, everyone else predicts Movement.
+var driving: int = 0
+## Contents of the hold we are sitting in.
+var hold_mirror: Array = []
+## Public standing table: [[id, name, members, standing]], best first.
+var guild_table: Array = []
+var my_guild: int = 0
 
 var _input_seq: int = 0
 var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
@@ -146,6 +166,15 @@ func _restore_world() -> void:
 		_hostiles.seed()
 	_claims.from_wire(Store.get_blob("claims"))
 	_build.from_wire(Store.get_blob("build"))
+	_vehicles.from_data(Store.get_blob("vehicles"))
+	if not _vehicles.vehicles.is_empty():
+		print("[vehicles] restored %d" % _vehicles.vehicles.size())
+	_guilds.from_data(Store.get_blob("guilds"))
+	# Claims consult the register for every build and every deploy, so it is
+	# attached here rather than passed down through five signatures.
+	_claims.allies = _guilds
+	if not _guilds.guilds.is_empty():
+		print("[guilds] restored %d" % _guilds.guilds.size())
 	if not _build.pieces.is_empty() or not _claims.claims.is_empty():
 		print("[base] restored %d claim(s), %d piece(s)"
 			% [_claims.claims.size(), _build.count()])
@@ -169,6 +198,8 @@ func _persist_world() -> void:
 	Store.put_blob("stations", _stations.to_wire())
 	Store.put_blob("claims", _claims.to_wire())
 	Store.put_blob("build", _build.to_wire())
+	Store.put_blob("vehicles", _vehicles.to_data())
+	Store.put_blob("guilds", _guilds.to_data())
 	Store.put_blob("production_stamp", [float(Time.get_unix_time_from_system())])
 
 
@@ -241,6 +272,8 @@ func _on_peer_joined(id: int) -> void:
 	_sync_base.rpc_id(id, _build.to_wire(), _claims.to_wire())
 	var hw := _hostiles.to_wire()
 	_sync_hostiles.rpc_id(id, hw[0], hw[1])
+	_sync_vehicles.rpc_id(id, _vehicles.to_wire())
+	_sync_guilds.rpc_id(id, _guilds.table(), _guilds.of_member(who))
 	_sync_inventory.rpc_id(id, inv.to_data())
 	_sync_equipment.rpc_id(id, equipped)
 	# Progression has to go out on join like everything else. Without it a
@@ -269,6 +302,11 @@ func _apply_grant(inv: Inventory) -> void:
 
 
 func _on_peer_left(id: int) -> void:
+	# A disconnected driver would otherwise hold the vehicle forever, and
+	# nobody else could ever get in.
+	if _vehicles.driven_by(id) != 0:
+		_vehicles.exit(id)
+		_sync_vehicles.rpc(_vehicles.to_wire())
 	if _players.has(id):
 		_persist_player(id)
 		_players.erase(id)
@@ -286,11 +324,32 @@ func _server_tick(delta: float) -> void:
 	for id: int in _players:
 		var p: Dictionary = _players[id]
 		var queue: Array = p["queue"]
+		var vid := _vehicles.driven_by(id)
+		var stepped := false
 		while not queue.is_empty():
 			var cmd: Dictionary = queue.pop_front()
 			# Server uses its own tick length, never the client's claim.
-			p["pos"] = Movement.step(p["pos"], cmd["dir"], cmd["sprint"], delta)
+			if vid != 0:
+				# The driver's position is the vehicle's. Steering comes from
+				# the same two axes walking uses, so no new input path exists
+				# for a client to lie through.
+				var dir: Vector2 = cmd["dir"]
+				var r := _vehicles.drive(vid, dir.x, -dir.y, delta)
+				p["pos"] = r["pos"]
+				stepped = true
+				if bool(r["ran_dry"]):
+					_notice.rpc_id(id, "out of fuel")
+			else:
+				p["pos"] = Movement.step(p["pos"], cmd["dir"], cmd["sprint"], delta)
 			p["last_seq"] = int(cmd["seq"])
+		# A driver who sent nothing this tick still coasts, rather than freezing
+		# mid-roll. Only when nothing was stepped, though: doing it
+		# unconditionally interleaves a zero-throttle step with every real one,
+		# which halves the acceleration and leaves the server crawling at a
+		# tenth of the speed the driver is predicting.
+		if vid != 0 and not stepped:
+			_vehicles.drive(vid, 0.0, 0.0, delta)
+			p["pos"] = _vehicles.vehicles[vid]["pos"]
 
 	_simulate_vitals(delta)
 
@@ -298,6 +357,14 @@ func _server_tick(delta: float) -> void:
 	if _sync_accum >= 1.0 / SYNC_HZ:
 		_sync_accum = 0.0
 		_broadcast_players()
+		# Vehicles move continuously, so replicating them only when someone
+		# acts on one leaves every other client -- and the driver's own fuel
+		# and altitude readouts -- frozen at whatever they were when the door
+		# shut. Only while one is occupied: a car park costs nothing to skip.
+		for vid: int in _vehicles.vehicles:
+			if int(_vehicles.vehicles[vid]["driver"]) != 0:
+				_sync_vehicles.rpc(_vehicles.to_wire())
+				break
 
 	_vitals_accum += delta
 	if _vitals_accum >= 1.0 / VITALS_HZ:
@@ -357,8 +424,21 @@ func _threat_tick(delta: float) -> void:
 		var moving := bool(p.get("moving", false))
 		# Light Step multiplies threat down; a shield multiplies it up. Both
 		# land on the same dial, which is the trade the phase is built on.
+		var equip_mult := Combat.threat_multiplier(p["equipped"]) * prog.mult("threat_rate")
+		# A driven vehicle drowns out everything a person can do on foot, and
+		# an airborne one is silent. That trade is the whole reason a groundcar
+		# changes how a water run is planned rather than just how fast it is.
+		var vid := _vehicles.driven_by(id)
+		if vid != 0:
+			var v: Dictionary = _vehicles.vehicles[vid]
+			var vm := VehicleMotion.threat_multiplier(_vehicles.def_of(vid),
+				float(v["speed"]), float(v["altitude"]))
+			if float(v["altitude"]) > 2.0:
+				on_sand = false
+			equip_mult *= vm
+			moving = VehicleMotion.is_moving(float(v["speed"]))
 		_worm.accrue(id, delta, on_sand, moving, bool(p.get("sprinting", false)),
-			Combat.threat_multiplier(p["equipped"]) * prog.mult("threat_rate"))
+			equip_mult)
 		players[id] = {"pos": pos, "on_sand": on_sand,
 			"alive": (p["vitals"] as Vitals).alive}
 
@@ -714,8 +794,12 @@ func _request_use(slot_index: int) -> void:
 	var stack: Dictionary = (p["inventory"] as Inventory).slots[slot_index] \
 		if slot_index >= 0 and slot_index < (p["inventory"] as Inventory).slots.size() \
 		else {}
-	if not stack.is_empty() and str(ItemDB.get_def(stack["id"]).get("use", "")) == "place":
+	var hook := str(ItemDB.get_def(stack["id"]).get("use", "")) if not stack.is_empty() else ""
+	if hook == "place":
 		_deploy(id, slot_index, str(stack["id"]))
+		return
+	if hook == "deploy_vehicle":
+		_deploy_vehicle(id, slot_index, str(stack["id"]))
 		return
 
 	var result := ItemUse.apply(slot_index, p["inventory"], p["vitals"],
@@ -1082,6 +1166,137 @@ func _request_trade(item_id: String, slot_index: int, count: int, buying: bool) 
 		_advance(id, "sell", str(r["item"]), int(r["count"]))
 
 
+func _deploy_vehicle(id: int, slot_index: int, item_id: String) -> void:
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	var r := _vehicles.deploy(p["identity"], p["pos"], item_id)
+	if r["ok"]:
+		inv.take_slot(slot_index)
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, inv.to_data())
+		_sync_vehicles.rpc(_vehicles.to_wire())
+		_advance(id, "build", item_id, 1)
+	print("[vehicle] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_vehicle(action: String, arg: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	var inv: Inventory = p["inventory"]
+	var r: Dictionary = {"ok": false, "msg": ""}
+
+	match action:
+		"enter":
+			var target := arg if arg != 0 else _vehicles.nearest(p["pos"])
+			r = _vehicles.enter(id, p["pos"], target)
+			if r["ok"]:
+				# Snap the player onto the vehicle immediately, and clear the
+				# input backlog: those commands were issued on foot and would
+				# otherwise be replayed as steering.
+				p["pos"] = r["pos"]
+				(p["queue"] as Array).clear()
+				_sync_driving.rpc_id(id, target)
+		"exit":
+			r = _vehicles.exit(id)
+			if r["ok"]:
+				p["pos"] = r["pos"]
+				(p["queue"] as Array).clear()
+				_sync_driving.rpc_id(id, 0)
+		"refuel":
+			var vid := arg if arg != 0 else _vehicles.driven_by(id)
+			if vid == 0:
+				vid = _vehicles.nearest(p["pos"])
+			r = _vehicles.refuel(vid, inv)
+			if r["ok"]:
+				_sync_inventory.rpc_id(id, inv.to_data())
+		"pack":
+			var vid := arg if arg != 0 else _vehicles.nearest(p["pos"])
+			r = _vehicles.pack_up(p["pos"], vid, p["identity"])
+			if r["ok"] and inv.add(str(r["item_id"]), 1) > 0:
+				spawn_entity(str(r["item_id"]), 1, p["pos"])
+			if r["ok"]:
+				_sync_inventory.rpc_id(id, inv.to_data())
+		_:
+			return
+
+	if r["ok"]:
+		_persist_player(id)
+		_persist_world()
+		_sync_vehicles.rpc(_vehicles.to_wire())
+	print("[vehicle] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	if not str(r["msg"]).is_empty():
+		_notice.rpc_id(id, str(r["msg"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_hold(slot_index: int, to_vehicle: bool) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	if slot_index >= 0:
+		var r := _vehicles.transfer(id, inv, slot_index, to_vehicle)
+		if r["ok"]:
+			_persist_player(id)
+			_persist_world()
+			_sync_inventory.rpc_id(id, inv.to_data())
+			print("[hold] %s %s" % [p["identity"], r["msg"]])
+		elif not str(r["msg"]).is_empty():
+			_notice.rpc_id(id, str(r["msg"]))
+	var vid := _vehicles.driven_by(id)
+	if vid != 0:
+		_sync_hold.rpc_id(id, (_vehicles.vehicles[vid]["inventory"] as Inventory).to_data())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_guild(action: String, argument: String, slot_index: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var who := str(p["identity"])
+	var r: Dictionary = {"ok": false, "msg": ""}
+
+	match action:
+		"found": r = _guilds.found(who, argument)
+		"join": r = _guilds.join(who, argument)
+		"leave": r = _guilds.leave(who)
+		"deliver":
+			r = _guilds.deliver(who, p["pos"], p["inventory"], slot_index, 1)
+			if r["ok"]:
+				_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		"table":
+			_sync_guilds.rpc_id(id, _guilds.table(), _guilds.of_member(who))
+			return
+		_:
+			return
+
+	print("[guild] %s %s: %s" % [who, "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+	if not r["ok"]:
+		return
+	_persist_world()
+	# Membership changes what everyone can build on, and standing is a public
+	# scoreboard, so both go to every client rather than only the one asking.
+	for peer: int in _players:
+		_sync_guilds.rpc_id(peer, _guilds.table(),
+			_guilds.of_member(str(_players[peer]["identity"])))
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _request_drop(slot_index: int) -> void:
 	if not Net.is_server():
@@ -1125,8 +1340,13 @@ func _client_tick(delta: float) -> void:
 		sprint = Input.is_action_pressed("sprint")
 
 	_input_seq += 1
-	# Predict locally, then let the server correct us.
-	local_pos = Movement.step(local_pos, dir, sprint, delta)
+	# Predict locally, then let the server correct us. Driving predicts the
+	# vehicle instead of the player: same input, same shared step function, and
+	# the player's position is wherever the vehicle ends up.
+	if driving != 0 and vehicle_mirror.has(driving):
+		local_pos = _predict_drive(dir, delta)
+	else:
+		local_pos = Movement.step(local_pos, dir, sprint, delta)
 	_pending.append({"seq": _input_seq, "dir": dir, "sprint": sprint})
 	if _pending.size() > 120:
 		_pending.pop_front()
@@ -1151,6 +1371,25 @@ func _sync_players(wire: Array) -> void:
 			remote_players[id] = pos
 
 
+## Advance the vehicle we are driving, locally, from this frame's input.
+##
+## The driver keeps its own copy of heading, speed and altitude in the mirror
+## and integrates them here. The server does the same arithmetic from the same
+## commands, so the reconcile below only has to correct for what it had not
+## seen yet -- exactly as it does on foot.
+func _predict_drive(dir: Vector2, delta: float) -> Vector3:
+	var v: Dictionary = vehicle_mirror[driving]
+	var def := ItemDB.get_def(str(v["item_id"]))
+	var r := VehicleMotion.step(def, v["pos"], float(v["heading"]),
+		float(v.get("speed", 0.0)), float(v["altitude"]),
+		dir.x, -dir.y, delta, float(v["fuel"]))
+	v["pos"] = r["pos"]
+	v["heading"] = r["heading"]
+	v["speed"] = r["speed"]
+	v["altitude"] = r["altitude"]
+	return r["pos"]
+
+
 ## Snap to the authoritative position, then replay every input the server had
 ## not yet seen. Without the replay, prediction would visibly rubber-band.
 func _reconcile(server_pos: Vector3, acked_seq: int) -> void:
@@ -1158,8 +1397,30 @@ func _reconcile(server_pos: Vector3, acked_seq: int) -> void:
 		_pending.pop_front()
 	var dt := 1.0 / float(Engine.physics_ticks_per_second)
 	var pos := server_pos
-	for cmd: Dictionary in _pending:
-		pos = Movement.step(pos, cmd["dir"], cmd["sprint"], dt)
+	if driving != 0 and vehicle_mirror.has(driving):
+		# Replaying a drive on foot would walk the car sideways. The vehicle's
+		# own heading and speed come from the last authoritative sync, so only
+		# the unacknowledged commands are re-integrated.
+		var v: Dictionary = vehicle_mirror[driving]
+		var def := ItemDB.get_def(str(v["item_id"]))
+		var heading := float(v["heading"])
+		var speed := float(v.get("speed", 0.0))
+		var alt := float(v["altitude"])
+		for cmd: Dictionary in _pending:
+			var r := VehicleMotion.step(def, pos, heading, speed, alt,
+				(cmd["dir"] as Vector2).x, -(cmd["dir"] as Vector2).y, dt,
+				float(v["fuel"]))
+			pos = r["pos"]
+			heading = r["heading"]
+			speed = r["speed"]
+			alt = r["altitude"]
+		v["heading"] = heading
+		v["speed"] = speed
+		v["altitude"] = alt
+		v["pos"] = pos
+	else:
+		for cmd: Dictionary in _pending:
+			pos = Movement.step(pos, cmd["dir"], cmd["sprint"], dt)
 	local_pos = pos
 
 
@@ -1301,6 +1562,40 @@ func _sync_offers(rows: Array) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _sync_vehicles(rows: Array) -> void:
+	vehicle_mirror.clear()
+	for row: Array in rows:
+		vehicle_mirror[int(row[0])] = {
+			"item_id": str(row[1]),
+			"pos": Vector3(float(row[2]), float(row[3]), float(row[4])),
+			"heading": float(row[5]), "fuel": float(row[6]),
+			"altitude": float(row[7]), "driver": int(row[8]),
+			"speed": float(row[9]),
+		}
+	vehicles_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_guilds(rows: Array, mine: int) -> void:
+	guild_table = rows
+	my_guild = mine
+	guilds_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_driving(vehicle_id: int) -> void:
+	driving = vehicle_id
+	_pending.clear()
+	vehicles_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_hold(contents: Array) -> void:
+	hold_mirror = contents
+	vehicles_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _sync_container(station_id: int, contents: Array) -> void:
 	open_container = station_id
 	container_mirror = contents
@@ -1336,7 +1631,56 @@ func _entity_removed(eid: int) -> void:
 ## Bot survival: drink before dying, harvest dew while it is dark, otherwise
 ## keep gathering. Crude, but it exercises the whole water loop unattended --
 ## which is the only way to test a 20-minute day in a 60-second run.
+## The --learn / --guild / --deliver hooks. Returns true if it acted.
+func _bot_debug_action() -> bool:
+	# --learn fires once: enough to see the server's ruling in the log, without
+	# a bot that spends the whole run hammering a refusal.
+	if not Net.learn_skill.is_empty() and not _learn_attempted:
+		_learn_attempted = true
+		learn(Net.learn_skill)
+		return true
+
+	# --guild: try to join, and found it if nobody has. Two bots given the same
+	# name reliably end up in one guild whichever of them starts first, which is
+	# what the harness needs to test shared holdings.
+	# Alternate join and found rather than trying join once and founding
+	# forever after. Two bots starting together both find no guild, both try to
+	# found it, and the loser then has to go back and *join* -- retrying found
+	# just collects "that name is taken" until the run ends.
+	if not Net.guild_name.is_empty() and my_guild == 0 and _guild_tries < 6:
+		_guild_tries += 1
+		if _guild_tries % 2 == 1:
+			join_guild(Net.guild_name)
+		else:
+			found_guild(Net.guild_name)
+		return true
+	if Net.deliver_to_landsraad and my_guild != 0 and not _delivered:
+		var give := _bot_sellable_slot()
+		if give >= 0:
+			_delivered = true
+			deliver_to_landsraad(give)
+			return true
+
+	return false
+
+
 func _bot_survive() -> void:
+	# Debug hooks first, before any profile gets to return early. These exist
+	# so a rule can be tested directly -- the trainer's distance check, guild
+	# membership, a Landsraad delivery -- and putting them below the profile
+	# switch meant a `builder` bot silently ignored --guild and the guild half
+	# of the phase looked broken when only the plumbing was.
+	#
+	# On its own counter, deliberately. Sharing _bot_use_cd would leave it at
+	# zero whenever no hook fired, and every profile below reads that as "act
+	# now" -- turning eight-frame pacing into every-frame pacing for every bot
+	# in every earlier phase.
+	_bot_debug_cd -= 1
+	if _bot_debug_cd <= 0:
+		_bot_debug_cd = 8
+		if _bot_debug_action():
+			return
+
 	if Net.bot_profile == "reckless":
 		return
 	if Net.bot_profile == "builder":
@@ -1377,6 +1721,13 @@ func _bot_survive() -> void:
 		if gear >= 0:
 			use_slot(gear)
 		return
+	if Net.bot_profile == "driver":
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 10
+		_bot_drive()
+		return
 	if Net.bot_profile == "forager":
 		# Phase 0 behaviour only: drink to stay alive, ignore the economy.
 		_bot_use_cd -= 1
@@ -1392,13 +1743,6 @@ func _bot_survive() -> void:
 	# One action per cooldown whatever the outcome, so a refused action cannot
 	# starve everything below it.
 	_bot_use_cd = 8
-
-	# --learn fires once: enough to see the server's ruling in the log, without
-	# a bot that spends the whole run hammering a refusal.
-	if not Net.learn_skill.is_empty() and not _learn_attempted:
-		_learn_attempted = true
-		learn(Net.learn_skill)
-		return
 
 	# The journeyman is the survive bot plus the two things only Phase 6 added:
 	# it spends points when it is standing at someone who can teach, and it
@@ -1559,6 +1903,64 @@ func _bot_bench_errand(recipe_id: String) -> Dictionary:
 	if best == Vector3.ZERO:
 		return {}
 	return {"pos": best, "stop": StationField.USE_RANGE * 0.6}
+
+
+## The driver bot's whole script: unload the vehicle it was given, fuel it,
+## climb in, put something in the hold, and after a while get out again.
+func _bot_drive() -> void:
+	if driving != 0:
+		var v: Dictionary = vehicle_mirror.get(driving, {})
+		var def := ItemDB.get_def(str(v.get("item_id", "")))
+		var cap := float(def.get("fuel_capacity", 30.0))
+		if float(v.get("fuel", 0.0)) < cap * 0.3 and _held("fuel_cell") > 0:
+			refuel_vehicle()
+			return
+		if not _bot_stowed:
+			var spare := _bot_sellable_slot()
+			if spare >= 0:
+				_bot_stowed = true
+				stow_in_hold(spare)
+				return
+		_bot_drive_ticks += 1
+		if _bot_drive_ticks > 30:
+			_bot_drive_done = true
+			exit_vehicle()
+		return
+
+	# One trip only. Without this the bot climbs straight back in the tick
+	# after it gets out, and since exiting zeroes the speed the vehicle spends
+	# the whole run accelerating from nothing and travels almost nowhere --
+	# which reads as "vehicles do not move" rather than "the bot is cycling".
+	if _bot_drive_done:
+		return
+
+	var vid := _bot_visible_vehicle()
+	if vid == 0:
+		# Nothing deployed yet, so unload whatever vehicle we are carrying.
+		for id_str: String in ["groundcar", "ornithopter"]:
+			var slot := _slot_of(id_str)
+			if slot >= 0:
+				use_slot(slot)
+				return
+		return
+	if local_pos.distance_to(vehicle_mirror[vid]["pos"]) > VehicleField.ENTER_RANGE:
+		return
+	# Fuel it before climbing in: a dry vehicle is a very heavy chair.
+	if float(vehicle_mirror[vid]["fuel"]) <= 0.0 and _held("fuel_cell") > 0:
+		refuel_vehicle(vid)
+		return
+	enter_vehicle(vid)
+
+
+func _bot_visible_vehicle() -> int:
+	var best := 0
+	var best_d := INF
+	for vid: int in vehicle_mirror:
+		var d: float = local_pos.distance_to(vehicle_mirror[vid]["pos"])
+		if d < best_d:
+			best_d = d
+			best = vid
+	return best
 
 
 ## Nearest node within `reach` whose kind yields `item_id`, or 0. The kinds
@@ -1865,6 +2267,17 @@ func _bot_direction() -> Vector2:
 		_bot_orbit += 0.03
 		return Vector2(cos(_bot_orbit), sin(_bot_orbit))
 
+	if Net.bot_profile == "driver":
+		# Driving: hold the throttle down and steer straight. The point of the
+		# harness is that a vehicle moves under server authority and burns
+		# fuel doing it, not that a bot can drive well.
+		if driving != 0:
+			return Vector2(0.0, -1.0)
+		var vid := _bot_visible_vehicle()
+		if vid != 0:
+			return _steer_to(vehicle_mirror[vid]["pos"])
+		return Vector2.ZERO
+
 	if Net.bot_profile == "journeyman":
 		# Errands outrank gathering, but only until you arrive: standing on the
 		# thing is what lets the action fire, and a bot that kept walking would
@@ -2108,6 +2521,58 @@ func craft(recipe_id: String) -> void:
 
 func learn(skill_id: String) -> void:
 	_request_learn.rpc_id(1, skill_id)
+
+
+func found_guild(name: String) -> void:
+	_request_guild.rpc_id(1, "found", name, -1)
+
+
+func join_guild(name: String) -> void:
+	_request_guild.rpc_id(1, "join", name, -1)
+
+
+func leave_guild() -> void:
+	_request_guild.rpc_id(1, "leave", "", -1)
+
+
+func deliver_to_landsraad(slot_index: int) -> void:
+	_request_guild.rpc_id(1, "deliver", "", slot_index)
+
+
+func enter_vehicle(vehicle_id: int = 0) -> void:
+	_request_vehicle.rpc_id(1, "enter", vehicle_id)
+
+
+func exit_vehicle() -> void:
+	_request_vehicle.rpc_id(1, "exit", 0)
+
+
+func refuel_vehicle(vehicle_id: int = 0) -> void:
+	_request_vehicle.rpc_id(1, "refuel", vehicle_id)
+
+
+func pack_vehicle(vehicle_id: int = 0) -> void:
+	_request_vehicle.rpc_id(1, "pack", vehicle_id)
+
+
+func stow_in_hold(slot_index: int) -> void:
+	_request_hold.rpc_id(1, slot_index, true)
+
+
+func take_from_hold(slot_index: int) -> void:
+	_request_hold.rpc_id(1, slot_index, false)
+
+
+## Nearest vehicle within climbing range, or 0. Display only.
+func nearest_vehicle() -> int:
+	var best := 0
+	var best_d := VehicleField.ENTER_RANGE
+	for vid: int in vehicle_mirror:
+		var d: float = local_pos.distance_to(vehicle_mirror[vid]["pos"])
+		if d <= best_d:
+			best_d = d
+			best = vid
+	return best
 
 
 ## Empty id asks what is on the board here; a real id takes that contract on.

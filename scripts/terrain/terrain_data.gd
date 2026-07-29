@@ -112,7 +112,24 @@ func load_region(dir_path: String) -> bool:
 	_heights = decoded
 	_mask = raw_m
 
-	_build_reachability()
+	# Prefer the precomputed file. Deriving this is a flood fill over every mask
+	# cell, which on the real region is 7 million of them and twelve seconds of
+	# GDScript -- on every server *and* client boot. That is long enough for a
+	# connecting client to time out before the server ever services it, which is
+	# how the Phase 5 handshake test started failing for reasons that had
+	# nothing to do with handshakes. Derived only when the file is absent, so a
+	# region built before this still loads.
+	var raw_r := _read_bytes(dir_path.path_join("reach.u8"))
+	if raw_r.size() == _mx * _mz:
+		_reachable = raw_r
+		var walkable := 0
+		for i in range(_reachable.size()):
+			walkable += _reachable[i]
+		reachable_fraction = float(walkable) / float(_mx * _mz)
+	else:
+		if not raw_r.is_empty():
+			push_warning("Terrain: reach.u8 is the wrong size, deriving instead")
+		_build_reachability()
 	# POIs go into the fingerprint alongside the terrain. They decide where
 	# shelter and camps are, so a client holding a different set disagrees with
 	# the server about the world in a way that has to be refused at the

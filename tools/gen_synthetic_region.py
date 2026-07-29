@@ -147,7 +147,7 @@ def reachability(mask, mx, mz):
         if start:
             break
     if start is None:
-        return {"reachable": 0, "rock_frac": 0.0}
+        return {"reachable": 0, "rock_frac": 0.0, "cells": bytes(mx * mz)}
 
     seen = bytearray(mx * mz)
     stack = [start]
@@ -170,8 +170,14 @@ def reachability(mask, mx, mz):
             stack.append((nx, nz))
 
     total_rock = sum(1 for b in mask if b == ROCK)
+    # `cells` is shipped as reach.u8. The engine can derive this itself, but
+    # doing so is a flood fill over every mask cell in GDScript -- twelve
+    # seconds on the real region, on every server and client boot, which is
+    # long enough to starve a connecting client into timing out. It is already
+    # computed here to report the percentage, so emitting it is free.
     return {"reachable": reachable,
-            "rock_frac": rock_reachable / total_rock if total_rock else 0.0}
+            "rock_frac": rock_reachable / total_rock if total_rock else 0.0,
+            "cells": bytes(seen)}
 
 
 def main():
@@ -197,6 +203,7 @@ def main():
         counts[b] += 1
     total = len(mask)
     reach = reachability(mask, meta["mask_cells"][0], meta["mask_cells"][1])
+    (args.out / "reach.u8").write_bytes(reach["cells"])
     print(f"wrote {args.out}")
     print(f"  height {meta['height_cells']} @ {args.cell} m  ({len(heights)} bytes)")
     print(f"  mask   {meta['mask_cells']} @ {args.mask_cell} m  ({total} bytes)")

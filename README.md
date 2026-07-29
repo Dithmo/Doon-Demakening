@@ -37,6 +37,7 @@ python3 tools/test_phase3.py                            # bases and power
 python3 tools/test_phase4.py                            # worms and combat
 python3 tools/test_phase5.py                            # the real Hagga Basin
 python3 tools/test_phase6.py                            # progression and content
+python3 tools/test_phase7.py                            # vehicles and guilds
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -47,11 +48,12 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim|journeyman`,
+`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim|journeyman|driver`,
 `--peaceful` (server: suppress worm and hostiles, for test isolation),
 `--spawn-at "<wiki POI name>"` (server: where new players start),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
 `--learn <skill id>` (client: attempt to learn once, for testing the trainer rule),
+`--guild <name>` / `--deliver` (client: join or found a guild, then give to the Landsraad),
 `--debug-steer`.
 
 ## Layout
@@ -82,6 +84,12 @@ python3 tools/gen_synthetic_region.py     # small test terrain
 python3 tools/fetch_map_data.py           # 655 markers + the 8182^2 render
 python3 tools/build_region.py             # -> Hagga Basin South, the real map
 ```
+
+Each region is four files: `region.json`, `height.r16`, `mask.u8` and
+`reach.u8`. The last is derived from the mask, but it is shipped rather than
+computed at load — flood-filling 7 million cells in GDScript took **12 seconds
+on every server and client boot**, which was long enough to starve a connecting
+client into timing out. The engine still derives it if the file is missing.
 
 `build_region.py` recovers elevation from the render's baked sun rather than
 inventing it: outcrop heights come from the length of the shadow each one casts,

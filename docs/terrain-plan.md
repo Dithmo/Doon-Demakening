@@ -119,6 +119,13 @@ What works:
 Output: single-channel PNG, `0` sand / `128` rock / `255` impassable cliff, at
 1 m/px. Derive the cliff class from Layer 2's slope rather than guessing it here.
 
+The pipeline also emits **`reach.u8`**, the flood fill of walkable cells
+connected to the region centre. It is pure derived data and the engine can
+compute it, but doing so is 7 million cells of GDScript — twelve seconds on
+every server *and* client boot, enough to starve a connecting client into
+timing out before the handshake was ever serviced. It compresses to a few tens
+of kilobytes because it is almost all ones.
+
 ## Layer 2 — elevation, recovered then synthesised
 
 Replace "invent it all" with "recover the large features, invent only the fine

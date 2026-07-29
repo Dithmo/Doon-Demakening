@@ -304,6 +304,51 @@
       "use": "tool_blood",
       "desc": "Reclaims a body's water. Nobody said Arrakis was polite.",
       "value": 65
+    },
+    {
+      "id": "fuel_cell",
+      "name": "Fuel Cell",
+      "stack": 10,
+      "weight": 3.0,
+      "desc": "Compressed and volatile. Vehicles drink these; the desert does not care.",
+      "value": 30
+    },
+    {
+      "id": "groundcar",
+      "name": "Groundcar",
+      "stack": 1,
+      "weight": 180.0,
+      "use": "deploy_vehicle",
+      "vehicle": "groundcar",
+      "top_speed": 16.0,
+      "turn_rate": 1.9,
+      "accel": 7.0,
+      "fuel_capacity": 40.0,
+      "fuel_per_metre": 0.01,
+      "cargo_slots": 12,
+      "flies": false,
+      "worm_threat_mult": 2.4,
+      "desc": "Fast, thirsty, and audible from a very long way away.",
+      "value": 520
+    },
+    {
+      "id": "ornithopter",
+      "name": "Light Ornithopter",
+      "stack": 1,
+      "weight": 240.0,
+      "use": "deploy_vehicle",
+      "vehicle": "ornithopter",
+      "top_speed": 26.0,
+      "turn_rate": 1.4,
+      "accel": 9.0,
+      "fuel_capacity": 30.0,
+      "fuel_per_metre": 0.022,
+      "cargo_slots": 6,
+      "flies": true,
+      "worm_threat_mult": 0.0,
+      "cruise_altitude": 34.0,
+      "desc": "Wings, not wheels. Nothing under the sand can hear you up here.",
+      "value": 900
     }
   ],
   "_comment_value": "`value` is what the trading post pays for one. It sells at VENDOR_MARKUP times this -- see scripts/world/vendor.gd."

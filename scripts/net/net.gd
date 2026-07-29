@@ -56,6 +56,8 @@ var screenshot_path: String = ""
 ##               it to prove the real map is navigable by its own landmarks
 ##   journeyman -- plays the ordinary survival loop, and additionally walks to
 ##               trainers to spend points and to the post to sell
+##   driver   -- unloads the vehicle it was given, fuels it, drives it, stows
+##               cargo, and gets out again
 var bot_profile: String = "survive"
 ## Named POI a `pilgrim` bot walks to. Client-side: steering is the client's
 ## business, and the server validates the movement that results.
@@ -70,6 +72,11 @@ var spawn_poi: String = ""
 ## distance and the success at the trainer -- instead of waiting for a bot to
 ## reach the Journey step that asks for it.
 var learn_skill: String = ""
+## Client debug: found-or-join this guild shortly after joining, then hand the
+## first sellable stack to the Landsraad. Same purpose as --learn: it makes the
+## rule testable directly instead of via a bot that has to be talked into it.
+var guild_name: String = ""
+var deliver_to_landsraad: bool = false
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
 var start_hydration: float = -1.0
@@ -128,6 +135,8 @@ func _parse_args() -> void:
 	goto_poi = Args.value("--goto", "")
 	spawn_poi = Args.value("--spawn-at", "")
 	learn_skill = Args.value("--learn", "")
+	guild_name = Args.value("--guild", "")
+	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")
 	peaceful = Args.has("--peaceful")

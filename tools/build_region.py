@@ -550,6 +550,10 @@ POI_ROLES = {
     "Sandbikes": "vehicle",
     "Trainers": "trainer",
     "Intel": "intel",
+    # Landsraad houses. Guilds deliver goods to these for standing, so they
+    # need a role of their own rather than falling through to "landmark" --
+    # which is where they landed until Phase 7 came looking for them.
+    "Representatives": "landsraad",
 }
 
 
@@ -706,6 +710,13 @@ def main():
     q = np.clip(small / HEIGHT_SCALE_M * 65535.0, 0, 65535).astype("<u2")
     (args.out / "height.r16").write_bytes(q.tobytes())
     (args.out / "mask.u8").write_bytes(mask.astype(np.uint8).tobytes())
+    # Ship the reachability too. It is a pure function of the mask, so the
+    # engine can derive it -- but doing so is a flood fill over 7 million cells
+    # in GDScript, which took **12 seconds on every server and client boot**
+    # and starved the handshake long enough for connecting clients to time out.
+    # Computing it once here costs nothing; the file compresses to a few tens
+    # of kilobytes because it is almost all ones.
+    (args.out / "reach.u8").write_bytes(reach.astype(np.uint8).tobytes())
 
     pois = load_pois(CROP)
     (args.out / "pois.json").write_text(json.dumps(pois, indent=1))

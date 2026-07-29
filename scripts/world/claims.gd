@@ -36,6 +36,13 @@ func stake(owner: String, pos: Vector3, radius: float, station_id: int) -> Dicti
 	return {"ok": true, "msg": "holding registered", "id": id}
 
 
+## The guild register, set by the server at startup. Held as an explicit
+## reference rather than reached for globally, and left null on clients and in
+## unit tests -- where it makes may_build behave exactly as it did before
+## guilds existed, so every claim test written against it still holds.
+var allies: Guilds = null
+
+
 ## The claim containing this point, or 0.
 func claim_at(pos: Vector3) -> int:
 	for cid: int in claims:
@@ -49,7 +56,16 @@ func claim_at(pos: Vector3) -> int:
 ## claiming it is what makes it yours.
 func may_build(owner: String, pos: Vector3) -> bool:
 	var cid := claim_at(pos)
-	return cid == 0 or str(claims[cid]["owner"]) == owner
+	if cid == 0:
+		return true
+	var holder := str(claims[cid]["owner"])
+	if holder == owner:
+		return true
+	# A holding admits its owner's guild. That is the single rule a guild
+	# changes about the world, which is why it is one line here rather than a
+	# permissions system: Phase 3's anti-grief boundary becomes the thing a
+	# group organises around instead of a wall between friends.
+	return allies != null and allies.allied(holder, owner)
 
 
 func owner_at(pos: Vector3) -> String:

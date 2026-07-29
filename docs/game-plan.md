@@ -335,10 +335,48 @@ a marker rather than a system of their own; contracts do not expire or repeat;
 there is no faction rank, no Landsraad, and no guilds; and the five tracks share
 three trainers because the region crop only contains three trainer-ish markers.
 
-### Phase 7 — Stretch, in value order
+### Phase 7 — Stretch, in value order — **vehicles and guilds done**
 Vehicles (groundcar first — it changes water logistics most, and is the hardest
-thing to replicate well). Deep Desert + Coriolis storms resetting the map.
-Ornithopters. Guilds and Landsraad.
+thing to replicate well). Ornithopters. Guilds and Landsraad. **Deep Desert +
+Coriolis storms resetting the map are deliberately last** — that is endgame, and
+it is worth having everything else running before the map starts moving.
+
+*Test:* `python3 tools/test_phase7.py`.
+
+**Vehicles.** A groundcar and a light ornithopter, both crafted, deployed from
+the bag, fuelled a cell at a time, driven, loaded and packed up again. Driving
+follows the project's oldest rule: `VehicleMotion` is one implementation run on
+both the driver and the server, exactly as `Movement` is, because prediction
+only works if both sides get the same answer from the same input. A vehicle is
+not a faster player — it turns and accelerates instead of strafing, so
+committing to a heading is the handling.
+
+The reason vehicles land here rather than earlier is that they change the water
+economy rather than decorating it. **A groundcar at speed is more than twice as
+loud to the worm as a person sprinting, and a parked one is silent.** So the fast
+way across the basin is also the way that gets you eaten, and the answer is the
+ornithopter — silent while airborne, ignores the traversability mask entirely,
+and burns fuel twice as fast for the privilege. Fuel is a separate craft on
+purpose: a tank that refilled itself would make all of that decorative.
+
+**Guilds** change exactly one rule, and it is the one that was already the most
+consequential: a holding admits its owner's guild. Phase 3's anti-grief boundary
+becomes the thing a group organises around instead of a wall between friends.
+Claims holds an explicit reference to the register rather than reaching for a
+global, and left null it behaves precisely as it did before guilds existed —
+which is why every claim test written in Phase 3 still holds unchanged.
+
+**Landsraad standing** is the shared goal: members hand goods to a
+Representative marker from the wiki map, priced by the same `value` the trading
+post pays, so contributing is always a real choice against selling. Standing is
+public and belongs to the guild, not the person. Adding the role sent the
+pipeline back to the map — `Representatives` had been falling through to
+"landmark" since Phase 5, and there is exactly one house in this crop.
+
+Not done: no passengers (a vehicle carries its driver and its cargo); vehicles
+take no damage and cannot be destroyed; guilds have no invitations or ranks —
+anyone may join by name and the founder's seat passes to whoever is left; and
+Landsraad standing is a scoreboard that does not yet buy anything.
 
 ## Where the demake cuts
 

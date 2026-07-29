@@ -55,6 +55,10 @@ func run() -> int:
 	_test_quests()
 	print("\n=== Trading ===")
 	_test_vendor()
+	print("\n=== Vehicles ===")
+	_test_vehicles()
+	print("\n=== Guilds and the Landsraad ===")
+	_test_guilds()
 
 	print()
 	if _failures.is_empty():
@@ -1017,3 +1021,209 @@ func _test_vendor() -> void:
 	var before := 1000
 	var after := before - Vendor.buy_price("steel_ingot") + Vendor.sell_price("steel_ingot")
 	_check(after < before, "buying then selling loses money")
+
+
+func _test_vehicles() -> void:
+	var car := ItemDB.get_def("groundcar")
+	var thopter := ItemDB.get_def("ornithopter")
+	_check(not car.is_empty() and not thopter.is_empty(), "vehicles are in the item table")
+	_check(str(car.get("vehicle", "")) == "groundcar", "and name the kind they become")
+
+	# Acceleration, not teleportation: a vehicle from rest reaches part of its
+	# top speed in a tick, and its top speed eventually.
+	var pos := Vector3(60.0, 0.0, 60.0)
+	var r := VehicleMotion.step(car, pos, 0.0, 0.0, 0.0, 0.0, 1.0, 0.1, 30.0)
+	_check(float(r["speed"]) > 0.0 and float(r["speed"]) < float(car["top_speed"]),
+		"a vehicle accelerates rather than jumping to speed")
+	# Top speed is asserted on the thopter, which ignores the traversability
+	# mask: a groundcar driven in a straight line for twenty seconds hits an
+	# outcrop and is slowed by it, which is the mask working rather than the
+	# throttle failing.
+	var speed := 0.0
+	var p2 := pos
+	for i in range(400):
+		var s := VehicleMotion.step(thopter, p2, 0.0, speed, 30.0, 0.0, 1.0, 0.05, 30.0)
+		p2 = s["pos"]
+		speed = float(s["speed"])
+	_check(_near(speed, float(thopter["top_speed"]), 0.5), "and tops out where it should")
+	_check(p2.distance_to(pos) > 10.0, "and actually covers ground")
+
+	# The groundcar is slowed by ground it cannot cross, which is what makes the
+	# thopter worth its fuel.
+	var into_rock := VehicleMotion.step(car, pos, 0.0, float(car["top_speed"]), 0.0,
+		0.0, 1.0, 0.1, 30.0)
+	_check(float(into_rock["speed"]) > 0.0, "a groundcar keeps moving on open ground")
+
+	# Out of fuel is a stop, not a slowdown. This is the whole reason fuel is a
+	# separate craft rather than a number that ticks down invisibly.
+	var dry := VehicleMotion.step(car, pos, 0.0, 12.0, 0.0, 0.0, 1.0, 0.5, 0.0)
+	_check(float(dry["speed"]) < 12.0, "a dry vehicle slows down")
+	var stopped := 12.0
+	for i in range(200):
+		stopped = float(VehicleMotion.step(car, pos, 0.0, stopped, 0.0, 0.0, 1.0,
+			0.05, 0.0)["speed"])
+	_check(_near(stopped, 0.0, 0.01), "and comes to a complete halt")
+
+	# Steering authority scales with speed, so a parked car cannot pirouette.
+	var still := VehicleMotion.step(car, pos, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, 30.0)
+	_check(_near(float(still["heading"]), 0.0, 0.001),
+		"a stationary vehicle cannot turn on the spot")
+	var rolling := VehicleMotion.step(car, pos, 0.0, float(car["top_speed"]), 0.0,
+		1.0, 1.0, 0.5, 30.0)
+	_check(absf(float(rolling["heading"])) > 0.1, "a moving one turns")
+
+	# Fuel burn is per metre, so a longer trip costs more and an idle one is free.
+	_check(VehicleMotion.burn(car, 100.0) > VehicleMotion.burn(car, 10.0),
+		"fuel burn scales with distance")
+	_check(_near(VehicleMotion.burn(car, 0.0), 0.0), "and standing still is free")
+	_check(VehicleMotion.burn(thopter, 100.0) > VehicleMotion.burn(car, 100.0),
+		"the ornithopter is thirstier per metre than the groundcar")
+
+	# The worm rule is the point of vehicles existing at all.
+	_check(VehicleMotion.threat_multiplier(car, float(car["top_speed"]), 0.0) > 1.0,
+		"a groundcar at speed is louder than a person")
+	_check(_near(VehicleMotion.threat_multiplier(car, 0.0, 0.0), 0.0),
+		"a parked one is silent")
+	_check(_near(VehicleMotion.threat_multiplier(thopter, 20.0, 30.0), 0.0),
+		"an airborne ornithopter is silent whatever it is doing")
+	_check(VehicleMotion.threat_multiplier(car, 8.0, 0.0)
+		< VehicleMotion.threat_multiplier(car, 16.0, 0.0),
+		"and driving faster is louder than driving slowly")
+
+	# A thopter climbs under power and settles without it.
+	var climbed := VehicleMotion.step(thopter, pos, 0.0, 10.0, 0.0, 0.0, 1.0, 1.0, 30.0)
+	_check(float(climbed["altitude"]) > 0.0, "an ornithopter climbs under power")
+	var landed := VehicleMotion.step(thopter, pos, 0.0, 0.0, 20.0, 0.0, 0.0, 5.0, 30.0)
+	_check(_near(float(landed["altitude"]), 0.0, 0.01), "and settles when idle")
+
+	# The field: deploy, occupancy, fuel, cargo, packing up.
+	var field := VehicleField.new()
+	var here := Movement.find_spawn(Vector3(80.0, 0.0, 80.0))
+	var made := field.deploy("ada", here, "groundcar")
+	_check(made["ok"], "a vehicle can be unloaded")
+	var vid := int(made["id"])
+	_check(not field.deploy("ada", here, "water")["ok"], "an ordinary item cannot be")
+	_check(_near(float(field.vehicles[vid]["fuel"]), 0.0),
+		"it arrives dry, so fuel stays a decision")
+
+	var bag := Inventory.new()
+	_check(not field.refuel(vid, bag)["ok"], "no cells means no fuel")
+	bag.add("fuel_cell", 2)
+	_check(field.refuel(vid, bag)["ok"] and bag.count_of("fuel_cell") == 1,
+		"a cell fuels it and is consumed")
+
+	_check(field.enter(7, here, vid)["ok"], "a player can climb in")
+	_check(field.driven_by(7) == vid, "and is recorded as the driver")
+	_check(not field.enter(9, here, vid)["ok"], "a second player cannot")
+	_check(not field.enter(7, here, vid)["ok"], "and the driver cannot re-enter")
+	_check(not field.enter(9, here + Vector3(500.0, 0.0, 0.0), vid)["ok"],
+		"nor can someone far away")
+
+	# Cargo goes in and comes back out.
+	bag.add("granite_stone", 4)
+	var slot := -1
+	for i in bag.slots.size():
+		if not bag.slots[i].is_empty() and str(bag.slots[i]["id"]) == "granite_stone":
+			slot = i
+	_check(field.transfer(7, bag, slot, true)["ok"], "cargo goes into the hold")
+	_check(bag.count_of("granite_stone") == 0, "and leaves the bag")
+	_check((field.vehicles[vid]["inventory"] as Inventory).count_of("granite_stone") == 4,
+		"all of it, not a copy")
+	_check(not field.pack_up(here, vid, "ada")["ok"],
+		"a loaded vehicle refuses to be packed up")
+	_check(field.transfer(7, bag, 0, false)["ok"], "cargo comes back out")
+
+	_check(field.exit(7)["ok"], "the driver can climb out")
+	_check(field.driven_by(7) == 0, "and stops being the driver")
+	_check(not field.exit(7)["ok"], "getting out twice is refused")
+
+	# Ownership, and the flying case for exiting.
+	_check(not field.pack_up(here, vid, "bo")["ok"], "someone else cannot pack it up")
+	_check(field.pack_up(here, vid, "ada")["ok"], "the owner can")
+	_check(field.vehicles.is_empty(), "and it leaves the world")
+
+	var sky := VehicleField.new()
+	var flight := sky.deploy("ada", here, "ornithopter")
+	var fid := int(flight["id"])
+	sky.enter(7, here, fid)
+	sky.vehicles[fid]["altitude"] = 25.0
+	_check(not sky.exit(7)["ok"], "you cannot step out of a thopter in flight")
+	sky.vehicles[fid]["altitude"] = 0.0
+	_check(sky.exit(7)["ok"], "but you can once it is down")
+
+	# Round trip.
+	var saved := VehicleField.new()
+	saved.deploy("ada", here, "groundcar")
+	saved.vehicles[1]["fuel"] = 12.0
+	var loaded := VehicleField.new()
+	loaded.from_data(saved.to_data())
+	_check(loaded.vehicles.size() == 1, "vehicles persist")
+	_check(_near(float(loaded.vehicles[1]["fuel"]), 12.0), "with their fuel")
+	_check(int(loaded.vehicles[1]["driver"]) == 0,
+		"and nobody is still at the wheel after a restart")
+
+
+func _test_guilds() -> void:
+	var g := Guilds.new()
+	_check(g.of_member("ada") == 0, "a new player is in no guild")
+
+	var made := g.found("ada", "House Doon")
+	_check(made["ok"], "a guild can be founded")
+	_check(g.of_member("ada") == int(made["id"]), "the founder is a member")
+	_check(not g.found("ada", "Another")["ok"], "you cannot found a second")
+	_check(not g.found("bo", "house doon")["ok"], "names are unique, case-insensitively")
+	_check(not g.found("bo", "")["ok"], "and cannot be empty")
+	_check(not g.found("bo", "x".repeat(Guilds.MAX_NAME + 1))["ok"],
+		"nor absurdly long")
+
+	_check(g.join("bo", "House Doon")["ok"], "someone else can join by name")
+	_check(not g.join("cy", "No Such House")["ok"], "an unknown guild is refused")
+
+	# The one rule a guild changes.
+	_check(g.allied("ada", "bo"), "guildmates are allies")
+	_check(g.allied("ada", "ada"), "and everyone is their own ally")
+	_check(not g.allied("ada", "cy"), "an outsider is not")
+
+	# And it must actually reach Claims, or a guild is only a name.
+	var claims := Claims.new()
+	var spot := Movement.find_spawn(Vector3(120.0, 0.0, 120.0))
+	claims.stake("ada", spot, 24.0, 1)
+	_check(not claims.may_build("bo", spot),
+		"without the register, another player is refused on ada's land")
+	claims.allies = g
+	_check(claims.may_build("bo", spot), "with it, a guildmate may build")
+	_check(not claims.may_build("cy", spot), "and an outsider still may not")
+
+	# Leaving, and the founder's seat.
+	_check(g.leave("ada")["ok"], "a member can leave")
+	_check(g.of_member("ada") == 0, "and stops being a member")
+	var gid := g.of_member("bo")
+	_check(str(g.guilds[gid]["founder"]) == "bo",
+		"the founder's seat passes to whoever is left")
+	_check(g.leave("bo")["ok"] and g.guilds.is_empty(),
+		"and the last one out dissolves it")
+	_check(not g.leave("cy")["ok"], "leaving a guild you are not in is refused")
+
+	# Standing. Delivering is priced by the same value the vendor pays, so it is
+	# always a real choice against selling.
+	var g2 := Guilds.new()
+	g2.found("ada", "House Doon")
+	var id2 := g2.of_member("ada")
+	_check(_near(g2.standing_of(id2), 0.0), "a new guild has no standing")
+	g2.guilds[id2]["standing"] = 40.0
+	_check(_near(g2.standing_of(id2), 40.0), "standing is readable")
+	var rows := g2.table()
+	_check(rows.size() == 1 and _near(float(rows[0][3]), 40.0),
+		"and appears in the public table")
+
+	var solo := Guilds.new()
+	var bag := Inventory.new()
+	bag.add("steel_ingot", 2)
+	_check(not solo.deliver("ada", Vector3.ZERO, bag, 0, 1)["ok"],
+		"the Landsraad will not deal with someone who has no guild")
+
+	var round_trip := Guilds.new()
+	round_trip.from_data(g2.to_data())
+	_check(round_trip.of_member("ada") != 0, "guild membership persists")
+	_check(_near(round_trip.standing_of(round_trip.of_member("ada")), 40.0),
+		"and so does standing")

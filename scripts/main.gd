@@ -83,6 +83,17 @@ func _log_position() -> void:
 		+ "step=%d/%d '%s' %d/%d contracts=%d done=%d"
 		% [q["step"], QuestDB.journey.size(), q["step_name"], q["step_have"],
 		q["step_need"], (q["active"] as Dictionary).size(), q["done"]])
+	if world.driving != 0 or not world.vehicle_mirror.is_empty():
+		# Report the vehicle we are in, or failing that the fleet's first --
+		# after climbing out, `driving` is 0 and keying on it printed zeros for
+		# a vehicle that was sitting there with most of a tank.
+		var car: Dictionary = world.vehicle_mirror.get(world.driving, {})
+		if car.is_empty() and not world.vehicle_mirror.is_empty():
+			car = world.vehicle_mirror[world.vehicle_mirror.keys()[0]]
+		print("[veh] %s driving=%d fleet=%d fuel=%.1f alt=%.1f speed=%.1f hold=%d"
+			% [Net.identity, world.driving, world.vehicle_mirror.size(),
+			float(car.get("fuel", 0.0)), float(car.get("altitude", 0.0)),
+			float(car.get("speed", 0.0)), world.hold_mirror.size()])
 	if Net.bot_profile == "pilgrim":
 		var dest: Dictionary = Pois.find_named(Net.goto_poi)
 		if not dest.is_empty():

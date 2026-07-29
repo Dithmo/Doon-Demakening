@@ -391,6 +391,68 @@
           "count": 2
         }
       ]
+    },
+    {
+      "id": "fuel_cell",
+      "station": "refinery",
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 1
+        },
+        {
+          "id": "plant_fiber",
+          "count": 3
+        }
+      ],
+      "output": {
+        "id": "fuel_cell",
+        "count": 2
+      }
+    },
+    {
+      "id": "groundcar",
+      "station": "fabricator",
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 8
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 10
+        },
+        {
+          "id": "fiber_weave",
+          "count": 2
+        }
+      ],
+      "output": {
+        "id": "groundcar",
+        "count": 1
+      }
+    },
+    {
+      "id": "ornithopter",
+      "station": "fabricator",
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 14
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 16
+        },
+        {
+          "id": "fiber_weave",
+          "count": 6
+        }
+      ],
+      "output": {
+        "id": "ornithopter",
+        "count": 1
+      }
     }
   ]
 }
