@@ -23,7 +23,7 @@ godot           -- --client [--host H] [--port N] [--identity NAME]
 
 Controls: `WASD` move, `Shift` sprint, `E` pick up, `R` work a resource node,
 `F` drink, `G` harvest dew (after dark only), `B` deploy a station,
-`C` craft, `Q` drop.
+`C` craft, `V` build, `X` remove, `T` container, `Q` drop.
 
 ## Testing
 
@@ -32,6 +32,7 @@ godot --headless -- --run-tests                          # survival rules, secon
 python3 tools/test_phase0.py                            # net spine + inventory
 python3 tools/test_phase1.py                            # the water loop
 python3 tools/test_phase2.py                            # the economy
+python3 tools/test_phase3.py                            # bases and power
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -42,7 +43,7 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless`, `--debug-steer`.
+`--bot-profile survive|reckless|forager|builder`, `--debug-steer`.
 
 ## Layout
 

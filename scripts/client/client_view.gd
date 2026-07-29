@@ -15,6 +15,7 @@ var _entity_nodes: Dictionary = {}
 var _node_meshes: Dictionary = {}
 var _station_meshes: Dictionary = {}
 var _craft_root: Node3D
+var _build_root: Node3D
 var _sun: DirectionalLight3D
 var _env: Environment
 var _notice: Label
@@ -53,6 +54,9 @@ func _ready() -> void:
 
 	_craft_root = Node3D.new()
 	add_child(_craft_root)
+	_build_root = Node3D.new()
+	add_child(_build_root)
+	world.build_changed.connect(_refresh_build)
 	world.nodes_changed.connect(_refresh_nodes)
 	world.stations_changed.connect(_refresh_stations)
 	world.entities_changed.connect(_refresh_entities)
@@ -170,6 +174,18 @@ func _refresh_hud() -> void:
 			carried.append("%s x%d" % [ItemDB.display_name(slot["id"]), slot["count"]])
 	lines.append("bag: " + (", ".join(carried) if carried else "(empty)"))
 
+	var claim: Dictionary = world.claim_here()
+	if not claim.is_empty():
+		lines.append("holding: %s%s" % [claim["owner"],
+			"  (yours)" if str(claim["owner"]) == Net.identity else "  -- keep out"])
+
+	if world.open_container != 0:
+		var inside: Array = []
+		for slot: Dictionary in world.container_mirror:
+			if not slot.is_empty():
+				inside.append("%s x%d" % [ItemDB.display_name(slot["id"]), slot["count"]])
+		lines.append("container: " + (", ".join(inside) if inside else "(empty)"))
+
 	var reach: Array = world.reachable_stations()
 	if reach:
 		var craftable: Array = []
@@ -193,6 +209,10 @@ func _refresh_hud() -> void:
 		hints.append("[G] harvest dew" + ("" if Clock.is_night() else " (needs dark)"))
 	if world.find_use("place") >= 0:
 		hints.append("[B] deploy")
+	if world.find_use("build") >= 0:
+		hints.append("[V] build  [X] remove")
+	if world.nearest_container() != 0:
+		hints.append("[T] container")
 	if reach:
 		hints.append("[C] craft")
 	hints.append("[Q] drop")
@@ -253,6 +273,34 @@ func _refresh_nodes() -> void:
 		if not world.node_mirror.has(nid):
 			(_node_meshes[nid] as Node).queue_free()
 			_node_meshes.erase(nid)
+
+
+## Structural pieces. Rebuilt wholesale on change: a base is tens of pieces,
+## not thousands, and correctness beats incremental bookkeeping here.
+func _refresh_build() -> void:
+	for child in _build_root.get_children():
+		child.queue_free()
+	for piece: Dictionary in world.build_mirror:
+		var m := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		match int(piece["piece"]):
+			BuildGrid.Piece.FOUNDATION:
+				box.size = Vector3(BuildGrid.CELL, 0.3, BuildGrid.CELL)
+			BuildGrid.Piece.CEILING:
+				box.size = Vector3(BuildGrid.CELL, 0.25, BuildGrid.CELL)
+			_:
+				var side := int(piece["side"])
+				var thin := 0.25
+				box.size = Vector3(thin, BuildGrid.CELL, BuildGrid.CELL) \
+					if side == 1 or side == 3 \
+					else Vector3(BuildGrid.CELL, BuildGrid.CELL, thin)
+		m.mesh = box
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.60, 0.55, 0.47)
+		mat.roughness = 0.85
+		m.material_override = mat
+		m.position = piece["pos"]
+		_build_root.add_child(m)
 
 
 func _node_colour(kind: String) -> Color:

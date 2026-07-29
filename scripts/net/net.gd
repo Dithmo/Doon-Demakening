@@ -45,6 +45,8 @@ var screenshot_path: String = ""
 ##   forager  -- ground pickups only, ignoring nodes and stations, so the
 ##               Phase 0 harness keeps testing pickup exclusivity rather than
 ##               whatever the newest subsystem has made more attractive
+##   builder  -- stakes a holding, deploys its kit and raises a shell, then
+##               stops; how the Phase 3 harness gets a base built unattended
 var bot_profile: String = "survive"
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.

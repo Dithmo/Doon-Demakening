@@ -14,6 +14,8 @@ signal vitals_changed
 signal notice(text: String)
 signal nodes_changed
 signal stations_changed
+signal build_changed
+signal container_changed
 
 const PICKUP_RANGE := 3.0
 ## Rejecting inputs that claim more time than they could have taken stops a
@@ -38,7 +40,13 @@ var _entities: Dictionary = {}  ## entity id -> {item_id, count, pos}
 var _next_entity_id: int = 1
 var _field := NodeField.new()
 var _stations := StationField.new()
+var _claims := Claims.new()
+var _build := BuildGrid.new()
 var _node_accum: float = 0.0
+var _produce_accum: float = 0.0
+## Wall-clock of the last production tick, persisted so a restart can pay out
+## what the holding earned while the server was down.
+var _last_production: float = 0.0
 var _sync_accum: float = 0.0
 var _vitals_accum: float = 0.0
 var _clock_accum: float = 0.0
@@ -58,6 +66,11 @@ var equipped_mirror: Dictionary = {}
 var shaded_mirror: bool = false
 var node_mirror: Dictionary = {}     ## node id -> {kind, pos, remaining}
 var station_mirror: Dictionary = {}  ## station id -> {kind, item_id, pos}
+var build_mirror: Array = []         ## [{piece, pos, side}]
+var claim_mirror: Array = []         ## [{owner, pos, radius}]
+## Contents of whichever container we last opened, plus its id.
+var container_mirror: Array = []
+var open_container: int = 0
 var stations_in_reach: Array = []
 
 var _input_seq: int = 0
@@ -65,6 +78,7 @@ var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
 var _bot_cooldown: int = 0
 var _bot_use_cd: int = 0
 var _bot_dew_probes: int = 0
+var _bot_orbit: float = 0.0
 ## Last steering decision, surfaced for --debug-steer.
 var debug_goal: Vector3 = Vector3.ZERO
 var debug_want: Vector2 = Vector2.ZERO
@@ -95,12 +109,32 @@ func _restore_world() -> void:
 	_stations.from_wire(Store.get_blob("stations"))
 	if not _stations.stations.is_empty():
 		print("[stations] restored %d" % _stations.stations.size())
+	_claims.from_wire(Store.get_blob("claims"))
+	_build.from_wire(Store.get_blob("build"))
+	if not _build.pieces.is_empty() or not _claims.claims.is_empty():
+		print("[base] restored %d claim(s), %d piece(s)"
+			% [_claims.claims.size(), _build.count()])
+
+	# Pay out what the holding earned while the server was down. Stored as a
+	# Unix time because ticks_msec resets every launch.
+	var stamps := Store.get_blob("production_stamp")
+	var away := 0.0
+	if not stamps.is_empty():
+		away = maxf(0.0, float(Time.get_unix_time_from_system()) - float(stamps[0]))
+	_last_production = _now()
+	if away > 1.0:
+		var notes := Utilities.produce(away, _claims, _stations)
+		if not notes.is_empty():
+			print("[offline] %.0fs away: %s" % [away, ", ".join(notes)])
 	_persist_world()
 
 
 func _persist_world() -> void:
 	Store.put_blob("nodes", _field.to_wire())
 	Store.put_blob("stations", _stations.to_wire())
+	Store.put_blob("claims", _claims.to_wire())
+	Store.put_blob("build", _build.to_wire())
+	Store.put_blob("production_stamp", [float(Time.get_unix_time_from_system())])
 
 
 func _now() -> float:
@@ -150,6 +184,7 @@ func _on_peer_joined(id: int) -> void:
 	_full_state.rpc_id(id, _entity_wire(), pos)
 	_sync_nodes.rpc_id(id, _field.to_wire())
 	_sync_stations.rpc_id(id, _stations.to_wire())
+	_sync_base.rpc_id(id, _build.to_wire(), _claims.to_wire())
 	_sync_inventory.rpc_id(id, inv.to_data())
 	_sync_equipment.rpc_id(id, equipped)
 	_push_vitals(id)
@@ -217,6 +252,20 @@ func _server_tick(delta: float) -> void:
 			_persist_world()
 			for nid: int in regrown:
 				_node_state.rpc(nid, int(_field.nodes[nid]["remaining"]))
+
+	# Production runs on the server whether or not anyone is connected -- that
+	# is what makes a windtrap infrastructure rather than a button.
+	_produce_accum += delta
+	if _produce_accum >= 5.0:
+		var since := _now() - _last_production
+		_last_production = _now()
+		_produce_accum = 0.0
+		var made := Utilities.produce(since, _claims, _stations)
+		if not made.is_empty():
+			_persist_world()
+			print("[produce] %s" % ", ".join(made))
+			for pid: int in _players:
+				_sync_stations.rpc_id(pid, _stations.to_wire())
 
 	_clock_accum += delta
 	if _clock_accum >= CLOCK_SYNC_SECONDS:
@@ -434,8 +483,24 @@ func _request_use(slot_index: int) -> void:
 func _deploy(id: int, slot_index: int, item_id: String) -> void:
 	var p: Dictionary = _players[id]
 	var inv: Inventory = p["inventory"]
-	var r := _stations.place(p["identity"], p["pos"], item_id)
+	var def := ItemDB.get_def(item_id)
+
+	# A Sub-Fief console stakes the claim, so the land must be free before the
+	# station goes down -- otherwise a refused claim would leave a stray console.
+	var radius := float(def.get("claim_radius", 0.0))
+	if radius > 0.0:
+		var probe := _claims.stake(p["identity"], p["pos"], radius, 0)
+		if not probe["ok"]:
+			print("[place] %s refused: %s" % [p["identity"], probe["msg"]])
+			_notice.rpc_id(id, str(probe["msg"]))
+			return
+		_claims.release(int(probe["id"]))
+
+	var r := _stations.place(p["identity"], p["pos"], item_id, _claims)
 	if r["ok"]:
+		if radius > 0.0:
+			_claims.stake(p["identity"], p["pos"], radius, int(r["id"]))
+			_sync_base.rpc(_build.to_wire(), _claims.to_wire())
 		inv.take_slot(slot_index)
 		_persist_player(id)
 		_persist_world()
@@ -498,18 +563,96 @@ func _request_pack_up(station_id: int) -> void:
 		return
 	var p: Dictionary = _players[id]
 	var inv: Inventory = p["inventory"]
-	var r := _stations.pick_up(p["pos"], station_id)
+	var r := _stations.pick_up(p["pos"], station_id, p["identity"], _claims)
 	if r["ok"]:
 		if inv.add(str(r["item_id"]), 1) > 0:
 			# Put it back rather than destroy it.
-			_stations.place(p["identity"], p["pos"], str(r["item_id"]))
+			_stations.place(p["identity"], p["pos"], str(r["item_id"]), _claims)
 			_notice.rpc_id(id, "no room to pack that up")
 			return
+		var freed := _claims.claim_for_station(station_id)
+		if freed != 0:
+			_claims.release(freed)
+			_sync_base.rpc(_build.to_wire(), _claims.to_wire())
 		_persist_player(id)
 		_persist_world()
 		_sync_inventory.rpc_id(id, inv.to_data())
 		_sync_stations.rpc(_stations.to_wire())
 	_notice.rpc_id(id, r["msg"])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_build(slot_index: int, aim: Vector3) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	if slot_index < 0 or slot_index >= inv.slots.size() or inv.slots[slot_index].is_empty():
+		return
+	var stack: Dictionary = inv.slots[slot_index]
+	var kind := str(ItemDB.get_def(stack["id"]).get("build", ""))
+	if kind.is_empty():
+		return
+
+	# The client sends where it is aiming; the cell, level and wall side are
+	# all derived server-side from that plus the server's own player position.
+	var r := _build.build(p["identity"], p["pos"], aim, kind, _claims)
+	if r["ok"]:
+		inv.remove(str(stack["id"]), 1)
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, inv.to_data())
+		_sync_base.rpc(_build.to_wire(), _claims.to_wire())
+		print("[build] %s %s" % [p["identity"], r["msg"]])
+	else:
+		print("[build] %s refused: %s" % [p["identity"], r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_demolish(aim: Vector3) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var r := _build.demolish(p["identity"], p["pos"], aim, _claims)
+	if r["ok"]:
+		# Give the piece back; a build that cannot be undone is a trap.
+		(p["inventory"] as Inventory).add(str(r["build_kind"]), 1)
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_sync_base.rpc(_build.to_wire(), _claims.to_wire())
+	_notice.rpc_id(id, str(r["msg"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_container(station_id: int, slot_index: int, to_container: bool) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	# slot_index < 0 means "just show me what is in there".
+	if slot_index >= 0:
+		var r := _stations.transfer(p["pos"], p["inventory"], station_id,
+			slot_index, to_container)
+		if r["ok"]:
+			_persist_player(id)
+			_persist_world()
+			_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+			print("[container] %s %s" % [p["identity"], r["msg"]])
+		else:
+			_notice.rpc_id(id, str(r["msg"]))
+	var box: Dictionary = _stations.stations.get(station_id, {})
+	if box.has("inventory"):
+		_sync_container.rpc_id(id, station_id, (box["inventory"] as Inventory).to_data())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -662,6 +805,38 @@ func _node_state(node_id: int, remaining: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _sync_base(build_rows: Array, claim_rows: Array) -> void:
+	# Positions are recomputed locally from the same grid maths the server
+	# used, so only the cell coordinates cross the wire.
+	var grid := BuildGrid.new()
+	grid.from_wire(build_rows)
+	build_mirror.clear()
+	for key: String in grid.pieces:
+		var piece: Dictionary = grid.pieces[key]
+		build_mirror.append({
+			"piece": int(piece["piece"]),
+			"pos": grid.piece_position(piece),
+			"side": int(piece["side"]),
+			"owner": str(piece["owner"]),
+		})
+	claim_mirror.clear()
+	for row: Array in claim_rows:
+		claim_mirror.append({
+			"owner": str(row[1]),
+			"pos": Vector3(float(row[2]), float(row[3]), float(row[4])),
+			"radius": float(row[5]),
+		})
+	build_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_container(station_id: int, contents: Array) -> void:
+	open_container = station_id
+	container_mirror = contents
+	container_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _sync_stations(rows: Array) -> void:
 	station_mirror.clear()
 	for row: Array in rows:
@@ -692,6 +867,13 @@ func _entity_removed(eid: int) -> void:
 ## which is the only way to test a 20-minute day in a 60-second run.
 func _bot_survive() -> void:
 	if Net.bot_profile == "reckless":
+		return
+	if Net.bot_profile == "builder":
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 10
+		_bot_build_base()
 		return
 	if Net.bot_profile == "forager":
 		# Phase 0 behaviour only: drink to stay alive, ignore the economy.
@@ -770,6 +952,56 @@ func _pending_craft_station() -> String:
 	return ""
 
 
+## Raise a holding in a fixed order: console first so the land is ours, then
+## the kit that makes it work, then a shell around it. Deliberately dumb -- it
+## exists so the Phase 3 harness can build a base without a human.
+const BOT_BUILD_ORDER := ["sub_fief", "fuel_generator", "water_cistern",
+	"windtrap", "storage_chest", "stilltent"]
+
+func _bot_build_base() -> void:
+	# One console only: a second would be refused on our own doorstep.
+	for item_id: String in BOT_BUILD_ORDER:
+		if item_id == "sub_fief" and not claim_here().is_empty():
+			continue
+		var have := _slot_of(item_id)
+		if have < 0:
+			continue
+		if _deployed(item_id):
+			continue
+		use_slot(have)
+		return
+
+	# Then the shell, one piece per turn.
+	for piece: String in ["foundation", "wall", "ceiling"]:
+		if _slot_of(piece) >= 0:
+			try_build()
+			return
+
+	# Finally, stow spare water in the chest -- exercises the container path.
+	if nearest_container() != 0:
+		if open_container == 0:
+			open_nearest_container()
+			return
+		var spare := _slot_of("water")
+		if spare >= 0:
+			put_in_container(spare)
+
+
+func _slot_of(item_id: String) -> int:
+	for i in inventory_mirror.size():
+		var s: Dictionary = inventory_mirror[i]
+		if not s.is_empty() and str(s["id"]) == item_id:
+			return i
+	return -1
+
+
+func _deployed(item_id: String) -> bool:
+	for sid: int in station_mirror:
+		if str(station_mirror[sid]["item_id"]) == item_id:
+			return true
+	return false
+
+
 ## Bot steering: head for the nearest worthwhile thing and act on it.
 ## Uses only replicated state, exactly like a human client would.
 func _bot_direction() -> Vector2:
@@ -777,6 +1009,12 @@ func _bot_direction() -> Vector2:
 	var goal_dist := INF
 	var goal_is_node := false
 	var best_score := INF
+
+	if Net.bot_profile == "builder":
+		# Drift in a slow circle: enough to lay a base out over a few metres
+		# without wandering off the holding it just staked.
+		_bot_orbit += 0.02
+		return Vector2(cos(_bot_orbit), sin(_bot_orbit)) * 0.5
 
 	var forager := Net.bot_profile == "forager"
 
@@ -965,6 +1203,63 @@ func try_harvest() -> void:
 
 func craft(recipe_id: String) -> void:
 	_request_craft.rpc_id(1, recipe_id)
+
+
+## Where the player is building: a couple of metres ahead of them. A real aim
+## ray comes with a proper camera; this is enough to pick a cell.
+func build_aim() -> Vector3:
+	var ahead := local_pos + Vector3(0.0, 0.0, -BuildGrid.CELL * 0.75)
+	ahead.y = Terrain.sample_height(ahead.x, ahead.z)
+	return ahead
+
+
+func try_build() -> void:
+	var i := find_use("build")
+	if i >= 0:
+		_request_build.rpc_id(1, i, build_aim())
+
+
+func try_demolish() -> void:
+	_request_demolish.rpc_id(1, build_aim())
+
+
+func open_nearest_container() -> void:
+	var sid := nearest_container()
+	if sid != 0:
+		_request_container.rpc_id(1, sid, -1, false)
+
+
+func take_from_container(slot_index: int) -> void:
+	if open_container != 0:
+		_request_container.rpc_id(1, open_container, slot_index, false)
+
+
+func put_in_container(slot_index: int) -> void:
+	if open_container != 0:
+		_request_container.rpc_id(1, open_container, slot_index, true)
+
+
+func nearest_container() -> int:
+	var best := 0
+	var best_d := StationField.USE_RANGE
+	for sid: int in station_mirror:
+		var s: Dictionary = station_mirror[sid]
+		if int(ItemDB.get_def(str(s["item_id"])).get("container_slots", 0)) <= 0:
+			continue
+		var d: float = local_pos.distance_to(s["pos"])
+		if d <= best_d:
+			best_d = d
+			best = sid
+	return best
+
+
+## Claim the player is standing in: {} when on open ground.
+func claim_here() -> Dictionary:
+	for c: Dictionary in claim_mirror:
+		if Vector2(c["pos"].x - local_pos.x, c["pos"].z - local_pos.z).length() \
+				<= float(c["radius"]):
+			return c
+	return {}
 
 
 func pack_up_station() -> void:

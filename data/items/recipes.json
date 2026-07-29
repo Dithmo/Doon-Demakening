@@ -106,6 +106,196 @@
           "count": 2
         }
       ]
+    },
+    {
+      "id": "foundation",
+      "name": "Foundation",
+      "station": "fabricator",
+      "output": {
+        "id": "foundation",
+        "count": 2
+      },
+      "inputs": [
+        {
+          "id": "granite_stone",
+          "count": 4
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "wall",
+      "name": "Wall",
+      "station": "fabricator",
+      "output": {
+        "id": "wall",
+        "count": 2
+      },
+      "inputs": [
+        {
+          "id": "granite_stone",
+          "count": 2
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "ceiling",
+      "name": "Ceiling",
+      "station": "fabricator",
+      "output": {
+        "id": "ceiling",
+        "count": 2
+      },
+      "inputs": [
+        {
+          "id": "granite_stone",
+          "count": 3
+        },
+        {
+          "id": "steel_ingot",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "sub_fief",
+      "name": "Sub-Fief Console",
+      "station": "fabricator",
+      "output": {
+        "id": "sub_fief",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 2
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "fuel_generator",
+      "name": "Fuel Generator",
+      "station": "fabricator",
+      "output": {
+        "id": "fuel_generator",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 3
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "wind_turbine",
+      "name": "Wind Turbine",
+      "station": "fabricator",
+      "output": {
+        "id": "wind_turbine",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 2
+        },
+        {
+          "id": "fiber_weave",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "windtrap",
+      "name": "Windtrap",
+      "station": "fabricator",
+      "output": {
+        "id": "windtrap",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 3
+        },
+        {
+          "id": "fiber_weave",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "water_cistern",
+      "name": "Water Cistern",
+      "station": "fabricator",
+      "output": {
+        "id": "water_cistern",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 2
+        },
+        {
+          "id": "granite_stone",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "storage_chest",
+      "name": "Storage Chest",
+      "station": "fabricator",
+      "output": {
+        "id": "storage_chest",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        },
+        {
+          "id": "plant_fiber",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "stilltent",
+      "name": "Stilltent",
+      "station": "fabricator",
+      "output": {
+        "id": "stilltent",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "fiber_weave",
+          "count": 3
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ]
     }
   ]
 }

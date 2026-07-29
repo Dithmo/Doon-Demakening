@@ -46,20 +46,25 @@ func load_defs() -> bool:
 		if _defs.has(id):
 			push_error("ItemDB: duplicate item id '%s'" % id)
 			return false
-		_defs[id] = {
-			"id": id,
-			"name": str(d.get("name", id)),
-			"stack": int(d.get("stack", 1)),
-			"slot": SLOT_NAMES.get(str(d.get("slot", "none")), Slot.NONE),
-			"weight": float(d.get("weight", 0.0)),
-			# Behaviour hook: Phase 1+ dispatches on this rather than on id, so
-			# new consumables need no code change.
-			"use": str(d.get("use", "")),
-			"use_value": float(d.get("use_value", 0.0)),
-			# Deployables name the station kind they become when placed.
-			"station": str(d.get("station", "")),
-			"desc": str(d.get("desc", "")),
-		}
+		# Carry every key through, then normalise the ones with a fixed type.
+		# Whitelisting fields here has silently dropped new properties twice
+		# (`station` in Phase 2, the whole power/container set in Phase 3), and
+		# a dropped field fails as "this item does nothing" a long way from the
+		# cause. Pass-through means adding an item property is a data change.
+		var def: Dictionary = d.duplicate(true)
+		def["id"] = id
+		def["name"] = str(d.get("name", id))
+		def["stack"] = int(d.get("stack", 1))
+		def["slot"] = SLOT_NAMES.get(str(d.get("slot", "none")), Slot.NONE)
+		def["weight"] = float(d.get("weight", 0.0))
+		# Behaviour hook: dispatched on rather than the item id, so new
+		# consumables need no code change.
+		def["use"] = str(d.get("use", ""))
+		def["use_value"] = float(d.get("use_value", 0.0))
+		# Deployables name the station kind they become when placed.
+		def["station"] = str(d.get("station", ""))
+		def["desc"] = str(d.get("desc", ""))
+		_defs[id] = def
 	print("[items] loaded %d definitions" % _defs.size())
 	return true
 

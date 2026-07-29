@@ -126,6 +126,105 @@
       "use": "place",
       "station": "refinery",
       "desc": "Cooks ore down to workable metal."
+    },
+    {
+      "id": "foundation",
+      "name": "Foundation",
+      "stack": 20,
+      "weight": 6.0,
+      "use": "build",
+      "build": "foundation",
+      "desc": "Levelled plate. Everything else keys off one of these."
+    },
+    {
+      "id": "wall",
+      "name": "Wall",
+      "stack": 20,
+      "weight": 4.0,
+      "use": "build",
+      "build": "wall",
+      "desc": "Panel for a foundation edge. Keeps sand and people out."
+    },
+    {
+      "id": "ceiling",
+      "name": "Ceiling",
+      "stack": 20,
+      "weight": 5.0,
+      "use": "build",
+      "build": "ceiling",
+      "desc": "Roof plate. Doubles as the floor of whatever you put on top."
+    },
+    {
+      "id": "sub_fief",
+      "name": "Sub-Fief Console",
+      "stack": 1,
+      "weight": 25.0,
+      "use": "place",
+      "station": "sub_fief",
+      "claim_radius": 28.0,
+      "desc": "Registers a holding. Nobody else builds inside it."
+    },
+    {
+      "id": "fuel_generator",
+      "name": "Fuel Generator",
+      "stack": 1,
+      "weight": 18.0,
+      "use": "place",
+      "station": "generator",
+      "power_output": 10.0,
+      "desc": "Burns down reliably. Runs whatever you wire near it."
+    },
+    {
+      "id": "wind_turbine",
+      "name": "Wind Turbine",
+      "stack": 1,
+      "weight": 14.0,
+      "use": "place",
+      "station": "turbine",
+      "power_output": 4.0,
+      "desc": "Less output than a generator, but it never needs feeding."
+    },
+    {
+      "id": "windtrap",
+      "name": "Windtrap",
+      "stack": 1,
+      "weight": 22.0,
+      "use": "place",
+      "station": "windtrap",
+      "power_draw": 6.0,
+      "produces": "water",
+      "produce_rate": 0.25,
+      "desc": "Wrings moisture from the wind. Needs power, and somewhere to put it."
+    },
+    {
+      "id": "water_cistern",
+      "name": "Water Cistern",
+      "stack": 1,
+      "weight": 20.0,
+      "use": "place",
+      "station": "cistern",
+      "container_slots": 8,
+      "desc": "Holds what the windtrap makes, whether you are here or not."
+    },
+    {
+      "id": "storage_chest",
+      "name": "Storage Chest",
+      "stack": 1,
+      "weight": 10.0,
+      "use": "place",
+      "station": "storage",
+      "container_slots": 16,
+      "desc": "Somewhere to leave things that is not your own back."
+    },
+    {
+      "id": "stilltent",
+      "name": "Stilltent",
+      "stack": 1,
+      "weight": 8.0,
+      "use": "place",
+      "station": "stilltent",
+      "shade_radius": 4.0,
+      "desc": "Sealed shelter. Casts its own shade wherever you pitch it."
     }
   ]
 }

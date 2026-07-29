@@ -175,17 +175,41 @@ Not done: crafting is instant (no progress bar), the craft key picks the first
 available recipe rather than opening a menu, and stations have no ownership --
 anyone can pack one up. All three are Phase 3 concerns.
 
-### Phase 3 — Base
+### Phase 3 — Base — **done**
 Placement with snapping and **server-side validation** — overlap, terrain fit,
 and ownership, since this is where griefing lives. Structural pieces, storage
 containers with concurrent-access rules. Power (generator + wind turbine).
 Windtrap and cistern producing water passively while offline. Stilltent as a
 portable safe point.
 
-*Test:* build a base with a windtrap, log out, come back to stored water. A
-second player cannot build inside your walls.
+*Test:* `godot --headless -- --run-tests` for claim, build and power rules,
+`python3 tools/test_phase3.py` for the wire — four runs covering a base being
+raised, production continuing with nobody connected, a restart paying out the
+gap, a second player being refused, and container transfers.
 *The base converts water from a per-trip crisis into infrastructure — that shift
 is the game's mid-game.*
+
+Done: claims anchored on a Sub-Fief console; a snapped build grid with real
+support rules (foundation → wall → ceiling, where a ceiling is the floor of the
+storey above, so multi-storey comes free); power pooled per holding rather than
+wired piece to piece; windtraps filling cisterns; containers with server-owned
+transfers; and the stilltent as portable shade.
+
+The measured results: a windtrap kept producing for 7 ticks after the player
+logged out, a restart paid out the gap (18 → 22 water), and a second player was
+refused 102 times trying to build on someone else's land.
+
+Two fixes worth noting. `ItemDB` whitelisted which fields it copied, so every
+new item property vanished silently — that cost a debugging round in Phase 2
+(`station`) and again here (the whole power/container set). It now passes every
+key through and normalises only the typed ones, so adding an item property is a
+data change. And deploying now snaps to the nearest legal spot instead of
+demanding the player stand exactly right, because otherwise a second station
+could not go down without walking away from the first.
+
+Not done: power is binary (a starved holding simply stops rather than
+browning out), generators never consume fuel, containers have no access control
+beyond the claim, and there are no doors — a wall is a wall.
 
 ### Phase 4 — Threat
 Now, and not before: sandworms on sand, keyed to the traversability mask, as

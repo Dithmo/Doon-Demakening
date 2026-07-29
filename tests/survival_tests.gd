@@ -35,6 +35,12 @@ func run() -> int:
 	_test_nodes()
 	print("\n=== Stations and crafting ===")
 	_test_crafting()
+	print("\n=== Claims ===")
+	_test_claims()
+	print("\n=== Building ===")
+	_test_building()
+	print("\n=== Power and production ===")
+	_test_utilities()
 
 	print()
 	if _failures.is_empty():
@@ -290,8 +296,16 @@ func _test_crafting() -> void:
 	_check(stations.station_in_reach(here, "fabricator") != 0, "the fabricator is in reach")
 	_check(not stations.place("tester", here, "water")["ok"],
 		"an ordinary item cannot be deployed")
-	_check(not stations.place("tester", here + Vector3(1.0, 0.0, 0.0),
-		"ore_refinery")["ok"], "stations cannot be stacked on each other")
+	# Phase 3 changed placement from "refuse if too close" to "snap to the
+	# nearest free spot", so a second station deploys rather than being turned
+	# away. The invariant worth asserting is the one that survived that change:
+	# whatever spot it picks, stations never end up overlapping.
+	var second := stations.place("tester", here + Vector3(1.0, 0.0, 0.0), "ore_refinery")
+	_check(second["ok"], "a second station snaps to a free spot nearby")
+	var a: Vector3 = stations.stations[int(placed["id"])]["pos"]
+	var b: Vector3 = stations.stations[int(second["id"])]["pos"]
+	_check(Vector2(a.x - b.x, a.z - b.z).length() >= StationField.MIN_SPACING - 0.01,
+		"stations never end up overlapping")
 
 	# The happy path consumes inputs and produces output.
 	var made := stations.craft(here, inv, "fiber_weave")
@@ -310,7 +324,9 @@ func _test_crafting() -> void:
 
 	# A recipe bound to another station is not satisfied by this one.
 	inv.add("iron_ore", 2)
-	_check(not stations.craft(here, inv, "steel_ingot")["ok"],
+	var bench_only := StationField.new()
+	bench_only.place("tester", here, "survival_fabricator")
+	_check(not bench_only.craft(here, inv, "steel_ingot")["ok"],
 		"a refinery recipe needs a refinery, not a fabricator")
 
 	# The full Phase 2 chain: gather -> refine -> craft the stillsuit.
@@ -354,3 +370,200 @@ func _test_crafting() -> void:
 	var taken := bench.pick_up(spot, bench.station_in_reach(spot, "refinery"))
 	_check(taken["ok"] and taken["item_id"] == "ore_refinery",
 		"a station packs back into the item that placed it")
+
+
+## A patch of open, flat, reachable sand to build on. Picking it from the map
+## rather than assuming one keeps these tests honest about the terrain.
+func _open_ground() -> Vector3:
+	var best := Vector3.ZERO
+	var flattest := INF
+	for i in range(4000):
+		var x := 12.0 + fmod(float(i) * 37.0, Terrain.size_m.x - 24.0)
+		var z := 12.0 + fmod(float(i) * 61.0, Terrain.size_m.y - 24.0)
+		var cell := BuildGrid.world_to_cell(Vector3(x, 0.0, z))
+		var c := BuildGrid.cell_centre(cell)
+		# Check the cell *centre*, since that is what gets returned, and a ring
+		# around it, since these tests deploy kit several metres to the side.
+		if Terrain.sample_surface(c.x, c.y) != Terrain.Surface.SAND:
+			continue
+		var clear := true
+		for a in range(8):
+			var ang := TAU * float(a) / 8.0
+			if not Terrain.is_reachable(c.x + cos(ang) * 12.0, c.y + sin(ang) * 12.0):
+				clear = false
+				break
+		if not clear or not Terrain.is_reachable(c.x, c.y):
+			continue
+		var lo := INF
+		var hi := -INF
+		for dx: float in [0.0, 1.0]:
+			for dz: float in [0.0, 1.0]:
+				var h := Terrain.sample_height((float(cell.x) + dx) * BuildGrid.CELL,
+					(float(cell.y) + dz) * BuildGrid.CELL)
+				lo = minf(lo, h)
+				hi = maxf(hi, h)
+		if hi - lo < flattest:
+			flattest = hi - lo
+			best = Vector3(c.x, Terrain.sample_height(c.x, c.y), c.y)
+		if flattest < 0.2:
+			break
+	return best
+
+
+func _test_claims() -> void:
+	var claims := Claims.new()
+	var here := _open_ground()
+	var far := here + Vector3(300.0, 0.0, 0.0)
+
+	_check(claims.may_build("ada", here), "open ground is open to anyone")
+	var staked := claims.stake("ada", here, 20.0, 1)
+	_check(staked["ok"], "a holding can be staked on open ground")
+	_check(claims.owner_at(here) == "ada", "the claim reports its owner")
+
+	# The anti-grief property: someone else's holding is closed to you.
+	_check(not claims.may_build("bo", here), "another player cannot build inside it")
+	_check(not claims.may_build("bo", here + Vector3(15.0, 0.0, 0.0)),
+		"the whole radius is closed, not just the centre")
+	_check(claims.may_build("ada", here + Vector3(15.0, 0.0, 0.0)),
+		"the owner can build anywhere inside")
+	_check(claims.may_build("bo", far), "land outside the radius stays open")
+
+	_check(not claims.stake("bo", here + Vector3(5.0, 0.0, 0.0), 20.0, 2)["ok"],
+		"a second console cannot be planted inside an existing holding")
+	_check(not claims.stake("bo", here + Vector3(30.0, 0.0, 0.0), 20.0, 2)["ok"],
+		"claims may not overlap at the rim either")
+	_check(claims.stake("bo", far, 20.0, 3)["ok"], "a holding elsewhere is fine")
+
+	# Height must not shrink a claim: it is a footprint on the ground.
+	_check(not claims.may_build("bo", here + Vector3(0.0, 40.0, 0.0)),
+		"a claim covers the air above it too")
+
+	var cid := claims.claim_for_station(1)
+	_check(cid != 0, "a claim can be found from its console")
+	claims.release(cid)
+	_check(claims.may_build("bo", here), "releasing a holding reopens the land")
+
+
+func _test_building() -> void:
+	var grid := BuildGrid.new()
+	var claims := Claims.new()
+	var here := _open_ground()
+	var cell := BuildGrid.world_to_cell(here)
+
+	# Walls and ceilings need something to stand on.
+	_check(not grid.build("ada", here, here, "wall", claims)["ok"],
+		"a wall needs something to build onto")
+	_check(not grid.build("ada", here, here, "ceiling", claims)["ok"],
+		"a ceiling needs something to build onto")
+	_check(not grid.build("ada", here, here, "nonsense", claims)["ok"],
+		"an unknown piece is refused")
+
+	var floor_piece := grid.build("ada", here, here, "foundation", claims)
+	_check(floor_piece["ok"], "a foundation goes down on flat reachable ground")
+	_check(grid.has_piece(BuildGrid.Piece.FOUNDATION, cell, 0),
+		"the foundation occupies its cell")
+	_check(not grid.build("ada", here, here, "foundation", claims)["ok"],
+		"two foundations cannot share a cell")
+
+	# Now the rest of the shell.
+	_check(grid.build("ada", here, here, "wall", claims)["ok"],
+		"a wall goes onto the foundation")
+	_check(not grid.build("ada", here, here, "wall", claims)["ok"],
+		"the same edge cannot take two walls")
+	# Aiming at the opposite edge picks a different side.
+	var other := here + Vector3(BuildGrid.CELL * 0.4, 0.0, 0.0)
+	_check(grid.build("ada", here, other, "wall", claims)["ok"],
+		"a second wall goes on a different edge")
+	_check(grid.build("ada", here, here, "ceiling", claims)["ok"], "a ceiling caps it")
+
+	# A ceiling is the floor of the next storey -- multi-storey for free.
+	var upstairs := here + Vector3(0.0, BuildGrid.CELL, 0.0)
+	_check(grid.supported(cell, 1), "the ceiling supports the level above")
+	_check(grid.build("ada", upstairs, here, "wall", claims)["ok"],
+		"a wall can go up on the next storey")
+
+	# Range and ownership are enforced.
+	_check(not grid.build("ada", here, here + Vector3(40.0, 0.0, 0.0),
+		"foundation", claims)["ok"], "building out of reach is refused")
+	claims.stake("bo", here, 20.0, 1)
+	_check(not grid.build("ada", here, here, "foundation", claims)["ok"],
+		"building inside another player's holding is refused")
+	_check(not grid.demolish("ada", here, here, claims)["ok"],
+		"demolishing inside another player's holding is refused")
+	claims.release(claims.claim_for_station(1))
+
+	# Load-bearing pieces cannot be pulled out from under what rests on them.
+	var grid2 := BuildGrid.new()
+	grid2.build("ada", here, here, "foundation", claims)
+	grid2.build("ada", here, here, "ceiling", claims)
+	_check(not grid2.demolish("ada", here, here, claims)["ok"]
+		or grid2.has_piece(BuildGrid.Piece.FOUNDATION, cell, 0),
+		"a loaded foundation is not removed by accident")
+
+	# A JSON round-trip must preserve the structure exactly.
+	var copy := BuildGrid.new()
+	copy.from_wire(grid.to_wire())
+	_check(copy.count() == grid.count(), "a build survives a save round-trip")
+	_check(copy.has_piece(BuildGrid.Piece.FOUNDATION, cell, 0),
+		"pieces keep their cell across the round-trip")
+
+
+func _test_utilities() -> void:
+	var claims := Claims.new()
+	var stations := StationField.new()
+	var here := _open_ground()
+	claims.stake("ada", here, 30.0, 0)
+	var cid := claims.claim_at(here)
+
+	# Spread the kit out: stations refuse to stack.
+	var step := StationField.MIN_SPACING + 1.0
+	stations.place("ada", here, "windtrap", claims)
+	stations.place("ada", here + Vector3(step, 0.0, 0.0), "water_cistern", claims)
+
+	var starved := Utilities.power_for_claim(cid, claims, stations)
+	_check(starved["draw"] > 0.0, "the windtrap draws power")
+	_check(not starved["satisfied"], "a holding with no generator is starved")
+	_check(Utilities.produce(600.0, claims, stations).is_empty(),
+		"an unpowered windtrap produces nothing")
+
+	stations.place("ada", here + Vector3(step * 2.0, 0.0, 0.0), "fuel_generator", claims)
+	var powered := Utilities.power_for_claim(cid, claims, stations)
+	_check(powered["output"] > powered["draw"], "the generator covers the draw")
+	_check(powered["satisfied"], "the holding is powered")
+
+	var made := Utilities.produce(60.0, claims, stations)
+	_check(not made.is_empty(), "a powered windtrap produces water")
+	var cistern := 0
+	for sid: int in stations.stations:
+		if stations.stations[sid].has("inventory"):
+			cistern = sid
+	_check(cistern != 0, "the cistern is a container")
+	if cistern != 0:
+		var box: Inventory = stations.stations[cistern]["inventory"]
+		_check(box.count_of("water") > 0, "the water lands in the cistern")
+
+		# Production is capped, so a long outage cannot pay out a fortune.
+		var before: int = box.count_of("water")
+		Utilities.produce(365.0 * 24.0 * 3600.0, claims, stations)
+		var capped: int = int(Utilities.MAX_OFFLINE_SECONDS * 0.25) + before
+		_check(box.count_of("water") <= capped + 1,
+			"offline production is capped, not unbounded")
+
+	# Unclaimed kit is nobody's infrastructure.
+	var loose := StationField.new()
+	loose.place("ada", here + Vector3(400.0, 0.0, 0.0), "windtrap")
+	_check(Utilities.produce(600.0, Claims.new(), loose).is_empty(),
+		"a windtrap outside any holding produces nothing")
+
+	# Containers refuse to be pocketed with something inside.
+	var chest := StationField.new()
+	var placed := chest.place("ada", here, "storage_chest", null)
+	var box: Inventory = chest.stations[int(placed["id"])]["inventory"]
+	box.add("water", 2)
+	_check(not chest.pick_up(here, int(placed["id"]))["ok"],
+		"a container with contents cannot be packed up")
+	box.remove("water", 2)
+	_check(chest.pick_up(here, int(placed["id"]))["ok"],
+		"an emptied container can be packed up")
+
+
