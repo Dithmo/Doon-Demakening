@@ -58,8 +58,10 @@ class Proc:
 def launch(extra, user_dir, seconds, port):
     env = dict(os.environ)
     env["HOME"] = str(user_dir)
+    # --peaceful: these suites are about gathering and building, not the worm.
     return Proc([GODOT, "--headless", "--path", str(ROOT), "--",
-                 "--port", str(port), "--run-seconds", str(seconds)] + extra, env)
+                 "--port", str(port), "--run-seconds", str(seconds),
+                 "--peaceful"] + extra, env)
 
 
 def session(user_dir, seconds, port, extra, clients):

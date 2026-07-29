@@ -16,6 +16,11 @@ var _node_meshes: Dictionary = {}
 var _station_meshes: Dictionary = {}
 var _craft_root: Node3D
 var _build_root: Node3D
+var _threat_root: Node3D
+var _worm_mesh: MeshInstance3D
+var _npc_meshes: Dictionary = {}
+var _corpse_meshes: Dictionary = {}
+var _alarm: Label
 var _sun: DirectionalLight3D
 var _env: Environment
 var _notice: Label
@@ -56,6 +61,29 @@ func _ready() -> void:
 	add_child(_craft_root)
 	_build_root = Node3D.new()
 	add_child(_build_root)
+	_threat_root = Node3D.new()
+	add_child(_threat_root)
+	_worm_mesh = MeshInstance3D.new()
+	var mound := SphereMesh.new()
+	mound.radius = Sandworm.STRIKE_RADIUS * 0.5
+	mound.height = Sandworm.STRIKE_RADIUS
+	_worm_mesh.mesh = mound
+	var wmat := StandardMaterial3D.new()
+	wmat.albedo_color = Color(0.42, 0.31, 0.22)
+	_worm_mesh.material_override = wmat
+	_worm_mesh.visible = false
+	_threat_root.add_child(_worm_mesh)
+
+	# The worm warning is the most important text on screen: it is the whole
+	# difference between an unfair death and a decision.
+	_alarm = Label.new()
+	_alarm.position = Vector2(12, 250)
+	_alarm.add_theme_color_override("font_color", Color(1.0, 0.42, 0.28))
+	_alarm.add_theme_font_size_override("font_size", 26)
+	layer.add_child(_alarm)
+
+	world.worm_changed.connect(_refresh_worm)
+	world.hostiles_changed.connect(_refresh_hostiles)
 	world.build_changed.connect(_refresh_build)
 	world.nodes_changed.connect(_refresh_nodes)
 	world.stations_changed.connect(_refresh_stations)
@@ -94,6 +122,7 @@ func _process(_delta: float) -> void:
 			_remote_nodes.erase(id)
 
 	_advance_sky()
+	_refresh_worm()
 	if Time.get_ticks_msec() / 1000.0 > _notice_until and not _notice.text.is_empty():
 		_notice.text = ""
 	_refresh_hud()
@@ -158,6 +187,11 @@ func _refresh_hud() -> void:
 	lines.append("WATER  %s %3.0f" % [_bar(float(v["hydration"]) / Vitals.MAX), v["hydration"]])
 	lines.append("HEAT   %s %3.0f" % [_bar(float(v["heat"]) / Vitals.MAX), v["heat"]])
 	lines.append("HEALTH %s %3.0f" % [_bar(float(v["health"]) / Vitals.MAX), v["health"]])
+	# Threat sits next to the surface reading on purpose: the two together are
+	# the decision the player is making.
+	lines.append("THREAT %s %3.0f   %s"
+		% [_bar(world.my_threat / Sandworm.MAX_THREAT), world.my_threat,
+		"EXPOSED" if world.local_surface == Terrain.Surface.SAND else "sheltered"])
 	lines.append("pos %.1f, %.1f   surface %s   %s"
 		% [world.local_pos.x, world.local_pos.z, Terrain.surface_name(s),
 		"IN SHADE" if world.shaded_mirror else "EXPOSED"])
@@ -213,6 +247,10 @@ func _refresh_hud() -> void:
 		hints.append("[V] build  [X] remove")
 	if world.nearest_container() != 0:
 		hints.append("[T] container")
+	if world.nearest_hostile() != 0:
+		hints.append("[Space] attack")
+	if world.nearest_corpse() != 0:
+		hints.append("[Z] draw water")
 	if reach:
 		hints.append("[C] craft")
 	hints.append("[Q] drop")
@@ -301,6 +339,50 @@ func _refresh_build() -> void:
 		m.material_override = mat
 		m.position = piece["pos"]
 		_build_root.add_child(m)
+
+
+## The worm is only visible once it has surfaced. Before that the player has
+## the threat meter and the warning line, which is deliberate -- you are meant
+## to read the sand, not watch a dot approach.
+func _refresh_worm() -> void:
+	var state := int(world.worm_mirror["state"])
+	var showing := state == Sandworm.State.SURFACING or state == Sandworm.State.STRIKING
+	_worm_mesh.visible = showing
+	if showing:
+		var at: Vector3 = world.worm_mirror["target"]
+		at.y = Terrain.sample_height(at.x, at.z)
+		_worm_mesh.position = at
+	_alarm.text = world.worm_warning()
+
+
+func _refresh_hostiles() -> void:
+	for nid: int in world.npc_mirror:
+		if not _npc_meshes.has(nid):
+			var m := _capsule(Color(0.55, 0.24, 0.24))
+			_threat_root.add_child(m)
+			_npc_meshes[nid] = m
+		_npc_meshes[nid].position = world.npc_mirror[nid]["pos"] + Vector3.UP * 0.9
+	for nid: int in _npc_meshes.keys():
+		if not world.npc_mirror.has(nid):
+			(_npc_meshes[nid] as Node).queue_free()
+			_npc_meshes.erase(nid)
+
+	for cid: int in world.corpse_mirror:
+		if not _corpse_meshes.has(cid):
+			var m := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			box.size = Vector3(1.4, 0.3, 0.6)
+			m.mesh = box
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.36, 0.20, 0.18)
+			m.material_override = mat
+			m.position = world.corpse_mirror[cid]["pos"] + Vector3.UP * 0.15
+			_threat_root.add_child(m)
+			_corpse_meshes[cid] = m
+	for cid: int in _corpse_meshes.keys():
+		if not world.corpse_mirror.has(cid):
+			(_corpse_meshes[cid] as Node).queue_free()
+			_corpse_meshes.erase(cid)
 
 
 func _node_colour(kind: String) -> Color:

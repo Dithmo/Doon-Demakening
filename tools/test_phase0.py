@@ -63,7 +63,7 @@ def launch(name, extra, user_dir, seconds):
     env = dict(os.environ)
     env["HOME"] = str(user_dir)
     args = [GODOT, "--headless", "--path", str(ROOT)]
-    args += ["--", "--port", str(PORT), "--run-seconds", str(seconds)] + extra
+    args += ["--", "--port", str(PORT), "--run-seconds", str(seconds)] + extra + ["--peaceful"]
     return Proc(name, args, ROOT, env)
 
 

@@ -23,7 +23,8 @@ godot           -- --client [--host H] [--port N] [--identity NAME]
 
 Controls: `WASD` move, `Shift` sprint, `E` pick up, `R` work a resource node,
 `F` drink, `G` harvest dew (after dark only), `B` deploy a station,
-`C` craft, `V` build, `X` remove, `T` container, `Q` drop.
+`C` craft, `V` build, `X` remove, `T` container, `Space` attack,
+`Z` draw water from a body, `Q` drop.
 
 ## Testing
 
@@ -33,6 +34,7 @@ python3 tools/test_phase0.py                            # net spine + inventory
 python3 tools/test_phase1.py                            # the water loop
 python3 tools/test_phase2.py                            # the economy
 python3 tools/test_phase3.py                            # bases and power
+python3 tools/test_phase4.py                            # worms and combat
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -43,7 +45,9 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless|forager|builder`, `--debug-steer`.
+`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter`,
+`--peaceful` (server: suppress worm and hostiles, for test isolation),
+`--debug-steer`.
 
 ## Layout
 
@@ -52,9 +56,9 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 | `docs/game-plan.md` | Whole-game build order. **Start here.** |
 | `docs/terrain-plan.md` | Wiki map → terrain pipeline (feeds Phase 5) |
 | `scripts/net/` | Transport, roles, handshake |
-| `scripts/world/` | World authority, clock, resource nodes, stations |
+| `scripts/world/` | World authority, clock, nodes, stations, base, worm |
 | `scripts/terrain/` | `sample_height` / `sample_surface` contract |
-| `scripts/items/` | Item database, recipes, inventory, use hooks |
+| `scripts/items/` | Item database, recipes, inventory, use hooks, combat |
 | `scripts/player/` | Shared movement and survival vitals |
 | `scripts/client/` | Presentation only; owns no game state |
 | `tools/` | Data pipeline and test harnesses |

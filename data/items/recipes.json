@@ -296,6 +296,101 @@
           "count": 2
         }
       ]
+    },
+    {
+      "id": "crysknife",
+      "name": "Crysknife",
+      "station": "fabricator",
+      "output": {
+        "id": "crysknife",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 2
+        },
+        {
+          "id": "fiber_weave",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "body_shield",
+      "name": "Holtzman Shield",
+      "station": "fabricator",
+      "output": {
+        "id": "body_shield",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 3
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "thumper",
+      "name": "Thumper",
+      "station": "fabricator",
+      "output": {
+        "id": "thumper",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 3
+        },
+        {
+          "id": "granite_stone",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "blood_extractor",
+      "name": "Blood Extractor",
+      "station": "fabricator",
+      "output": {
+        "id": "blood_extractor",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        },
+        {
+          "id": "fiber_weave",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "maula_pistol",
+      "name": "Maula Pistol",
+      "station": "fabricator",
+      "output": {
+        "id": "maula_pistol",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "steel_ingot",
+          "count": 2
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ]
     }
   ]
 }

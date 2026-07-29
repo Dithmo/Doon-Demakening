@@ -16,6 +16,8 @@ signal nodes_changed
 signal stations_changed
 signal build_changed
 signal container_changed
+signal worm_changed
+signal hostiles_changed
 
 const PICKUP_RANGE := 3.0
 ## Rejecting inputs that claim more time than they could have taken stops a
@@ -42,6 +44,8 @@ var _field := NodeField.new()
 var _stations := StationField.new()
 var _claims := Claims.new()
 var _build := BuildGrid.new()
+var _worm := Sandworm.new()
+var _hostiles := Hostiles.new()
 var _node_accum: float = 0.0
 var _produce_accum: float = 0.0
 ## Wall-clock of the last production tick, persisted so a restart can pay out
@@ -72,6 +76,12 @@ var claim_mirror: Array = []         ## [{owner, pos, radius}]
 var container_mirror: Array = []
 var open_container: int = 0
 var stations_in_reach: Array = []
+## Replicated worm state. Display and warning only -- the server decides.
+var worm_mirror: Dictionary = {"state": 0, "pos": Vector3.ZERO,
+	"target": Vector3.ZERO, "timer": 0.0}
+var my_threat: float = 0.0
+var npc_mirror: Dictionary = {}     ## npc id -> {pos, health}
+var corpse_mirror: Dictionary = {}  ## corpse id -> {pos, blood}
 
 var _input_seq: int = 0
 var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
@@ -79,6 +89,7 @@ var _bot_cooldown: int = 0
 var _bot_use_cd: int = 0
 var _bot_dew_probes: int = 0
 var _bot_orbit: float = 0.0
+var _bot_dune: Vector3 = Vector3.ZERO
 ## Last steering decision, surfaced for --debug-steer.
 var debug_goal: Vector3 = Vector3.ZERO
 var debug_want: Vector2 = Vector2.ZERO
@@ -109,6 +120,10 @@ func _restore_world() -> void:
 	_stations.from_wire(Store.get_blob("stations"))
 	if not _stations.stations.is_empty():
 		print("[stations] restored %d" % _stations.stations.size())
+	# Camps are static furniture, so reseeding every boot is fine and keeps
+	# them out of the save.
+	if not Net.peaceful:
+		_hostiles.seed()
 	_claims.from_wire(Store.get_blob("claims"))
 	_build.from_wire(Store.get_blob("build"))
 	if not _build.pieces.is_empty() or not _claims.claims.is_empty():
@@ -185,6 +200,8 @@ func _on_peer_joined(id: int) -> void:
 	_sync_nodes.rpc_id(id, _field.to_wire())
 	_sync_stations.rpc_id(id, _stations.to_wire())
 	_sync_base.rpc_id(id, _build.to_wire(), _claims.to_wire())
+	var hw := _hostiles.to_wire()
+	_sync_hostiles.rpc_id(id, hw[0], hw[1])
 	_sync_inventory.rpc_id(id, inv.to_data())
 	_sync_equipment.rpc_id(id, equipped)
 	_push_vitals(id)
@@ -253,6 +270,8 @@ func _server_tick(delta: float) -> void:
 			for nid: int in regrown:
 				_node_state.rpc(nid, int(_field.nodes[nid]["remaining"]))
 
+	_threat_tick(delta)
+
 	# Production runs on the server whether or not anyone is connected -- that
 	# is what makes a windtrap infrastructure rather than a button.
 	_produce_accum += delta
@@ -271,6 +290,68 @@ func _server_tick(delta: float) -> void:
 	if _clock_accum >= CLOCK_SYNC_SECONDS:
 		_clock_accum = 0.0
 		_sync_clock.rpc(Clock.time_of_day, Clock.day_number)
+
+
+## The worm reads the same mask the player walks on: sand is exposure, rock is
+## refuge. Threat, targeting and the strike all resolve here.
+func _threat_tick(delta: float) -> void:
+	if Net.peaceful:
+		return
+	var players: Dictionary = {}
+	for id: int in _players:
+		var p: Dictionary = _players[id]
+		var pos: Vector3 = p["pos"]
+		var on_sand := Terrain.sample_surface(pos.x, pos.z) == Terrain.Surface.SAND
+		var moving := bool(p.get("moving", false))
+		_worm.accrue(id, delta, on_sand, moving, bool(p.get("sprinting", false)),
+			Combat.threat_multiplier(p["equipped"]))
+		players[id] = {"pos": pos, "on_sand": on_sand,
+			"alive": (p["vitals"] as Vitals).alive}
+
+	# Thumpers pound whether or not anyone is near them -- that is the point of
+	# deploying one and walking away.
+	var lures: Array = []
+	for sid: int in _stations.stations:
+		var s: Dictionary = _stations.stations[sid]
+		var noise := float(ItemDB.get_def(str(s["item_id"])).get("worm_threat", 0.0))
+		if noise > 0.0:
+			lures.append({"pos": s["pos"], "threat": noise * Sandworm.WAKE_THRESHOLD / 6.0})
+
+	for e: Dictionary in _worm.tick(delta, players, lures):
+		match str(e["kind"]):
+			"wake":
+				print("[worm] roused toward %v" % e["pos"])
+			"surface":
+				print("[worm] surfacing at %v -- %.0fs" % [e["pos"], Sandworm.WARNING_SECONDS])
+			"strike":
+				var caught: Array = e["caught"]
+				print("[worm] strikes at %v, taking %d" % [e["pos"], caught.size()])
+				for peer: int in caught:
+					if _players.has(peer):
+						var v: Vitals = _players[peer]["vitals"]
+						v.health = 0.0
+						v.alive = false
+						_kill(peer, "Shai-Hulud")
+			"lost":
+				print("[worm] loses interest")
+			"sated":
+				print("[worm] submerges")
+
+	for id: int in _players:
+		_worm_state.rpc_id(id, _worm.to_wire(), _worm.threat_of(id))
+
+	# Hostiles: server-side aggro, movement and damage.
+	for e: Dictionary in _hostiles.tick(delta, players, _now()):
+		var peer := int(e["peer"])
+		if not _players.has(peer):
+			continue
+		var vit: Vitals = _players[peer]["vitals"]
+		vit.health = maxf(0.0, vit.health - float(e["damage"]))
+		if vit.health <= 0.0 and vit.alive:
+			vit.alive = false
+			_kill(peer, "a blade")
+		else:
+			_push_vitals(peer)
 
 
 ## Water is the clock. Everything the player decides -- where to stand, how
@@ -297,9 +378,13 @@ func _simulate_vitals(delta: float) -> void:
 			_kill(id)
 
 
-func _kill(id: int) -> void:
+## `cause` is passed by whatever did the killing; only the survival tick has to
+## infer it from vitals. Without that, a worm strike reported itself twice --
+## once correctly, then again as heatstroke.
+func _kill(id: int, cause: String = "") -> void:
 	var p: Dictionary = _players[id]
-	var cause := "dehydration" if p["vitals"].hydration <= 0.0 else "heatstroke"
+	if cause.is_empty():
+		cause = "dehydration" if p["vitals"].hydration <= 0.0 else "heatstroke"
 	print("[death] %s died of %s at %s" % [p["identity"], cause, Clock.hhmm()])
 	p["vitals"].revive()
 	p["pos"] = Movement.find_spawn(p["spawn"])
@@ -413,7 +498,9 @@ func _submit_input(seq: int, dx: float, dz: float, sprint: bool) -> void:
 	queue.append({"seq": seq, "dir": Vector2(dx, dz), "sprint": sprint})
 	# Sprinting costs water, so the simulation needs to know about it even
 	# though movement itself is resolved from the queue.
-	_players[id]["sprinting"] = sprint and (dx != 0.0 or dz != 0.0)
+	var is_moving := dx != 0.0 or dz != 0.0
+	_players[id]["moving"] = is_moving
+	_players[id]["sprinting"] = sprint and is_moving
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -582,6 +669,62 @@ func _request_pack_up(station_id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _request_attack() -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	# The client asks to swing; reach, cooldown and the shield rule are all
+	# resolved against the server's own state.
+	var weapon := Combat.weapon_of(p["equipped"])
+	var npc_id := _hostiles.nearest(p["pos"], float(weapon["reach"]))
+	if npc_id == 0:
+		_notice.rpc_id(id, "nothing in reach")
+		return
+	var target_pos: Vector3 = _hostiles.npcs[npc_id]["pos"]
+	# NPCs carry no shields yet, so the rule only bites player-versus-player;
+	# the resolution path is shared so it cannot drift.
+	var r := Combat.strike(p["pos"], p["equipped"], target_pos, {},
+		p["cooldowns"], _now())
+	if not r["ok"]:
+		if not str(r["msg"]).is_empty():
+			_notice.rpc_id(id, str(r["msg"]))
+		return
+	var out := _hostiles.damage(npc_id, float(r["damage"]), _now())
+	print("[combat] %s: %s%s" % [p["identity"], r["msg"],
+		" (killed)" if out["killed"] else ""])
+	_notice.rpc_id(id, str(r["msg"]))
+	var hw := _hostiles.to_wire()
+	_sync_hostiles.rpc(hw[0], hw[1])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_extract() -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var cid := _hostiles.nearest_corpse(p["pos"], 3.0)
+	if cid == 0:
+		return
+	var r := _hostiles.extract(p["pos"], p["inventory"], cid, p["cooldowns"], _now())
+	if r["ok"]:
+		_persist_player(id)
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		var hw := _hostiles.to_wire()
+		_sync_hostiles.rpc(hw[0], hw[1])
+		print("[blood] %s %s" % [p["identity"], r["msg"]])
+	if not str(r["msg"]).is_empty():
+		_notice.rpc_id(id, str(r["msg"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _request_build(slot_index: int, aim: Vector3) -> void:
 	if not Net.is_server():
 		return
@@ -687,6 +830,7 @@ func _client_tick(delta: float) -> void:
 		dir = _bot_direction()
 		# Sprinting doubles water loss, so the bot only does it with water spare.
 		sprint = dir != Vector2.ZERO and (Net.bot_profile == "reckless"
+			or Net.bot_profile == "prey" or Net.bot_profile == "quarry"
 			or float(vitals_mirror["hydration"]) > 60.0)
 	else:
 		if Input.is_action_pressed("move_forward"): dir.y -= 1.0
@@ -804,6 +948,35 @@ func _node_state(node_id: int, remaining: int) -> void:
 		nodes_changed.emit()
 
 
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _worm_state(wire: Array, threat: float) -> void:
+	worm_mirror = {
+		"state": int(wire[0]),
+		"pos": Vector3(float(wire[1]), float(wire[2]), float(wire[3])),
+		"target": Vector3(float(wire[4]), 0.0, float(wire[5])),
+		"timer": float(wire[6]),
+	}
+	my_threat = threat
+	worm_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_hostiles(npc_rows: Array, corpse_rows: Array) -> void:
+	npc_mirror.clear()
+	for row: Array in npc_rows:
+		npc_mirror[int(row[0])] = {
+			"pos": Vector3(float(row[1]), float(row[2]), float(row[3])),
+			"health": float(row[4]),
+		}
+	corpse_mirror.clear()
+	for row: Array in corpse_rows:
+		corpse_mirror[int(row[0])] = {
+			"pos": Vector3(float(row[1]), float(row[2]), float(row[3])),
+			"blood": int(row[4]),
+		}
+	hostiles_changed.emit()
+
+
 @rpc("authority", "call_remote", "reliable")
 func _sync_base(build_rows: Array, claim_rows: Array) -> void:
 	# Positions are recomputed locally from the same grid maths the server
@@ -874,6 +1047,37 @@ func _bot_survive() -> void:
 			return
 		_bot_use_cd = 10
 		_bot_build_base()
+		return
+	if Net.bot_profile == "fighter":
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 6
+		if nearest_corpse() != 0:
+			try_extract()
+			return
+		if nearest_hostile() != 0:
+			try_attack()
+			return
+		var blade := find_use("equip")
+		if blade >= 0:
+			use_slot(blade)
+		return
+	if Net.bot_profile == "prey" or Net.bot_profile == "quarry":
+		# Prey still uses what it was given: a thumper goes down, a shield goes
+		# on. Both change how the worm treats it, which is the point of testing
+		# them on a bot that is otherwise doing nothing clever.
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 20
+		var kit := find_use("place")
+		if kit >= 0:
+			use_slot(kit)
+			return
+		var gear := find_use("equip")
+		if gear >= 0:
+			use_slot(gear)
 		return
 	if Net.bot_profile == "forager":
 		# Phase 0 behaviour only: drink to stay alive, ignore the economy.
@@ -987,6 +1191,72 @@ func _bot_build_base() -> void:
 			put_in_container(spare)
 
 
+## A patch of sand with no rock anywhere near it -- the middle of a dune
+## field, where a worm has nothing to interrupt it and you have nowhere to run.
+func _open_sand(max_radius: float = 160.0) -> Vector3:
+	var r := 20.0
+	while r <= max_radius:
+		var steps: int = maxi(10, int(r / 3.0))
+		for i in range(steps):
+			var a := TAU * float(i) / float(steps) + _bot_orbit
+			var x := local_pos.x + cos(a) * r
+			var z := local_pos.z + sin(a) * r
+			if Terrain.sample_surface(x, z) != Terrain.Surface.SAND:
+				continue
+			if not Terrain.is_reachable(x, z):
+				continue
+			var clear := true
+			for j in range(8):
+				var b := TAU * float(j) / 8.0
+				if Terrain.sample_surface(x + cos(b) * 22.0, z + sin(b) * 22.0) \
+						!= Terrain.Surface.SAND:
+					clear = false
+					break
+			if clear:
+				return Vector3(x, Terrain.sample_height(x, z), z)
+		r += 15.0
+	return Vector3.ZERO
+
+
+## Closest rock the bot knows about. Uses the same mask the server reads, so
+## "run for cover" means the same thing on both sides.
+func _nearest_rock(max_radius: float = 90.0) -> Vector3:
+	var r := 4.0
+	while r <= max_radius:
+		var steps: int = maxi(8, int(r))
+		for i in range(steps):
+			var a := TAU * float(i) / float(steps)
+			var x := local_pos.x + cos(a) * r
+			var z := local_pos.z + sin(a) * r
+			if Terrain.sample_surface(x, z) == Terrain.Surface.ROCK \
+					and Terrain.is_reachable(x, z):
+				return Vector3(x, Terrain.sample_height(x, z), z)
+		r += 4.0
+	return Vector3.ZERO
+
+
+func _nearest_npc_anywhere() -> int:
+	var best := 0
+	var best_d := INF
+	for nid: int in npc_mirror:
+		var d: float = local_pos.distance_to(npc_mirror[nid]["pos"])
+		if d < best_d:
+			best_d = d
+			best = nid
+	return best
+
+
+func _nearest_corpse_anywhere() -> int:
+	var best := 0
+	var best_d := INF
+	for cid: int in corpse_mirror:
+		var d: float = local_pos.distance_to(corpse_mirror[cid]["pos"])
+		if d < best_d:
+			best_d = d
+			best = cid
+	return best
+
+
 func _slot_of(item_id: String) -> int:
 	for i in inventory_mirror.size():
 		var s: Dictionary = inventory_mirror[i]
@@ -1010,11 +1280,44 @@ func _bot_direction() -> Vector2:
 	var goal_is_node := false
 	var best_score := INF
 
+	# Prey never seeks cover; quarry bolts for rock the moment it is warned.
+	# The pair is how the harness proves the worm both kills and can be escaped.
+	if Net.bot_profile == "prey" or Net.bot_profile == "quarry":
+		if Net.bot_profile == "quarry" \
+				and int(worm_mirror["state"]) >= Sandworm.State.ALERTED:
+			var rock := _nearest_rock()
+			if rock != Vector3.ZERO:
+				return _steer_to(rock)
+		# Get out into open desert first: circling next to the outcrop you
+		# spawned beside keeps you on rock, where nothing can hear you.
+		if _bot_dune == Vector3.ZERO or local_pos.distance_to(_bot_dune) < 6.0:
+			var dune := _open_sand()
+			if dune != Vector3.ZERO:
+				_bot_dune = dune
+		if _bot_dune != Vector3.ZERO and local_pos.distance_to(_bot_dune) > 5.0:
+			return _steer_to(_bot_dune)
+		_bot_orbit += 0.03
+		return Vector2(cos(_bot_orbit), sin(_bot_orbit))
+
+	if Net.bot_profile == "fighter":
+		var nid := _nearest_npc_anywhere()
+		if nid != 0:
+			return _steer_to(npc_mirror[nid]["pos"])
+		var cid := _nearest_corpse_anywhere()
+		if cid != 0:
+			return _steer_to(corpse_mirror[cid]["pos"])
+		return Vector2.ZERO
+
 	if Net.bot_profile == "builder":
-		# Drift in a slow circle: enough to lay a base out over a few metres
-		# without wandering off the holding it just staked.
-		_bot_orbit += 0.02
-		return Vector2(cos(_bot_orbit), sin(_bot_orbit)) * 0.5
+		# Drift only while there is still kit to spread out -- stations refuse
+		# to stack, so they need a few metres between them. Once the last one
+		# is down, stand still: build pieces are aimed relative to the player,
+		# and a drifting bot scatters them one per cell, so the ceiling never
+		# finds a foundation under it.
+		if find_use("place") >= 0:
+			_bot_orbit += 0.02
+			return Vector2(cos(_bot_orbit), sin(_bot_orbit)) * 0.5
+		return Vector2.ZERO
 
 	var forager := Net.bot_profile == "forager"
 
@@ -1211,6 +1514,51 @@ func build_aim() -> Vector3:
 	var ahead := local_pos + Vector3(0.0, 0.0, -BuildGrid.CELL * 0.75)
 	ahead.y = Terrain.sample_height(ahead.x, ahead.z)
 	return ahead
+
+
+func try_attack() -> void:
+	_request_attack.rpc_id(1, )
+
+
+func try_extract() -> void:
+	_request_extract.rpc_id(1, )
+
+
+## Nearest live hostile within weapon reach, or 0. Display only.
+func nearest_hostile() -> int:
+	var best := 0
+	var best_d := 3.0
+	for nid: int in npc_mirror:
+		var d: float = local_pos.distance_to(npc_mirror[nid]["pos"])
+		if d <= best_d:
+			best_d = d
+			best = nid
+	return best
+
+
+func nearest_corpse() -> int:
+	var best := 0
+	var best_d := 3.0
+	for cid: int in corpse_mirror:
+		var d: float = local_pos.distance_to(corpse_mirror[cid]["pos"])
+		if d <= best_d:
+			best_d = d
+			best = cid
+	return best
+
+
+## How much trouble the player is in, for the HUD.
+func worm_warning() -> String:
+	match int(worm_mirror["state"]):
+		Sandworm.State.ALERTED:
+			return "SOMETHING IS COMING"
+		Sandworm.State.SURFACING:
+			return "THE SAND IS MOVING -- %.0fs" % float(worm_mirror["timer"])
+		Sandworm.State.STRIKING:
+			return "SHAI-HULUD"
+	if my_threat >= Sandworm.WAKE_THRESHOLD * 0.6:
+		return "you are making too much noise"
+	return ""
 
 
 func try_build() -> void:

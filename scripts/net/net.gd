@@ -47,10 +47,20 @@ var screenshot_path: String = ""
 ##               whatever the newest subsystem has made more attractive
 ##   builder  -- stakes a holding, deploys its kit and raises a shell, then
 ##               stops; how the Phase 3 harness gets a base built unattended
+##   prey     -- sprints in circles on open sand and never seeks cover, so the
+##               Phase 4 harness can get a worm roused and land a strike
+##   quarry   -- the same, but runs for the nearest rock the moment the worm
+##               surfaces; proves cover actually saves you
+##   fighter  -- hunts hostiles, then draws water from what it kills
 var bot_profile: String = "survive"
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
 var start_hydration: float = -1.0
+## Server: suppress the worm and hostiles entirely. Test isolation, not a game
+## mode -- the Phase 0-3 harnesses are about their own subsystems, and a worm
+## eating the bot mid-run is noise rather than a finding. Same reasoning as the
+## `forager` bot profile.
+var peaceful: bool = false
 ## Extra starting items, "id:count,id:count". Lets a test reach the far end of
 ## a crafting chain without gathering through it first. Server-side only.
 var grant: String = ""
@@ -100,6 +110,7 @@ func _parse_args() -> void:
 	bot_profile = Args.value("--bot-profile", "survive")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")
+	peaceful = Args.has("--peaceful")
 	if identity.is_empty():
 		identity = "player-%d" % (OS.get_process_id() % 100000)
 

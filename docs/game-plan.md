@@ -211,15 +211,45 @@ Not done: power is binary (a starved holding simply stops rather than
 browning out), generators never consume fuel, containers have no access control
 beyond the claim, and there are no doors — a wall is a wall.
 
-### Phase 4 — Threat
+### Phase 4 — Threat — **done**
 Now, and not before: sandworms on sand, keyed to the traversability mask, as
 **replicated world entities** with server-owned aggro — per-player threat
 accumulation, one shared worm. Thumpers as bait and as a tool. Melee + ranged
 combat with the Dune shield rule (slow blade penetrates), server-hit-validated.
 Enemy camps. Corpse blood extraction, tying combat back into the water economy.
 
-*Test:* a loaded return trip across open sand is genuinely frightening because
-you can lose the run — and two players can bait a worm for each other.
+*Test:* `godot --headless -- --run-tests` for the worm, shield and blood rules,
+`python3 tools/test_phase4.py` for the wire — five runs covering a strike on
+open sand, escaping to rock, a thumper as bait, the shield trade, and hostiles
+into blood.
+
+Done: one shared worm reading the same traversability mask the terrain pipeline
+produces, with server-owned threat; thumpers as bait; combat with the Holtzman
+rule; enemy camps; and blood extraction closing the loop back to the water
+economy.
+
+The encounter, and why it is shaped this way. Threat builds while you move on
+open sand — faster sprinting, faster still with a shield running — and bleeds
+off if you stand still, faster again on rock. The worm wakes, comes, surfaces
+for five seconds, then takes whatever is still on sand inside eleven metres.
+It travels at 11 m/s against a 7.6 m/s sprint **on purpose**: you cannot outrun
+it, so the answer is never "run further", it is "get off the sand". A worm you
+could outrun would make the mask decorative.
+
+Measured over the wire: threat peaked at 100 and the prey bot was taken; a bot
+that ran for rock during the warning was spared and the worm lost interest; a
+thumper woke the worm on its own and drew it off the player; and a running
+shield made a bot 2.7x louder (20.6 vs 7.6 threat per tick).
+
+The shield is the phase's best trade. It turns fast blades and darts and is
+useless against a slow one, so a shielded opponent is a puzzle rather than a
+wall — and the same shield that saves you in a fight is what gets you eaten
+crossing open ground.
+
+Not done: NPCs carry no shields, so the Holtzman rule only bites between
+players; there is no ranged projectile travel (a dart resolves instantly at
+range); worms never appear in the deep desert because there is no deep desert
+yet; and one worm serves the whole map.
 
 ### Phase 5 — The real world
 Swap the synthetic region for Hagga Basin South via `terrain-plan.md`. Real

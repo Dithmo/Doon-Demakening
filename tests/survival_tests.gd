@@ -41,6 +41,12 @@ func run() -> int:
 	_test_building()
 	print("\n=== Power and production ===")
 	_test_utilities()
+	print("\n=== Combat and the shield rule ===")
+	_test_combat()
+	print("\n=== The worm ===")
+	_test_worm()
+	print("\n=== Hostiles and blood ===")
+	_test_hostiles()
 
 	print()
 	if _failures.is_empty():
@@ -567,3 +573,216 @@ func _test_utilities() -> void:
 		"an emptied container can be packed up")
 
 
+
+
+func _equip(item_id: String) -> Dictionary:
+	var slot: int = int(ItemDB.get_def(item_id).get("slot", ItemDB.Slot.NONE))
+	return {slot: item_id}
+
+
+func _test_combat() -> void:
+	var here := Vector3.ZERO
+	var close := Vector3(1.5, 0.0, 0.0)
+
+	_check(Combat.weapon_of({})["damage"] > 0.0, "bare hands still do something")
+	_check(str(Combat.weapon_of(_equip("kindjal"))["attack"]) == "fast",
+		"a kindjal is a fast blade")
+	_check(str(Combat.weapon_of(_equip("crysknife"))["attack"]) == "slow",
+		"a crysknife is a slow blade")
+	_check(Combat.has_shield(_equip("body_shield")), "a shield reads as a shield")
+	_check(not Combat.has_shield(_equip("stillsuit")), "a stillsuit is not a shield")
+
+	# The rule, both ways round.
+	var unshielded := Combat.strike(here, _equip("kindjal"), close, {}, {}, 100.0)
+	_check(unshielded["damage"] > 0.0, "a fast blade hurts an unshielded target")
+
+	var turned := Combat.strike(here, _equip("kindjal"), close,
+		_equip("body_shield"), {}, 100.0)
+	_check(turned["blocked"] and turned["damage"] == 0.0,
+		"a shield turns a fast blade")
+	var darts := Combat.strike(here, _equip("maula_pistol"), close,
+		_equip("body_shield"), {}, 100.0)
+	_check(darts["blocked"], "a shield turns darts too")
+	var slow := Combat.strike(here, _equip("crysknife"), close,
+		_equip("body_shield"), {}, 100.0)
+	_check(not slow["blocked"] and slow["damage"] > 0.0,
+		"the slow blade passes the shield")
+
+	# Reach and cadence are enforced, not suggested.
+	var far := Combat.strike(here, _equip("kindjal"), Vector3(50.0, 0.0, 0.0), {}, {}, 100.0)
+	_check(not far["ok"], "a swing out of reach lands nothing")
+	var cd: Dictionary = {}
+	_check(Combat.strike(here, _equip("kindjal"), close, {}, cd, 100.0)["ok"],
+		"the first swing lands")
+	_check(not Combat.strike(here, _equip("kindjal"), close, {}, cd, 100.1)["ok"],
+		"a second swing inside the cooldown is refused")
+	_check(Combat.strike(here, _equip("kindjal"), close, {}, cd,
+		100.0 + Combat.SWING_COOLDOWN + 0.1)["ok"], "the swing returns after cooldown")
+
+	# A slow blade telegraphs, which is what makes carrying one a choice.
+	var slow_cd: Dictionary = {}
+	Combat.strike(here, _equip("crysknife"), close, {}, slow_cd, 100.0)
+	var fast_cd: Dictionary = {}
+	Combat.strike(here, _equip("kindjal"), close, {}, fast_cd, 100.0)
+	_check(float(slow_cd["swing_at"]) > float(fast_cd["swing_at"]),
+		"a slow blade leaves you exposed longer than a fast one")
+
+	# And the cost that balances it: a running shield is loud.
+	_check(Combat.threat_multiplier(_equip("body_shield")) > 1.0,
+		"a shield makes you louder to a worm")
+	_check(Combat.threat_multiplier({}) == 1.0, "no shield, no extra noise")
+
+
+func _test_worm() -> void:
+	var sand := Vector3(10.0, 0.0, 10.0)
+
+	# Threat is about what you are doing on the sand.
+	var w := Sandworm.new()
+	w.accrue(1, 10.0, true, true, false, 1.0)
+	var walking := w.threat_of(1)
+	_check(walking > 0.0, "moving on sand attracts attention")
+
+	var s := Sandworm.new()
+	s.accrue(1, 10.0, true, true, true, 1.0)
+	_check(s.threat_of(1) > walking, "sprinting is louder than walking")
+
+	var shielded := Sandworm.new()
+	shielded.accrue(1, 10.0, true, true, false, 3.0)
+	_check(shielded.threat_of(1) > walking, "a running shield is louder still")
+
+	# Standing still is the classic answer, and rock is the real one.
+	var quiet := Sandworm.new()
+	quiet.threat[1] = 40.0
+	quiet.accrue(1, 5.0, true, false, false, 1.0)
+	_check(quiet.threat_of(1) < 40.0, "standing still bleeds threat off")
+	var onrock := Sandworm.new()
+	onrock.threat[1] = 40.0
+	onrock.accrue(1, 5.0, false, true, true, 1.0)
+	_check(onrock.threat_of(1) < quiet.threat_of(1),
+		"rock sheds threat faster than standing still on sand")
+
+	# The full encounter.
+	var hunt := Sandworm.new()
+	hunt.threat[1] = Sandworm.WAKE_THRESHOLD + 5.0
+	var loud := {1: {"pos": sand, "on_sand": true, "alive": true}}
+	var woke := hunt.tick(0.1, loud, [])
+	_check(not woke.is_empty() and str(woke[0]["kind"]) == "wake",
+		"enough noise wakes it")
+	_check(hunt.state == Sandworm.State.ALERTED, "it comes for the loudest thing")
+
+	# It must be faster than a sprint, or the answer would be "run further".
+	_check(Sandworm.SPEED > Movement.SPRINT_SPEED,
+		"the worm outruns a sprinting player")
+
+	var surfaced := false
+	for i in range(400):
+		for e: Dictionary in hunt.tick(0.1, loud, []):
+			if str(e["kind"]) == "surface":
+				surfaced = true
+		if surfaced:
+			break
+	_check(surfaced, "it arrives and surfaces")
+	_check(hunt.timer > 0.0, "surfacing gives a warning window")
+
+	# Reaching rock during the warning has to actually save you.
+	var saved := hunt.tick(0.1, {1: {"pos": sand, "on_sand": false, "alive": true}}, [])
+	_check(not saved.is_empty() and str(saved[0]["kind"]) == "lost",
+		"reaching rock during the warning saves you")
+
+	# And staying on sand does not.
+	var doomed := Sandworm.new()
+	doomed.threat[1] = Sandworm.WAKE_THRESHOLD + 5.0
+	var caught: Array = []
+	for i in range(600):
+		for e: Dictionary in doomed.tick(0.1, loud, []):
+			if str(e["kind"]) == "strike":
+				caught = e["caught"]
+		if not caught.is_empty():
+			break
+	_check(caught.has(1), "staying on open sand gets you taken")
+
+	# A bystander on rock inside the blast radius is spared.
+	var mixed := Sandworm.new()
+	mixed.threat[1] = Sandworm.WAKE_THRESHOLD + 5.0
+	var both := {
+		1: {"pos": sand, "on_sand": true, "alive": true},
+		2: {"pos": sand + Vector3(2.0, 0.0, 0.0), "on_sand": false, "alive": true},
+	}
+	var taken: Array = []
+	for i in range(600):
+		for e: Dictionary in mixed.tick(0.1, both, []):
+			if str(e["kind"]) == "strike":
+				taken = e["caught"]
+		if not taken.is_empty():
+			break
+	_check(taken.has(1) and not taken.has(2),
+		"the strike takes who is on sand and spares who is on rock")
+
+	# A thumper buys safety by being louder than you are.
+	var lured := Sandworm.new()
+	lured.threat[1] = Sandworm.WAKE_THRESHOLD + 1.0
+	var decoy := Vector3(200.0, 0.0, 200.0)
+	lured.tick(0.1, loud, [{"pos": decoy, "threat": Sandworm.MAX_THREAT}])
+	_check(lured.target_pos.distance_to(decoy) < 1.0,
+		"a thumper outbids a noisy player")
+	_check(lured.target_peer == 0, "and the worm is chasing the thumper, not them")
+
+
+func _test_hostiles() -> void:
+	var h := Hostiles.new()
+	var here := _open_ground()
+	var id: int = h._spawn(here)
+	_check(h.npcs.has(id), "a hostile can be spawned")
+
+	# It notices you, and it gives up if you leave.
+	var far := {1: {"pos": here + Vector3(100.0, 0.0, 0.0), "alive": true}}
+	h.tick(0.1, far, 0.0)
+	_check(int(h.npcs[id]["target"]) == 0, "a distant player is ignored")
+	var near := {1: {"pos": here + Vector3(2.0, 0.0, 0.0), "alive": true}}
+	h.tick(0.1, near, 0.0)
+	_check(int(h.npcs[id]["target"]) == 1, "a close player is noticed")
+
+	var hits: Array = []
+	for e: Dictionary in h.tick(0.1, near, 10.0):
+		if str(e["kind"]) == "hit":
+			hits.append(e)
+	_check(not hits.is_empty(), "a hostile in reach hits you")
+	_check(float(hits[0]["damage"]) > 0.0, "and it hurts")
+
+	# Killing one leaves a body, which is water.
+	var half := h.damage(id, Hostiles.NPC_HEALTH * 0.5, 0.0)
+	_check(not half["killed"] and h.npcs.has(id), "a wounded hostile is still alive")
+	var dead := h.damage(id, Hostiles.NPC_HEALTH, 0.0)
+	_check(dead["killed"] and not h.npcs.has(id), "enough damage kills it")
+	_check(h.corpses.size() == 1, "a kill leaves a body")
+
+	var cid := h.nearest_corpse(here, 3.0)
+	_check(cid != 0, "the body can be found")
+	var empty_handed := Inventory.new()
+	_check(not h.extract(here, empty_handed, cid, {}, 100.0)["ok"],
+		"drawing water needs an extractor")
+	var kit := Inventory.new()
+	kit.add("blood_extractor", 1)
+	# One cooldown dict across the calls -- it is per-player state, and passing
+	# a fresh one each time would test nothing.
+	var cd: Dictionary = {}
+	var drawn := h.extract(here, kit, cid, cd, 100.0)
+	_check(drawn["ok"] and kit.count_of("blood_sack") == 1,
+		"an extractor draws a blood sack")
+	_check(not h.extract(here, kit, cid, cd, 100.1)["ok"],
+		"extraction has a cooldown")
+	_check(h.extract(here, kit, cid, cd, 100.0 + Hostiles.EXTRACT_COOLDOWN + 0.1)["ok"],
+		"and it returns once the cooldown passes")
+	_check(not h.extract(here + Vector3(50.0, 0.0, 0.0), kit, cid, cd, 400.0)["ok"],
+		"a body out of reach yields nothing")
+
+	# And that blood is drinkable -- the loop back to Phase 1.
+	var thirsty := Vitals.new()
+	thirsty.hydration = 40.0
+	var slot := -1
+	for i in kit.slots.size():
+		if not kit.slots[i].is_empty() and str(kit.slots[i]["id"]) == "blood_sack":
+			slot = i
+	_check(slot >= 0 and ItemUse.apply(slot, kit, thirsty, {}, {})["ok"],
+		"a blood sack can be drunk")
+	_check(thirsty.hydration > 40.0, "and it restores water")

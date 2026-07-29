@@ -76,7 +76,10 @@
       "weight": 1.8,
       "use": "equip",
       "use_value": 22.0,
-      "desc": "Short blade. Slow enough to pass a shield."
+      "desc": "Short blade. Slow enough to pass a shield.",
+      "damage": 22.0,
+      "attack": "fast",
+      "reach": 2.2
     },
     {
       "id": "maula_pistol",
@@ -86,7 +89,10 @@
       "weight": 2.2,
       "use": "equip",
       "use_value": 14.0,
-      "desc": "Spring-loaded dart pistol."
+      "desc": "Spring-loaded dart pistol.",
+      "damage": 14.0,
+      "attack": "ranged",
+      "reach": 24.0
     },
     {
       "id": "iron_ore",
@@ -225,6 +231,50 @@
       "station": "stilltent",
       "shade_radius": 4.0,
       "desc": "Sealed shelter. Casts its own shade wherever you pitch it."
+    },
+    {
+      "id": "crysknife",
+      "name": "Crysknife",
+      "stack": 1,
+      "slot": "hands",
+      "weight": 1.2,
+      "use": "equip",
+      "use_value": 30.0,
+      "damage": 30.0,
+      "attack": "slow",
+      "reach": 2.0,
+      "desc": "Fremen tooth. Slow enough to pass a shield, which is the point."
+    },
+    {
+      "id": "body_shield",
+      "name": "Holtzman Shield",
+      "stack": 1,
+      "slot": "torso",
+      "weight": 3.0,
+      "use": "equip",
+      "use_value": 1.0,
+      "shield": true,
+      "worm_threat_mult": 3.0,
+      "desc": "Turns fast blades and darts. Drives worms into a frenzy."
+    },
+    {
+      "id": "thumper",
+      "name": "Thumper",
+      "stack": 1,
+      "weight": 6.0,
+      "use": "place",
+      "station": "thumper",
+      "worm_threat": 9.0,
+      "desc": "Pounds the sand. Calls a worm to somewhere that is not you."
+    },
+    {
+      "id": "blood_extractor",
+      "name": "Blood Extractor",
+      "stack": 1,
+      "slot": "utility",
+      "weight": 2.0,
+      "use": "tool_blood",
+      "desc": "Reclaims a body's water. Nobody said Arrakis was polite."
     }
   ]
 }
