@@ -55,11 +55,18 @@ func _capture() -> void:
 
 func _log_position() -> void:
 	var v: Dictionary = world.vitals_mirror
-	print("[bot] %s t=%.3f %s water=%.1f heat=%.1f hp=%.1f %s pos %.1f,%.1f seen %d"
+	print("[bot] %s t=%.3f %s water=%.1f heat=%.1f hp=%.1f %s pos %.1f,%.1f seen %d nodes %d stations %d"
 		% [Net.identity, Clock.time_of_day, Clock.phase_name(),
 		v["hydration"], v["heat"], v["health"],
 		"shade" if world.shaded_mirror else "sun",
-		world.local_pos.x, world.local_pos.z, world.entity_mirror.size()])
+		world.local_pos.x, world.local_pos.z, world.entity_mirror.size(),
+		world.node_mirror.size(), world.station_mirror.size()])
+	if Args.has("--debug-steer"):
+		var g: Vector3 = world.debug_goal
+		print("      steer goal=%v dist=%.1f want=%v  walkX=%s walkZ=%s"
+			% [g, world.local_pos.distance_to(g), world.debug_want,
+			Terrain.is_walkable(world.local_pos.x + 1.0, world.local_pos.z),
+			Terrain.is_walkable(world.local_pos.x, world.local_pos.z + 1.0)])
 
 
 func _on_run_elapsed() -> void:
@@ -96,6 +103,9 @@ func _register_input() -> void:
 		"interact": [KEY_E],
 		"drink": [KEY_F],
 		"harvest": [KEY_G],
+		"work": [KEY_R],
+		"deploy": [KEY_B],
+		"craft": [KEY_C],
 		"drop": [KEY_Q],
 		"toggle_debug": [KEY_F3],
 	}

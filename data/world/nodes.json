@@ -1,0 +1,57 @@
+{
+  "_comment": "Resource nodes. Unlike loose ground pickups these deplete over several harvests and regrow, so a patch is a place you come back to rather than a one-shot. `surface` matches Terrain.Surface.",
+  "kinds": [
+    {
+      "id": "agave",
+      "name": "Agave Cluster",
+      "surface": "sand",
+      "yield": {
+        "id": "plant_fiber",
+        "count": 2
+      },
+      "harvests": 3,
+      "respawn_seconds": 90.0,
+      "tool": "",
+      "count": 18
+    },
+    {
+      "id": "iron_vein",
+      "name": "Iron Vein",
+      "surface": "rock",
+      "yield": {
+        "id": "iron_ore",
+        "count": 2
+      },
+      "harvests": 4,
+      "respawn_seconds": 120.0,
+      "tool": "tool_gather",
+      "count": 14
+    },
+    {
+      "id": "stone_outcrop",
+      "name": "Stone Outcrop",
+      "surface": "rock",
+      "yield": {
+        "id": "granite_stone",
+        "count": 3
+      },
+      "harvests": 4,
+      "respawn_seconds": 100.0,
+      "tool": "",
+      "count": 12
+    },
+    {
+      "id": "wreck_debris",
+      "name": "Wreck Debris",
+      "surface": "sand",
+      "yield": {
+        "id": "salvaged_metal",
+        "count": 2
+      },
+      "harvests": 3,
+      "respawn_seconds": 150.0,
+      "tool": "tool_gather",
+      "count": 12
+    }
+  ]
+}

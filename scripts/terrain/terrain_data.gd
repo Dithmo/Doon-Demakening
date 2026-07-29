@@ -29,6 +29,12 @@ var _mask_cell: float = 1.0
 var _mx: int = 0
 var _mz: int = 0
 var _mask: PackedByteArray = PackedByteArray()
+## Walkable cells connected to the region centre. A rock plateau ringed by
+## cliff is walkable but unreachable: anything spawned on one is invisible to
+## players, and come Phase 4 it is refuge nobody can run to. Computed once on
+## load so placement can simply ask.
+var _reachable: PackedByteArray = PackedByteArray()
+var reachable_fraction: float = 0.0
 
 
 func _ready() -> void:
@@ -75,10 +81,12 @@ func load_region(dir_path: String) -> bool:
 	_heights = decoded
 	_mask = raw_m
 
+	_build_reachability()
 	fingerprint = _hash(meta_text, raw_h, raw_m)
 	loaded = true
-	print("[terrain] %s  %.0fx%.0f m  height %dx%d @ %.1f m  mask %dx%d @ %.1f m  fp=%s"
-		% [region_name, size_m.x, size_m.y, _hx, _hz, _cell, _mx, _mz, _mask_cell, fingerprint])
+	print("[terrain] %s  %.0fx%.0f m  height %dx%d @ %.1f m  mask %dx%d @ %.1f m  reach %.0f%%  fp=%s"
+		% [region_name, size_m.x, size_m.y, _hx, _hz, _cell, _mx, _mz, _mask_cell,
+		reachable_fraction * 100.0, fingerprint])
 	return true
 
 
@@ -109,6 +117,67 @@ func sample_surface(x: float, z: float) -> Surface:
 	var ix: int = clampi(int(x / _mask_cell), 0, _mx - 1)
 	var iz: int = clampi(int(z / _mask_cell), 0, _mz - 1)
 	return _mask[iz * _mx + ix] as Surface
+
+
+## Flood-fill the walkable cells connected to the middle of the region.
+## One pass at load; the result is what placement and spawning consult.
+func _build_reachability() -> void:
+	_reachable = PackedByteArray()
+	_reachable.resize(_mx * _mz)
+	var start := _nearest_open(_mx / 2, _mz / 2)
+	if start < 0:
+		push_warning("Terrain: no walkable cell near the centre")
+		reachable_fraction = 0.0
+		return
+
+	var stack: PackedInt32Array = PackedInt32Array([start])
+	_reachable[start] = 1
+	var count := 0
+	while not stack.is_empty():
+		var i := stack[stack.size() - 1]
+		stack.remove_at(stack.size() - 1)
+		count += 1
+		var x := i % _mx
+		var z := i / _mx
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nx := x + d.x
+			var nz := z + d.y
+			if nx < 0 or nz < 0 or nx >= _mx or nz >= _mz:
+				continue
+			var j := nz * _mx + nx
+			if _reachable[j] == 1 or _mask[j] == Surface.CLIFF:
+				continue
+			_reachable[j] = 1
+			stack.append(j)
+	reachable_fraction = float(count) / float(_mx * _mz)
+
+
+func _nearest_open(cx: int, cz: int) -> int:
+	for r in range(0, maxi(_mx, _mz) / 2):
+		var offsets: PackedInt32Array = PackedInt32Array([0]) if r == 0 \
+			else PackedInt32Array([-r, r])
+		for dz in range(-r, r + 1):
+			for dx: int in offsets:
+				var x: int = cx + dx
+				var z: int = cz + dz
+				if x < 0 or z < 0 or x >= _mx or z >= _mz:
+					continue
+				var i: int = z * _mx + x
+				if _mask[i] != Surface.CLIFF:
+					return i
+	return -1
+
+
+## Walkable *and* connected to the rest of the map. Prefer this over
+## is_walkable() for anything being placed into the world.
+func is_reachable(x: float, z: float) -> bool:
+	if not loaded or _reachable.is_empty():
+		return false
+	if x < 0.0 or z < 0.0 or x > size_m.x or z > size_m.y:
+		return false
+	var ix: int = clampi(int(x / _mask_cell), 0, _mx - 1)
+	var iz: int = clampi(int(z / _mask_cell), 0, _mz - 1)
+	return _reachable[iz * _mx + ix] == 1
 
 
 ## True when terrain blocks the line to the sun from head height here.

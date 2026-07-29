@@ -56,6 +56,8 @@ func load_defs() -> bool:
 			# new consumables need no code change.
 			"use": str(d.get("use", "")),
 			"use_value": float(d.get("use_value", 0.0)),
+			# Deployables name the station kind they become when placed.
+			"station": str(d.get("station", "")),
 			"desc": str(d.get("desc", "")),
 		}
 	print("[items] loaded %d definitions" % _defs.size())

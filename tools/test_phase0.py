@@ -26,7 +26,8 @@ GODOT = os.environ.get("GODOT", "/opt/godot/godot")
 # What World._on_peer_joined hands a brand-new player. Stated explicitly so
 # that adding to the starting kit fails loudly here instead of silently
 # skewing the "gathered off the ground" arithmetic.
-STARTING_KIT = {"water": 3, "cutteray": 1, "dew_harvester": 1}
+STARTING_KIT = {"water": 3, "cutteray": 1, "dew_harvester": 1,
+                "survival_fabricator": 1}
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27099"))
 
@@ -74,8 +75,11 @@ def save_file(user_dir):
 def run_session(user_dir, seconds, label):
     server = launch("server", ["--server"], user_dir, seconds)
     time.sleep(2.0)
-    a = launch("alice", ["--client", "--auto", "--identity", "alice"], user_dir, seconds - 2)
-    b = launch("bob", ["--client", "--auto", "--identity", "bob"], user_dir, seconds - 2)
+    # Forager bots ignore resource nodes, so this harness keeps testing ground
+    # pickups rather than whatever later phases made more attractive to walk to.
+    bot = ["--client", "--auto", "--bot-profile", "forager", "--identity"]
+    a = launch("alice", bot + ["alice"], user_dir, seconds - 2)
+    b = launch("bob", bot + ["bob"], user_dir, seconds - 2)
     for p in (a, b, server):
         p.wait(seconds + 25)
     print(f"--- {label}: server ---")

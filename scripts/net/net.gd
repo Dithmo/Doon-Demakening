@@ -38,13 +38,20 @@ var run_seconds: float = 0.0
 ## Capture the viewport to this path shortly before quitting. Lets a windowed
 ## client be checked under Xvfb in CI, where nobody is looking at a monitor.
 var screenshot_path: String = ""
-## Bot behaviour. "survive" drinks and harvests; "reckless" does neither and
-## sprints regardless, which is how the harness reaches death without waiting
-## out a full day.
+## Bot behaviour:
+##   survive  -- the full loop: drink, harvest, deploy, craft
+##   reckless -- neither drinks nor harvests and always sprints, which is how
+##               the harness reaches death without waiting out a full day
+##   forager  -- ground pickups only, ignoring nodes and stations, so the
+##               Phase 0 harness keeps testing pickup exclusivity rather than
+##               whatever the newest subsystem has made more attractive
 var bot_profile: String = "survive"
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
 var start_hydration: float = -1.0
+## Extra starting items, "id:count,id:count". Lets a test reach the far end of
+## a crafting chain without gathering through it first. Server-side only.
+var grant: String = ""
 
 ## Server: peer id -> {"identity": String, "ready": bool}
 var peers: Dictionary = {}
@@ -90,6 +97,7 @@ func _parse_args() -> void:
 	run_seconds = Args.number("--run-seconds", 0.0)
 	bot_profile = Args.value("--bot-profile", "survive")
 	start_hydration = Args.number("--start-hydration", -1.0)
+	grant = Args.value("--grant", "")
 	if identity.is_empty():
 		identity = "player-%d" % (OS.get_process_id() % 100000)
 

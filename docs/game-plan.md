@@ -142,15 +142,38 @@ two players agree on what time it is?
 *This is the vertical slice. If this isn't tense, stop and fix it before
 building anything else.*
 
-### Phase 2 — Economy
+### Phase 2 — Economy — **done**
 Resource nodes with server-owned depletion and respawn (contested harvesting is
 the first real concurrency test). A gathering tool (cutteray). Fabricator
 placeable + recipe data. Refining. First meaningful craft: the **stillsuit**,
 which cuts water drain substantially.
 
-*Test:* gather → refine → craft a stillsuit → measurably survive longer. Two
-players racing the same node get one winner and no duplication.
+*Test:* `godot --headless -- --run-tests` for node and crafting rules,
+`python3 tools/test_phase2.py` for the wire — five sessions covering depletion,
+two clients contending for one node, deployment, crafting, persistence, and the
+stillsuit payoff.
 *That's your first real progression beat, and it's pure economy.*
+
+Done: four node kinds that deplete and regrow on their own timers, tool-gated
+harvesting with a swing cooldown, deployable stations validated server-side,
+a data-driven recipe table, and the gather → refine → craft chain ending in a
+stillsuit that measurably halves water loss (0.52 vs 1.18 per tick at midday,
+measured).
+
+The concurrency result that matters: with two bots working the same veins, six
+nodes were worked by both and no node was ever decremented twice for one swing.
+The node's remaining count is the lock, and it lives only on the authority.
+
+`Terrain.is_reachable()` was added here and is load-bearing beyond Phase 2: the
+generator used to ring every outcrop in cliff, so *all* rock was unreachable.
+Nodes were spawning on plateaus nobody could stand on — and Phase 4's "flee to
+rock" would have had nowhere to flee to. Outcrops now get varied talus aprons,
+and the generator reports reachable rock (99.9%) so a bad map fails at
+generation rather than in play.
+
+Not done: crafting is instant (no progress bar), the craft key picks the first
+available recipe rather than opening a menu, and stations have no ownership --
+anyone can pack one up. All three are Phase 3 concerns.
 
 ### Phase 3 — Base
 Placement with snapping and **server-side validation** — overlap, terrain fit,

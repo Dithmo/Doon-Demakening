@@ -1,5 +1,5 @@
 {
-  "_comment": "Tight spine (docs/game-plan.md). Phase 0 needs enough breadth to exercise stacking, slots and use-hooks; Phase 1-2 fill in the water economy.",
+  "_comment": "Tight spine (docs/game-plan.md). One refine step keeps the gather -> refine -> craft chain intact without a tier ladder.",
   "items": [
     {
       "id": "water",
@@ -87,6 +87,45 @@
       "use": "equip",
       "use_value": 14.0,
       "desc": "Spring-loaded dart pistol."
+    },
+    {
+      "id": "iron_ore",
+      "name": "Iron Ore",
+      "stack": 50,
+      "weight": 1.6,
+      "desc": "Raw vein rock. Worthless until refined."
+    },
+    {
+      "id": "steel_ingot",
+      "name": "Steel Ingot",
+      "stack": 20,
+      "weight": 2.0,
+      "desc": "Refined from ore. The backbone of every fabricated part."
+    },
+    {
+      "id": "fiber_weave",
+      "name": "Fibre Weave",
+      "stack": 20,
+      "weight": 0.4,
+      "desc": "Spun plant fibre. Holds a seal against the skin."
+    },
+    {
+      "id": "survival_fabricator",
+      "name": "Survival Fabricator",
+      "stack": 1,
+      "weight": 12.0,
+      "use": "place",
+      "station": "fabricator",
+      "desc": "Portable workbench. Deploy it and it stays put."
+    },
+    {
+      "id": "ore_refinery",
+      "name": "Ore Refinery",
+      "stack": 1,
+      "weight": 20.0,
+      "use": "place",
+      "station": "refinery",
+      "desc": "Cooks ore down to workable metal."
     }
   ]
 }

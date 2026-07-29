@@ -1,0 +1,111 @@
+{
+  "_comment": "Flat trees on purpose. `station` names the placeable that must be in reach; the server checks it, never the client.",
+  "recipes": [
+    {
+      "id": "fiber_weave",
+      "name": "Fibre Weave",
+      "station": "fabricator",
+      "output": {
+        "id": "fiber_weave",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "plant_fiber",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "steel_ingot",
+      "name": "Steel Ingot",
+      "station": "refinery",
+      "output": {
+        "id": "steel_ingot",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "iron_ore",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "ore_refinery",
+      "name": "Ore Refinery",
+      "station": "fabricator",
+      "output": {
+        "id": "ore_refinery",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        },
+        {
+          "id": "granite_stone",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "dew_harvester",
+      "name": "Dew Harvester",
+      "station": "fabricator",
+      "output": {
+        "id": "dew_harvester",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        },
+        {
+          "id": "plant_fiber",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "cutteray",
+      "name": "Cutteray",
+      "station": "fabricator",
+      "output": {
+        "id": "cutteray",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 3
+        },
+        {
+          "id": "granite_stone",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "stillsuit",
+      "name": "Stillsuit",
+      "station": "fabricator",
+      "output": {
+        "id": "stillsuit",
+        "count": 1
+      },
+      "inputs": [
+        {
+          "id": "fiber_weave",
+          "count": 4
+        },
+        {
+          "id": "steel_ingot",
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

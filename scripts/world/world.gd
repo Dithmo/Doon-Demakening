@@ -12,6 +12,8 @@ signal entities_changed
 signal local_state_changed(pos: Vector3, surface: int)
 signal vitals_changed
 signal notice(text: String)
+signal nodes_changed
+signal stations_changed
 
 const PICKUP_RANGE := 3.0
 ## Rejecting inputs that claim more time than they could have taken stops a
@@ -34,6 +36,9 @@ const SHADE_HZ := 4.0
 var _players: Dictionary = {}
 var _entities: Dictionary = {}  ## entity id -> {item_id, count, pos}
 var _next_entity_id: int = 1
+var _field := NodeField.new()
+var _stations := StationField.new()
+var _node_accum: float = 0.0
 var _sync_accum: float = 0.0
 var _vitals_accum: float = 0.0
 var _clock_accum: float = 0.0
@@ -51,21 +56,55 @@ var vitals_mirror: Dictionary = {
 }
 var equipped_mirror: Dictionary = {}
 var shaded_mirror: bool = false
+var node_mirror: Dictionary = {}     ## node id -> {kind, pos, remaining}
+var station_mirror: Dictionary = {}  ## station id -> {kind, item_id, pos}
+var stations_in_reach: Array = []
 
 var _input_seq: int = 0
 var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
 var _bot_cooldown: int = 0
 var _bot_use_cd: int = 0
+var _bot_dew_probes: int = 0
+## Last steering decision, surfaced for --debug-steer.
+var debug_goal: Vector3 = Vector3.ZERO
+var debug_want: Vector2 = Vector2.ZERO
 var _bot_stalled: int = 0
 var _bot_unstick: int = 0
 var _bot_last_pos: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
+	_field.load_kinds()
 	if Net.is_server():
 		Net.peer_joined.connect(_on_peer_joined)
 		Net.peer_left.connect(_on_peer_left)
 		_restore_entities()
+		_restore_world()
+
+
+## Resource nodes and deployed stations. Seeded once, then persisted -- a world
+## that re-seeded on every boot would hand players a fresh map each session.
+func _restore_world() -> void:
+	var now := _now()
+	var saved_nodes := Store.get_blob("nodes")
+	if saved_nodes.is_empty():
+		_field.seed()
+	else:
+		_field.from_wire(saved_nodes, now)
+		print("[nodes] restored %d node(s)" % _field.nodes.size())
+	_stations.from_wire(Store.get_blob("stations"))
+	if not _stations.stations.is_empty():
+		print("[stations] restored %d" % _stations.stations.size())
+	_persist_world()
+
+
+func _persist_world() -> void:
+	Store.put_blob("nodes", _field.to_wire())
+	Store.put_blob("stations", _stations.to_wire())
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
 
 
 # =============================================================================
@@ -94,8 +133,12 @@ func _on_peer_joined(id: int) -> void:
 		inv.add("water", 3)
 		inv.add("cutteray", 1)
 		inv.add("dew_harvester", 1)
+		# A fabricator in the starting kit: everything else is craftable, but
+		# the first station cannot be, or there is no way in.
+		inv.add("survival_fabricator", 1)
 		if Net.start_hydration >= 0.0:
 			vit.hydration = clampf(Net.start_hydration, 0.0, Vitals.MAX)
+		_apply_grant(inv)
 
 	_players[id] = {
 		"identity": who, "pos": pos, "inventory": inv, "vitals": vit,
@@ -105,10 +148,28 @@ func _on_peer_joined(id: int) -> void:
 	_persist_player(id)
 
 	_full_state.rpc_id(id, _entity_wire(), pos)
+	_sync_nodes.rpc_id(id, _field.to_wire())
+	_sync_stations.rpc_id(id, _stations.to_wire())
 	_sync_inventory.rpc_id(id, inv.to_data())
 	_sync_equipment.rpc_id(id, equipped)
 	_push_vitals(id)
 	_sync_clock.rpc_id(id, Clock.time_of_day, Clock.day_number)
+
+
+## Debug: hand a fresh player extra stock so a test can start partway along a
+## crafting chain. Ignored unless --grant was passed to the server.
+func _apply_grant(inv: Inventory) -> void:
+	if Net.grant.is_empty():
+		return
+	for pair: String in Net.grant.split(",", false):
+		var bits := pair.split(":")
+		var id := bits[0].strip_edges()
+		var n := int(bits[1]) if bits.size() > 1 else 1
+		if ItemDB.has(id):
+			inv.add(id, n)
+			print("[grant] %s x%d" % [id, n])
+		else:
+			push_warning("grant: unknown item '%s'" % id)
 
 
 func _on_peer_left(id: int) -> void:
@@ -147,6 +208,15 @@ func _server_tick(delta: float) -> void:
 		_vitals_accum = 0.0
 		for id: int in _players:
 			_push_vitals(id)
+
+	_node_accum += delta
+	if _node_accum >= 1.0:
+		_node_accum = 0.0
+		var regrown := _field.tick(_now())
+		if not regrown.is_empty():
+			_persist_world()
+			for nid: int in regrown:
+				_node_state.rpc(nid, int(_field.nodes[nid]["remaining"]))
 
 	_clock_accum += delta
 	if _clock_accum >= CLOCK_SYNC_SECONDS:
@@ -264,8 +334,9 @@ func _seed_entities() -> void:
 		tries += 1
 		var x := rng.randf_range(8.0, Terrain.size_m.x - 8.0)
 		var z := rng.randf_range(8.0, Terrain.size_m.y - 8.0)
-		# Sand only: a pickup on a cliff-ringed plateau is one nobody can reach.
-		if Terrain.sample_surface(x, z) != Terrain.Surface.SAND:
+		# Sand only, and reachable: a pickup nobody can walk to is not loot.
+		if Terrain.sample_surface(x, z) != Terrain.Surface.SAND \
+				or not Terrain.is_reachable(x, z):
 			continue
 		var id: String = kinds[rng.randi() % kinds.size()]
 		_entities[_next_entity_id] = {
@@ -339,6 +410,15 @@ func _request_use(slot_index: int) -> void:
 		return
 	# All validation -- time of day, cooldown, capacity -- happens here. The
 	# client only ever asks which slot.
+	# Deploying is the one use hook that touches world state, so it is resolved
+	# here rather than inside ItemUse, which knows nothing about the world.
+	var stack: Dictionary = (p["inventory"] as Inventory).slots[slot_index] \
+		if slot_index >= 0 and slot_index < (p["inventory"] as Inventory).slots.size() \
+		else {}
+	if not stack.is_empty() and str(ItemDB.get_def(stack["id"]).get("use", "")) == "place":
+		_deploy(id, slot_index, str(stack["id"]))
+		return
+
 	var result := ItemUse.apply(slot_index, p["inventory"], p["vitals"],
 		p["equipped"], p["cooldowns"])
 	if result["changed"]:
@@ -349,6 +429,87 @@ func _request_use(slot_index: int) -> void:
 	print("[use] %s %s: %s"
 		% [p["identity"], "ok" if result["ok"] else "refused", result["msg"]])
 	_notice.rpc_id(id, result["msg"])
+
+
+func _deploy(id: int, slot_index: int, item_id: String) -> void:
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	var r := _stations.place(p["identity"], p["pos"], item_id)
+	if r["ok"]:
+		inv.take_slot(slot_index)
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, inv.to_data())
+		_sync_stations.rpc(_stations.to_wire())
+	print("[place] %s %s: %s at %.1f,%.1f"
+		% [p["identity"], "ok" if r["ok"] else "refused", r["msg"],
+		(p["pos"] as Vector3).x, (p["pos"] as Vector3).z])
+	_notice.rpc_id(id, r["msg"])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_harvest(node_id: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	# The node's remaining count is the lock. Two players swinging at the same
+	# vein both land here, one at a time, and it can only be decremented to zero.
+	var r := _field.harvest(p["pos"], p["inventory"], node_id, p["cooldowns"], _now())
+	if r["ok"]:
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_node_state.rpc(node_id, int(r["remaining"]))
+		print("[harvest] %s node=%d %s x%d remaining=%d"
+			% [p["identity"], node_id, r["item"], r["count"], r["remaining"]])
+	if not str(r["msg"]).is_empty():
+		_notice.rpc_id(id, r["msg"])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_craft(recipe_id: String) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	var r := _stations.craft(p["pos"], p["inventory"], recipe_id)
+	if r["ok"]:
+		_persist_player(id)
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+	print("[craft] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, r["msg"])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_pack_up(station_id: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	var r := _stations.pick_up(p["pos"], station_id)
+	if r["ok"]:
+		if inv.add(str(r["item_id"]), 1) > 0:
+			# Put it back rather than destroy it.
+			_stations.place(p["identity"], p["pos"], str(r["item_id"]))
+			_notice.rpc_id(id, "no room to pack that up")
+			return
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, inv.to_data())
+		_sync_stations.rpc(_stations.to_wire())
+	_notice.rpc_id(id, r["msg"])
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -482,6 +643,37 @@ func _notice(text: String) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _sync_nodes(rows: Array) -> void:
+	node_mirror.clear()
+	for row: Array in rows:
+		node_mirror[int(row[0])] = {
+			"kind": str(row[1]),
+			"pos": Vector3(float(row[2]), float(row[3]), float(row[4])),
+			"remaining": int(row[5]),
+		}
+	nodes_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _node_state(node_id: int, remaining: int) -> void:
+	if node_mirror.has(node_id):
+		node_mirror[node_id]["remaining"] = remaining
+		nodes_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_stations(rows: Array) -> void:
+	station_mirror.clear()
+	for row: Array in rows:
+		station_mirror[int(row[0])] = {
+			"kind": str(row[1]), "item_id": str(row[2]),
+			"pos": Vector3(float(row[3]), float(row[4]), float(row[5])),
+			"owner": str(row[6]),
+		}
+	stations_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _entity_spawned(eid: int, item_id: String, count: int, pos: Vector3) -> void:
 	entity_mirror[eid] = {"item_id": item_id, "count": count, "pos": pos}
 	entities_changed.emit()
@@ -501,48 +693,164 @@ func _entity_removed(eid: int) -> void:
 func _bot_survive() -> void:
 	if Net.bot_profile == "reckless":
 		return
+	if Net.bot_profile == "forager":
+		# Phase 0 behaviour only: drink to stay alive, ignore the economy.
+		_bot_use_cd -= 1
+		if _bot_use_cd <= 0 and float(vitals_mirror["hydration"]) < 55.0:
+			var sip := find_use("hydrate")
+			if sip >= 0:
+				_bot_use_cd = 8
+				use_slot(sip)
+		return
 	_bot_use_cd -= 1
 	if _bot_use_cd > 0:
 		return
+	# One action per cooldown whatever the outcome, so a refused action cannot
+	# starve everything below it.
+	_bot_use_cd = 8
+
 	if float(vitals_mirror["hydration"]) < 55.0:
 		var drink := find_use("hydrate")
 		if drink >= 0:
 			use_slot(drink)
-			_bot_use_cd = 10
 			return
-	# Deliberately not gated on time of day: the client asks, the server decides.
+
+	# Dew: ask, do not decide. A few daylight probes keep the server's refusal
+	# path exercised; after that stop spending turns on it until dark.
 	var dew := find_use("tool_dew")
-	if dew >= 0:
+	if dew >= 0 and (Clock.is_night() or _bot_dew_probes < 3):
+		if not Clock.is_night():
+			_bot_dew_probes += 1
 		use_slot(dew)
-		_bot_use_cd = 30
 		return
+
+	# Deploy the starting fabricator so there is somewhere to craft.
+	if reachable_stations().is_empty():
+		var kit := find_use("place")
+		if kit >= 0:
+			use_slot(kit)
+			return
+
+	# Craft the deepest recipe available, so the chain runs to its end rather
+	# than stalling on intermediates.
+	for rid: String in ["stillsuit", "steel_ingot", "fiber_weave", "ore_refinery"]:
+		if RecipeDB.has(rid) and available_recipes().has(rid) and has_inputs_for(rid):
+			craft(rid)
+			return
+
 	var suit := find_use("equip")
 	if suit >= 0:
 		use_slot(suit)
-		_bot_use_cd = 10
+		return
+
+	if nearest_node() != 0:
+		try_harvest()
+		_bot_use_cd = 4
 
 
-## Bot steering: head for the closest known pickup, grabbing anything in range.
-## Deliberately uses only replicated state, exactly like a human client would.
+func _held(item_id: String) -> int:
+	if item_id.is_empty():
+		return 0
+	var n := 0
+	for s: Dictionary in inventory_mirror:
+		if not s.is_empty() and s["id"] == item_id:
+			n += int(s["count"])
+	return n
+
+
+## Station kind needed by a recipe the bot could run right now but cannot
+## reach. Empty when there is nothing waiting to be made.
+func _pending_craft_station() -> String:
+	for rid: String in ["stillsuit", "steel_ingot", "fiber_weave", "ore_refinery"]:
+		if not RecipeDB.has(rid) or not has_inputs_for(rid):
+			continue
+		var kind := str(RecipeDB.get_recipe(rid)["station"])
+		if not kind.is_empty() and not reachable_stations().has(kind):
+			return kind
+	return ""
+
+
+## Bot steering: head for the nearest worthwhile thing and act on it.
+## Uses only replicated state, exactly like a human client would.
 func _bot_direction() -> Vector2:
-	var target := 0
-	var best := INF
+	var goal := Vector3.ZERO
+	var goal_dist := INF
+	var goal_is_node := false
+	var best_score := INF
+
+	var forager := Net.bot_profile == "forager"
+
+	# Something is ready to make: head home. This outranks gathering outright,
+	# because a node underfoot would always win on distance and the bot would
+	# gather forever with a bag full of finished inputs.
+	var pending := "" if forager else _pending_craft_station()
+	if not pending.is_empty():
+		var near_d := INF
+		for sid: int in station_mirror:
+			if str(station_mirror[sid]["kind"]) != pending:
+				continue
+			var d: float = local_pos.distance_to(station_mirror[sid]["pos"])
+			if d < near_d:
+				near_d = d
+				goal = station_mirror[sid]["pos"]
+		if near_d < INF:
+			if near_d <= StationField.USE_RANGE:
+				return Vector2.ZERO  # in reach; _bot_survive does the crafting
+			return _steer_to(goal)
+
 	for eid: int in entity_mirror:
 		var d: float = local_pos.distance_to(entity_mirror[eid]["pos"])
-		if d < best:
-			best = d
-			target = eid
-	if target == 0:
+		if d < best_score:
+			best_score = d
+			goal_dist = d
+			goal = entity_mirror[eid]["pos"]
+			goal_is_node = false
+
+	# Nodes outrank loose pickups -- they are the renewable half of the economy
+	# -- so they get a scoring discount. The discount must not leak into the
+	# range check below, or the bot stops short and stands there forever.
+	# Scarcity biases the choice, otherwise the bot mines whatever it is stood
+	# next to until the bag is full of one thing and no recipe can run.
+	for nid: int in (({} as Dictionary) if forager else node_mirror):
+		var n: Dictionary = node_mirror[nid]
+		if int(n["remaining"]) <= 0:
+			continue
+		var k: Dictionary = _field.kinds.get(str(n["kind"]), {})
+		var held := _held(str(k.get("yield_id", "")))
+		var score: float = local_pos.distance_to(n["pos"]) * 0.6 * (1.0 + float(held) * 0.08)
+		if score < best_score:
+			best_score = score
+			goal_dist = local_pos.distance_to(n["pos"])
+			goal = n["pos"]
+			goal_is_node = true
+
+
+
+	if goal_dist == INF:
 		return Vector2.ZERO
-	if best <= PICKUP_RANGE:
+
+	var reach := NodeField.REACH if goal_is_node else PICKUP_RANGE
+	if goal_dist <= reach:
 		_bot_cooldown -= 1
 		if _bot_cooldown <= 0:
 			_bot_cooldown = 8
-			try_pickup()
+			if goal_is_node:
+				try_harvest()
+			elif nearest_entity() != 0:
+				try_pickup()
 		return Vector2.ZERO
 
-	var to: Vector3 = entity_mirror[target]["pos"] - local_pos
+	return _steer_to(goal)
+
+
+## Head toward a point, strafing when terrain traps us. The bot has no
+## pathfinding, so this is test infrastructure rather than AI -- Phase 4 gives
+## real threats real steering.
+func _steer_to(goal: Vector3) -> Vector2:
+	var to: Vector3 = goal - local_pos
 	var want := Vector2(to.x, to.z).normalized()
+	debug_goal = goal
+	debug_want = want
 
 	# The bot has no pathfinding, so terrain will trap it against outcrops.
 	# Detect a stall and strafe for a while instead of grinding along the rim.
@@ -584,6 +892,85 @@ func drop_slot(i: int) -> void:
 
 func use_slot(i: int) -> void:
 	_request_use.rpc_id(1, i)
+
+
+## Closest live node within reach, or 0.
+func nearest_node() -> int:
+	var best := 0
+	var best_d := NodeField.REACH
+	for nid: int in node_mirror:
+		var n: Dictionary = node_mirror[nid]
+		if int(n["remaining"]) <= 0:
+			continue
+		var d: float = local_pos.distance_to(n["pos"])
+		if d <= best_d:
+			best_d = d
+			best = nid
+	return best
+
+
+func nearest_station() -> int:
+	var best := 0
+	var best_d := StationField.USE_RANGE
+	for sid: int in station_mirror:
+		var d: float = local_pos.distance_to(station_mirror[sid]["pos"])
+		if d <= best_d:
+			best_d = d
+			best = sid
+	return best
+
+
+## Station kinds the client believes are in reach. Display only -- the server
+## re-checks before it consumes anything.
+func reachable_stations() -> Array:
+	var out: Array = []
+	for sid: int in station_mirror:
+		var s: Dictionary = station_mirror[sid]
+		if local_pos.distance_to(s["pos"]) <= StationField.USE_RANGE \
+				and not out.has(s["kind"]):
+			out.append(s["kind"])
+	return out
+
+
+## Recipes craftable right now, as far as the client can tell.
+func available_recipes() -> Array:
+	var out: Array = []
+	var reach := reachable_stations()
+	for rid: String in RecipeDB.ids():
+		var r := RecipeDB.get_recipe(rid)
+		if str(r["station"]).is_empty() or reach.has(str(r["station"])):
+			out.append(rid)
+	return out
+
+
+func has_inputs_for(recipe_id: String) -> bool:
+	var r := RecipeDB.get_recipe(recipe_id)
+	if r.is_empty():
+		return false
+	for i: Dictionary in r["inputs"]:
+		var held := 0
+		for s: Dictionary in inventory_mirror:
+			if not s.is_empty() and s["id"] == i["id"]:
+				held += int(s["count"])
+		if held < int(i["count"]):
+			return false
+	return true
+
+
+func try_harvest() -> void:
+	var nid := nearest_node()
+	if nid != 0:
+		_request_harvest.rpc_id(1, nid)
+
+
+func craft(recipe_id: String) -> void:
+	_request_craft.rpc_id(1, recipe_id)
+
+
+func pack_up_station() -> void:
+	var sid := nearest_station()
+	if sid != 0:
+		_request_pack_up.rpc_id(1, sid)
 
 
 ## First slot holding an item with the given use hook, or -1.

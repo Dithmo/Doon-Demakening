@@ -15,6 +15,7 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 ; Order is dependency order and matters: Net hashes Terrain at handshake, and
 ; Store asks Net which role it is before deciding whether to persist anything.
 ItemDB="*res://scripts/items/item_db.gd"
+RecipeDB="*res://scripts/items/recipe_db.gd"
 Terrain="*res://scripts/terrain/terrain_data.gd"
 Clock="*res://scripts/world/world_clock.gd"
 Net="*res://scripts/net/net.gd"

@@ -85,7 +85,7 @@ func phase_name() -> String:
 		return "NIGHT"
 	if alt <= 0.0:
 		return "DAWN" if time_of_day < NOON else "DUSK"
-	if alt < 0.35:
+	if alt < 0.80:
 		return "MORNING" if time_of_day < NOON else "EVENING"
 	return "MIDDAY"
 

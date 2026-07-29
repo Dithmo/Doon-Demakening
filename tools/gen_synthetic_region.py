@@ -28,6 +28,10 @@ import struct
 
 SAND, ROCK, CLIFF = 0, 1, 2
 
+# Rise-over-run above which a slope is impassable. Anything gentler stays ROCK
+# and can be walked up.
+CLIFF_SLOPE = 1.2
+
 
 def build(name, size_m, cell_size, mask_cell_size, seed, n_outcrops, height_scale):
     rng = random.Random(seed)
@@ -47,6 +51,11 @@ def build(name, size_m, cell_size, mask_cell_size, seed, n_outcrops, height_scal
             "h": rng.uniform(8.0, 26.0),
             "wob": rng.uniform(0.15, 0.4),
             "phase": rng.uniform(0, math.tau),
+            # Width of the talus apron as a fraction of the radius. Varied per
+            # outcrop so some mesas are sheer and some are climbable -- if every
+            # rim were a cliff, rock would be scenery rather than refuge, and
+            # the Phase 4 worm would have nowhere to chase you to.
+            "talus": rng.uniform(0.30, 0.75),
         })
 
     def outcrop_field(wx, wz):
@@ -63,7 +72,7 @@ def build(name, size_m, cell_size, mask_cell_size, seed, n_outcrops, height_scal
             r /= 1.0 + o["wob"] * math.sin(4.0 * math.atan2(v, u) + o["phase"])
             if r >= 1.0:
                 continue
-            cov = min(1.0, (1.0 - r) / 0.18)  # steep talus at the rim
+            cov = min(1.0, (1.0 - r) / o["talus"])
             if cov > best_cov:
                 best_cov, best_h = cov, o["h"]
         return best_cov, best_h
@@ -100,7 +109,7 @@ def build(name, size_m, cell_size, mask_cell_size, seed, n_outcrops, height_scal
             c1, h1 = outcrop_field(wx + d, wz)
             c2, h2 = outcrop_field(wx, wz + d)
             grad = max(abs(c1 * h1 - c0 * h0), abs(c2 * h2 - c0 * h0)) / d
-            mask.append(CLIFF if grad > 1.0 else ROCK)
+            mask.append(CLIFF if grad > CLIFF_SLOPE else ROCK)
 
     meta = {
         "name": name,
@@ -115,6 +124,54 @@ def build(name, size_m, cell_size, mask_cell_size, seed, n_outcrops, height_scal
         "synthetic": True,
     }
     return meta, heights, mask
+
+
+def reachability(mask, mx, mz):
+    """Flood-fill walkable (non-cliff) cells from the map centre.
+
+    A rock plateau ringed entirely by cliff is unreachable: nodes placed on it
+    are invisible to players and, come Phase 4, it is refuge nobody can run to.
+    Checking it here means a bad map fails at generation rather than in play.
+    """
+    start = None
+    cz, cx = mz // 2, mx // 2
+    for radius in range(0, max(mx, mz) // 2):
+        for dz in range(-radius, radius + 1):
+            for dx in (-radius, radius) if radius else (0,):
+                z, x = cz + dz, cx + dx
+                if 0 <= z < mz and 0 <= x < mx and mask[z * mx + x] != CLIFF:
+                    start = (x, z)
+                    break
+            if start:
+                break
+        if start:
+            break
+    if start is None:
+        return {"reachable": 0, "rock_frac": 0.0}
+
+    seen = bytearray(mx * mz)
+    stack = [start]
+    seen[start[1] * mx + start[0]] = 1
+    reachable = 0
+    rock_reachable = 0
+    while stack:
+        x, z = stack.pop()
+        reachable += 1
+        if mask[z * mx + x] == ROCK:
+            rock_reachable += 1
+        for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, nz = x + dx, z + dz
+            if not (0 <= nx < mx and 0 <= nz < mz):
+                continue
+            i = nz * mx + nx
+            if seen[i] or mask[i] == CLIFF:
+                continue
+            seen[i] = 1
+            stack.append((nx, nz))
+
+    total_rock = sum(1 for b in mask if b == ROCK)
+    return {"reachable": reachable,
+            "rock_frac": rock_reachable / total_rock if total_rock else 0.0}
 
 
 def main():
@@ -139,11 +196,16 @@ def main():
     for b in mask:
         counts[b] += 1
     total = len(mask)
+    reach = reachability(mask, meta["mask_cells"][0], meta["mask_cells"][1])
     print(f"wrote {args.out}")
     print(f"  height {meta['height_cells']} @ {args.cell} m  ({len(heights)} bytes)")
     print(f"  mask   {meta['mask_cells']} @ {args.mask_cell} m  ({total} bytes)")
     print(f"  sand {counts[SAND]/total:.1%}  rock {counts[ROCK]/total:.1%}  "
           f"cliff {counts[CLIFF]/total:.1%}")
+    print(f"  reachable from centre: {reach['reachable']/total:.1%} of map, "
+          f"{reach['rock_frac']:.1%} of rock")
+    if reach["rock_frac"] < 0.5:
+        print("  WARNING: most rock is unreachable -- players cannot shelter on it")
 
 
 if __name__ == "__main__":

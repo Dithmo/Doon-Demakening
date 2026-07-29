@@ -31,6 +31,10 @@ func run() -> int:
 	_test_vitals()
 	print("\n=== Item use ===")
 	_test_item_use()
+	print("\n=== Resource nodes ===")
+	_test_nodes()
+	print("\n=== Stations and crafting ===")
+	_test_crafting()
 
 	print()
 	if _failures.is_empty():
@@ -209,3 +213,144 @@ func _test_vitals() -> void:
 	var loaded: Vitals = VitalsScript.new()
 	loaded.from_data(corpse.to_data())
 	_check(loaded.alive, "loading a dead save revives rather than stranding the player")
+
+
+func _test_nodes() -> void:
+	var field := NodeField.new()
+	_check(field.load_kinds(), "node kinds load")
+	_check(field.kinds.has("iron_vein"), "iron veins are defined")
+
+	# A node holds several harvests and empties exactly once.
+	var inv := Inventory.new()
+	var cd: Dictionary = {}
+	var pos := Vector3(10.0, 0.0, 10.0)
+	var nid: int = field._spawn("agave", pos)
+	var k: Dictionary = field.kinds["agave"]
+	var swings := 0
+	var now := 0.0
+	var depleted_reports := 0
+	for i in range(int(k["harvests"]) + 2):
+		now += NodeField.SWING_COOLDOWN + 0.1
+		var r := field.harvest(pos, inv, nid, cd, now)
+		if r["ok"]:
+			swings += 1
+			if r["depleted"]:
+				depleted_reports += 1
+	_check(swings == int(k["harvests"]),
+		"a node gives exactly its harvest count (%d)" % swings)
+	_check(depleted_reports == 1, "depletion is reported once, not repeatedly")
+	_check(inv.count_of(str(k["yield_id"])) == swings * int(k["yield_count"]),
+		"total yield matches swings x per-swing amount")
+	_check(not field.harvest(pos, inv, nid, cd, now + 10.0)["ok"],
+		"a spent node gives nothing")
+
+	# Regrowth is on a timer, not immediate.
+	_check(field.tick(now + 1.0).is_empty(), "a node does not regrow instantly")
+	var respawn: float = now + float(k["respawn_seconds"]) + 1.0
+	_check(field.tick(respawn).has(nid), "a node regrows once its timer elapses")
+	_check(int(field.nodes[nid]["remaining"]) == int(k["harvests"]),
+		"regrowth restores the full harvest count")
+
+	# Reach and tooling are enforced server-side.
+	var far := Vector3(200.0, 0.0, 200.0)
+	_check(not field.harvest(far, inv, nid, {}, respawn)["ok"],
+		"a node out of reach is refused")
+	var bare := Inventory.new()
+	var vein: int = field._spawn("iron_vein", pos)
+	_check(not field.harvest(pos, bare, vein, {}, respawn)["ok"],
+		"an iron vein needs a cutting tool")
+	var toolbelt := Inventory.new()
+	toolbelt.add("cutteray", 1)
+	_check(field.harvest(pos, toolbelt, vein, {}, respawn)["ok"],
+		"a cutteray unlocks the vein")
+
+	# The swing cooldown is what paces gathering.
+	var cd2: Dictionary = {}
+	var quick: int = field._spawn("agave", pos)
+	_check(field.harvest(pos, inv, quick, cd2, 100.0)["ok"], "first swing lands")
+	_check(not field.harvest(pos, inv, quick, cd2, 100.1)["ok"],
+		"a second swing inside the cooldown is refused")
+	_check(field.harvest(pos, inv, quick, cd2, 100.0 + NodeField.SWING_COOLDOWN + 0.1)["ok"],
+		"the swing lands again once the cooldown passes")
+
+
+func _test_crafting() -> void:
+	var stations := StationField.new()
+	var inv := Inventory.new()
+	var here := Vector3(20.0, 0.0, 20.0)
+
+	# Crafting needs a station within reach, and refuses cleanly without one.
+	inv.add("plant_fiber", 3)
+	var no_bench := stations.craft(here, inv, "fiber_weave")
+	_check(not no_bench["ok"], "crafting without a station is refused")
+	_check(inv.count_of("plant_fiber") == 3, "a refused craft consumes nothing")
+
+	var placed := stations.place("tester", here, "survival_fabricator")
+	_check(placed["ok"], "a fabricator can be deployed")
+	_check(stations.station_in_reach(here, "fabricator") != 0, "the fabricator is in reach")
+	_check(not stations.place("tester", here, "water")["ok"],
+		"an ordinary item cannot be deployed")
+	_check(not stations.place("tester", here + Vector3(1.0, 0.0, 0.0),
+		"ore_refinery")["ok"], "stations cannot be stacked on each other")
+
+	# The happy path consumes inputs and produces output.
+	var made := stations.craft(here, inv, "fiber_weave")
+	_check(made["ok"], "crafting at a station succeeds")
+	_check(inv.count_of("plant_fiber") == 0, "crafting consumes its inputs")
+	_check(inv.count_of("fiber_weave") == 1, "crafting produces its output")
+	_check(not stations.craft(here, inv, "fiber_weave")["ok"],
+		"crafting without materials is refused")
+	_check(not stations.craft(here, inv, "no_such_thing")["ok"],
+		"an unknown recipe is refused")
+
+	# Out of range is out of range, even with materials in hand.
+	inv.add("plant_fiber", 3)
+	_check(not stations.craft(Vector3(300.0, 0.0, 300.0), inv, "fiber_weave")["ok"],
+		"crafting away from the station is refused")
+
+	# A recipe bound to another station is not satisfied by this one.
+	inv.add("iron_ore", 2)
+	_check(not stations.craft(here, inv, "steel_ingot")["ok"],
+		"a refinery recipe needs a refinery, not a fabricator")
+
+	# The full Phase 2 chain: gather -> refine -> craft the stillsuit.
+	var chain := Inventory.new()
+	chain.add("plant_fiber", 12)
+	chain.add("iron_ore", 4)
+	chain.add("salvaged_metal", 4)
+	chain.add("granite_stone", 6)
+	var bench := StationField.new()
+	bench.place("tester", here, "survival_fabricator")
+	for i in range(4):
+		bench.craft(here, chain, "fiber_weave")
+	_check(chain.count_of("fiber_weave") == 4, "four weaves from twelve fibre")
+	_check(bench.craft(here, chain, "ore_refinery")["ok"], "the refinery is craftable")
+	# Deploy it a little away, so both stations are reachable but not stacked.
+	var spot := here + Vector3(StationField.MIN_SPACING + 0.5, 0.0, 0.0)
+	_check(bench.place("tester", spot, "ore_refinery")["ok"], "the refinery deploys")
+	for i in range(2):
+		bench.craft(spot, chain, "steel_ingot")
+	_check(chain.count_of("steel_ingot") == 2, "two ingots from four ore")
+	var suit := bench.craft(here, chain, "stillsuit")
+	_check(suit["ok"], "the stillsuit is craftable at the end of the chain")
+	_check(chain.count_of("stillsuit") == 1, "the stillsuit lands in the bag")
+
+	# And it must actually be worth making.
+	var worn: Dictionary = {}
+	var slot := -1
+	for i in chain.slots.size():
+		if not chain.slots[i].is_empty() and chain.slots[i]["id"] == "stillsuit":
+			slot = i
+			break
+	_check(ItemUse.apply(slot, chain, Vitals.new(), worn, {})["ok"], "the stillsuit can be worn")
+	var bare := Vitals.new()
+	var suited := Vitals.new()
+	bare.tick(30.0, 1.0, false, 1.0, 1.0)
+	suited.tick(30.0, 1.0, false, 1.0, ItemUse.insulation(worn))
+	_check(suited.hydration > bare.hydration,
+		"a crafted stillsuit measurably slows water loss")
+
+	# Packing a station back up returns the item that made it.
+	var taken := bench.pick_up(spot, bench.station_in_reach(spot, "refinery"))
+	_check(taken["ok"] and taken["item_id"] == "ore_refinery",
+		"a station packs back into the item that placed it")

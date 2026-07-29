@@ -51,7 +51,7 @@ static func find_spawn(near: Vector3, max_radius: float = 160.0) -> Vector3:
 			var x := near.x + cos(a) * r
 			var z := near.z + sin(a) * r
 			if Terrain.sample_surface(x, z) == Terrain.Surface.SAND \
-					and Terrain.is_walkable(x, z):
+					and Terrain.is_reachable(x, z):
 				return Vector3(x, Terrain.sample_height(x, z), z)
 		r += 6.0
 	# Nowhere sandy in range; fall back to anywhere legal.

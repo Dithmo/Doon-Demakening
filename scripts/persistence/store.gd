@@ -9,9 +9,9 @@ extends Node
 
 const SAVE_PATH := "user://world_save.json"
 const AUTOSAVE_SECONDS := 30.0
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 
-var _data: Dictionary = {"version": SAVE_VERSION, "players": {}, "entities": []}
+var _data: Dictionary = {"version": SAVE_VERSION, "players": {}, "entities": [], "blobs": {}}
 var _dirty: bool = false
 var _timer: float = 0.0
 
@@ -69,6 +69,19 @@ func entities() -> Array:
 	return _data.get("entities", [])
 
 
+## Generic named world state, so a new subsystem does not need a new save
+## field and its own migration. Callers own the shape of what they store.
+func put_blob(key: String, value: Array) -> void:
+	var blobs: Dictionary = _data.get("blobs", {})
+	blobs[key] = value
+	_data["blobs"] = blobs
+	_dirty = true
+
+
+func get_blob(key: String) -> Array:
+	return (_data.get("blobs", {}) as Dictionary).get(key, [])
+
+
 func load_all() -> bool:
 	if not FileAccess.file_exists(SAVE_PATH):
 		print("[store] no save at %s, starting fresh" % SAVE_PATH)
@@ -90,6 +103,7 @@ func load_all() -> bool:
 	_data = parsed
 	_data["players"] = _data.get("players", {})
 	_data["entities"] = _data.get("entities", [])
+	_data["blobs"] = _data.get("blobs", {})
 	print("[store] loaded %d player(s), %d entity(ies)"
 		% [(_data["players"] as Dictionary).size(), (_data["entities"] as Array).size()])
 	return true
@@ -108,6 +122,6 @@ func save_all() -> bool:
 
 
 func wipe() -> void:
-	_data = {"version": SAVE_VERSION, "players": {}, "entities": []}
+	_data = {"version": SAVE_VERSION, "players": {}, "entities": [], "blobs": {}}
 	_dirty = true
 	save_all()

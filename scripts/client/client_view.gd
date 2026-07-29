@@ -12,6 +12,9 @@ var _remote_root: Node3D
 var _entity_root: Node3D
 var _remote_nodes: Dictionary = {}
 var _entity_nodes: Dictionary = {}
+var _node_meshes: Dictionary = {}
+var _station_meshes: Dictionary = {}
+var _craft_root: Node3D
 var _sun: DirectionalLight3D
 var _env: Environment
 var _notice: Label
@@ -48,6 +51,10 @@ func _ready() -> void:
 	_notice.add_theme_font_size_override("font_size", 17)
 	layer.add_child(_notice)
 
+	_craft_root = Node3D.new()
+	add_child(_craft_root)
+	world.nodes_changed.connect(_refresh_nodes)
+	world.stations_changed.connect(_refresh_stations)
 	world.entities_changed.connect(_refresh_entities)
 	world.inventory_changed.connect(_refresh_hud)
 	world.vitals_changed.connect(_refresh_hud)
@@ -116,6 +123,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		var i: int = world.find_use("tool_dew")
 		if i >= 0:
 			world.use_slot(i)
+	elif event.is_action_pressed("work"):
+		world.try_harvest()
+	elif event.is_action_pressed("deploy"):
+		var i: int = world.find_use("place")
+		if i >= 0:
+			world.use_slot(i)
+	elif event.is_action_pressed("craft"):
+		# Cycles the first craftable recipe. A proper menu is Phase 6 polish.
+		for rid: String in world.available_recipes():
+			if world.has_inputs_for(rid):
+				world.craft(rid)
+				break
 	elif event.is_action_pressed("drop"):
 		for i in (world.inventory_mirror as Array).size():
 			if not (world.inventory_mirror[i] as Dictionary).is_empty():
@@ -151,13 +170,31 @@ func _refresh_hud() -> void:
 			carried.append("%s x%d" % [ItemDB.display_name(slot["id"]), slot["count"]])
 	lines.append("bag: " + (", ".join(carried) if carried else "(empty)"))
 
+	var reach: Array = world.reachable_stations()
+	if reach:
+		var craftable: Array = []
+		for rid: String in world.available_recipes():
+			if world.has_inputs_for(rid):
+				craftable.append(RecipeDB.get_recipe(rid)["name"])
+		lines.append("at %s -- can make: %s"
+			% [", ".join(reach), ", ".join(craftable) if craftable else "(nothing yet)"])
+
 	var hints: Array = []
+	var nid: int = world.nearest_node()
+	if nid != 0:
+		var n: Dictionary = world.node_mirror[nid]
+		var kname := str(world._field.kinds.get(str(n["kind"]), {}).get("name", n["kind"]))
+		hints.append("[R] work %s (%d left)" % [kname, int(n["remaining"])])
 	if world.nearest_entity() != 0:
 		hints.append("[E] pick up")
 	if world.find_use("hydrate") >= 0:
 		hints.append("[F] drink")
 	if world.find_use("tool_dew") >= 0:
 		hints.append("[G] harvest dew" + ("" if Clock.is_night() else " (needs dark)"))
+	if world.find_use("place") >= 0:
+		hints.append("[B] deploy")
+	if reach:
+		hints.append("[C] craft")
 	hints.append("[Q] drop")
 	lines.append(" ".join(hints))
 	_hud.text = "\n".join(lines)
@@ -189,6 +226,65 @@ func _refresh_entities() -> void:
 		if not world.entity_mirror.has(eid):
 			(_entity_nodes[eid] as Node).queue_free()
 			_entity_nodes.erase(eid)
+
+
+## Resource nodes. Colour carries the yield so a patch is readable at distance,
+## and a spent node dims rather than vanishing -- it is still somewhere to come
+## back to once it regrows.
+func _refresh_nodes() -> void:
+	for nid: int in world.node_mirror:
+		var n: Dictionary = world.node_mirror[nid]
+		var live := int(n["remaining"]) > 0
+		if not _node_meshes.has(nid):
+			var m := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.35
+			cyl.bottom_radius = 0.6
+			cyl.height = 1.2
+			m.mesh = cyl
+			m.material_override = StandardMaterial3D.new()
+			m.position = n["pos"] + Vector3.UP * 0.6
+			_craft_root.add_child(m)
+			_node_meshes[nid] = m
+		var mat: StandardMaterial3D = _node_meshes[nid].material_override
+		mat.albedo_color = _node_colour(str(n["kind"])) if live \
+			else Color(0.28, 0.26, 0.24)
+	for nid: int in _node_meshes.keys():
+		if not world.node_mirror.has(nid):
+			(_node_meshes[nid] as Node).queue_free()
+			_node_meshes.erase(nid)
+
+
+func _node_colour(kind: String) -> Color:
+	match kind:
+		"agave": return Color(0.45, 0.62, 0.30)
+		"iron_vein": return Color(0.66, 0.34, 0.22)
+		"stone_outcrop": return Color(0.55, 0.53, 0.50)
+		"wreck_debris": return Color(0.38, 0.55, 0.60)
+	return Color(0.7, 0.7, 0.7)
+
+
+func _refresh_stations() -> void:
+	for sid: int in world.station_mirror:
+		if _station_meshes.has(sid):
+			continue
+		var s: Dictionary = world.station_mirror[sid]
+		var m := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(1.4, 1.1, 1.4)
+		m.mesh = box
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.30, 0.42, 0.50) if str(s["kind"]) == "refinery" \
+			else Color(0.52, 0.45, 0.30)
+		mat.metallic = 0.4
+		m.material_override = mat
+		m.position = s["pos"] + Vector3.UP * 0.55
+		_craft_root.add_child(m)
+		_station_meshes[sid] = m
+	for sid: int in _station_meshes.keys():
+		if not world.station_mirror.has(sid):
+			(_station_meshes[sid] as Node).queue_free()
+			_station_meshes.erase(sid)
 
 
 func _capsule(col: Color) -> MeshInstance3D:
