@@ -49,6 +49,12 @@ func run() -> int:
 	_test_hostiles()
 	print("\n=== Points of interest ===")
 	_test_pois()
+	print("\n=== Progression ===")
+	_test_progression()
+	print("\n=== Journey and contracts ===")
+	_test_quests()
+	print("\n=== Trading ===")
+	_test_vendor()
 
 	print()
 	if _failures.is_empty():
@@ -839,3 +845,175 @@ func _test_pois() -> void:
 		"markers are found by name, case-insensitively")
 	_check(p.find_named("No Such Place").is_empty(),
 		"and an unknown name finds nothing")
+
+
+func _test_progression() -> void:
+	var p := Progression.new()
+	_check(p.level == 1 and p.xp == 0.0, "a new character starts at level 1")
+	_check(Progression.xp_for_level(1) == 0.0, "level 1 costs nothing")
+	_check(Progression.xp_for_level(3) > Progression.xp_for_level(2),
+		"each level costs more than the last")
+
+	# Levelling must be able to cross more than one boundary at once: a quest
+	# reward can be worth more than a whole level, and swallowing the extra
+	# would quietly rob the player.
+	var gained := p.award(Progression.xp_for_level(3))
+	_check(gained == 2 and p.level == 3, "one award can cross two levels")
+	_check(p.award(-50.0) == 0, "negative experience is ignored")
+
+	# The cap has to hold, or xp_to_next() below reads as a negative wall.
+	var maxed := Progression.new()
+	maxed.award(Progression.xp_for_level(Progression.MAX_LEVEL) * 10.0)
+	_check(maxed.level == Progression.MAX_LEVEL, "level is capped")
+	_check(maxed.xp_to_next() == 0.0, "and there is nothing left to reach")
+
+	# Points and skills.
+	_check(p.points_available() == 3, "three levels means three points")
+	var learn := p.learn("blade_training")
+	_check(learn["ok"] and p.has_skill("blade_training"), "a skill can be learned")
+	_check(p.points_available() == 2, "learning spends a point")
+	_check(not p.learn("blade_training")["ok"], "the same skill twice is refused")
+	_check(not p.learn("no_such_skill")["ok"], "an unknown skill is refused")
+	_check(not p.learn("trophy_hunter")["ok"],
+		"a skill above your level is refused")
+	_check(not p.learn("night_work")["ok"],
+		"a skill whose prerequisite is missing is refused")
+
+	var broke := Progression.new()
+	broke.learn("blade_training")
+	_check(broke.points_available() == 0 and not broke.learn("light_step")["ok"],
+		"you cannot spend a point you do not have")
+
+	# Effects. The identity is what makes callers able to multiply blind.
+	var plain := Progression.new()
+	_check(plain.mult("melee_damage") == 1.0, "no skills means no multiplier")
+	_check(plain.bonus("node_yield") == 0.0, "and no flat bonus")
+	_check(p.mult("melee_damage") > 1.0, "Blade Training raises melee damage")
+	_check(p.mult("threat_rate") == 1.0,
+		"and touches nothing it was not meant to")
+
+	var gatherer := Progression.new()
+	gatherer.award(Progression.xp_for_level(2))
+	gatherer.learn("deep_harvest")
+	_check(gatherer.bonus("node_yield") == 1.0, "Deep Harvest is a flat bonus")
+	_check(gatherer.mult("node_yield") == 1.0,
+		"a flat bonus does not leak into the multiplier")
+
+	# Solari.
+	var purse := Progression.new()
+	purse.earn_solari(100)
+	_check(purse.solari == 100, "solari can be earned")
+	_check(purse.spend_solari(40) and purse.solari == 60, "and spent")
+	_check(not purse.spend_solari(1000) and purse.solari == 60,
+		"overspending is refused and changes nothing")
+	purse.earn_solari(-50)
+	_check(purse.solari == 60, "negative earnings are ignored")
+
+	# Discovery pays once.
+	_check(purse.discover("Wali Hole"), "somewhere new is a discovery")
+	_check(not purse.discover("Wali Hole"), "the second visit is not")
+	_check(not purse.discover(""), "an unnamed marker is never a discovery")
+
+	# Round-trip, including a skill that no longer exists.
+	var saved := p.to_data()
+	saved["skills"] = (saved["skills"] as Array) + ["deleted_skill"]
+	var loaded := Progression.new()
+	loaded.from_data(saved)
+	_check(loaded.level == p.level and loaded.xp == p.xp, "progression persists")
+	_check(loaded.has_skill("blade_training"), "skills persist")
+	_check(not loaded.has_skill("deleted_skill"),
+		"a skill that no longer exists is dropped, not carried")
+	_check(loaded.points_available() == p.points_available(),
+		"and dropping it returns the point")
+
+
+func _test_quests() -> void:
+	var q := QuestLog.new()
+	_check(q.step == 0, "the Journey starts at its first step")
+
+	# The first step is "drink one water". Anything else must not advance it.
+	var first := QuestDB.step(0)
+	_check(not first.is_empty(), "the Journey has a first step")
+	_check(q.observe("gather", "plant_fiber", 3).is_empty(),
+		"an unrelated action does not advance the Journey")
+	_check(q.step == 0, "and leaves it where it was")
+
+	var done := q.observe(str(first["kind"]), str(first["target"]),
+		int(first["count"]))
+	_check(done.size() == 1 and str(done[0]["id"]) == str(first["id"]),
+		"doing what the step asks completes it")
+	_check(q.step == 1, "and moves on to the next")
+
+	# Contracts: taken from a giver, refused below level, progressed by the
+	# same observations.
+	var c := QuestDB.contract("c_water_1")
+	_check(not c.is_empty(), "the contract board loaded")
+	_check(not q.accept("c_water_1", 0)["ok"], "an under-level contract is refused")
+	_check(q.accept("c_water_1", 5)["ok"], "and accepted at level")
+	_check(not q.accept("c_water_1", 5)["ok"], "the same contract twice is refused")
+	_check(not q.accept("no_such_contract", 5)["ok"], "an unknown contract is refused")
+
+	var part := q.observe("gather", "water", 2)
+	_check(part.is_empty() and int(q.active["c_water_1"]) == 2,
+		"partial progress is recorded but does not complete")
+	var rest := q.observe("gather", "water", int(c["count"]))
+	_check(rest.size() == 1 and q.done.has("c_water_1"),
+		"reaching the count completes the contract")
+	_check(not q.active.has("c_water_1"), "and it leaves the active list")
+	_check(q.observe("gather", "water", 9).is_empty(),
+		"a settled contract does not keep paying out")
+
+	# Chains only appear once their predecessor is settled.
+	var offers := QuestDB.offered_by("Griffin's Reach Trading Post", 5, q.done, q.active)
+	var ids: Array = []
+	for o: Dictionary in offers:
+		ids.append(str(o["id"]))
+	_check(ids.has("c_water_2"), "the next link appears once the first is done")
+	_check(not ids.has("c_water_1"), "and the settled one does not")
+	var fresh := QuestLog.new()
+	var early := QuestDB.offered_by("Griffin's Reach Trading Post", 5,
+		fresh.done, fresh.active)
+	var early_ids: Array = []
+	for o: Dictionary in early:
+		early_ids.append(str(o["id"]))
+	_check(not early_ids.has("c_water_2"),
+		"a chain link is hidden until its predecessor is settled")
+	_check(QuestDB.offered_by("Nobody At All", 5, fresh.done, fresh.active).is_empty(),
+		"a stranger offers nothing")
+
+	# `carrying` objectives need the item in hand, not merely the place.
+	var carry_step := {}
+	for s: Variant in QuestDB.journey:
+		if not str((s as Dictionary)["carrying"]).is_empty():
+			carry_step = s
+	if not carry_step.is_empty():
+		var empty_handed := QuestLog.new()
+		empty_handed.step = QuestDB.journey.find(carry_step)
+		var bag := Inventory.new()
+		_check(empty_handed.observe(str(carry_step["kind"]),
+			str(carry_step["target"]), 1, bag).is_empty(),
+			"arriving without what the step asked for does not complete it")
+		bag.add(str(carry_step["carrying"]), 1)
+		_check(not empty_handed.observe(str(carry_step["kind"]),
+			str(carry_step["target"]), 1, bag).is_empty(),
+			"and arriving with it does")
+
+	var round_trip := QuestLog.new()
+	round_trip.from_data(q.to_data())
+	_check(round_trip.step == q.step, "the Journey position persists")
+	_check(round_trip.done.has("c_water_1"), "settled contracts persist")
+
+
+func _test_vendor() -> void:
+	# The spread is the economy's only friction, so it is the thing to assert.
+	_check(Vendor.buy_price("water") > Vendor.sell_price("water"),
+		"the post sells dearer than it buys")
+	_check(Vendor.sell_price("water") > 0, "ordinary goods have a value")
+	_check(Vendor.sell_price("no_such_item") == 0, "an unknown item is worth nothing")
+	_check(Vendor.MARKUP > 1.0, "and the markup is a markup")
+
+	# Round-tripping an item through the post must lose money, or a vendor is
+	# an infinite solari faucet and every other economy rule stops mattering.
+	var before := 1000
+	var after := before - Vendor.buy_price("steel_ingot") + Vendor.sell_price("steel_ingot")
+	_check(after < before, "buying then selling loses money")

@@ -1,0 +1,162 @@
+{
+  "_comment": "Specializations and the skills bought with specialization points. Tracks are the five the real game uses. Each skill moves exactly one existing dial -- `effects` are multipliers, `bonuses` are flat adds -- so there is no skill here whose value has to be taken on trust. `trainer` names a wiki POI you must stand at to spend a point in that track; the Hagga Basin South crop only contains three trainer-ish markers, so two tracks share one.",
+  "tracks": [
+    {
+      "id": "combat",
+      "name": "Combat",
+      "trainer": "Trooper Trainer",
+      "desc": "Blades, shields, and the things that come out of camps."
+    },
+    {
+      "id": "sabotage",
+      "name": "Sabotage",
+      "trainer": "Trooper Trainer",
+      "desc": "Moving quietly and taking what is left behind."
+    },
+    {
+      "id": "exploration",
+      "name": "Exploration",
+      "trainer": "Planetologist Trainer",
+      "desc": "Reading the basin and surviving the crossing."
+    },
+    {
+      "id": "gathering",
+      "name": "Gathering",
+      "trainer": "Planetologist Trainer",
+      "desc": "Getting more out of every node and every night."
+    },
+    {
+      "id": "crafting",
+      "name": "Crafting",
+      "trainer": "Griffin's Reach Trading Post",
+      "desc": "Making it go further at the bench."
+    }
+  ],
+  "skills": [
+    {
+      "id": "blade_training",
+      "track": "combat",
+      "name": "Blade Training",
+      "level": 1,
+      "effects": {"melee_damage": 1.35},
+      "desc": "Your blades land harder."
+    },
+    {
+      "id": "shield_drill",
+      "track": "combat",
+      "name": "Shield Drill",
+      "level": 3,
+      "requires": "blade_training",
+      "effects": {"shield_recovery": 0.6},
+      "desc": "A shield you have practised with comes back faster."
+    },
+    {
+      "id": "trophy_hunter",
+      "track": "combat",
+      "name": "Trophy Hunter",
+      "level": 5,
+      "effects": {"kill_xp": 2.0},
+      "desc": "You learn more from a fight than most."
+    },
+    {
+      "id": "light_step",
+      "track": "sabotage",
+      "name": "Light Step",
+      "level": 1,
+      "effects": {"threat_rate": 0.6},
+      "desc": "The sand carries less of you to whatever is listening."
+    },
+    {
+      "id": "quick_hands",
+      "track": "sabotage",
+      "name": "Quick Hands",
+      "level": 3,
+      "effects": {"extract_cooldown": 0.5},
+      "desc": "You draw a body dry in half the time."
+    },
+    {
+      "id": "night_work",
+      "track": "sabotage",
+      "name": "Night Work",
+      "level": 5,
+      "requires": "light_step",
+      "effects": {"night_drain": 0.7},
+      "desc": "You have learned to work the dark cheaply."
+    },
+    {
+      "id": "cave_sense",
+      "track": "exploration",
+      "name": "Cave Sense",
+      "level": 1,
+      "effects": {"shelter_radius": 1.6},
+      "desc": "You find the mouth of a cave from further out."
+    },
+    {
+      "id": "cartographer",
+      "track": "exploration",
+      "name": "Cartographer",
+      "level": 3,
+      "effects": {"discovery_xp": 2.0},
+      "desc": "Somewhere new is worth more to you than to anyone else."
+    },
+    {
+      "id": "sun_reader",
+      "track": "exploration",
+      "name": "Sun Reader",
+      "level": 5,
+      "requires": "cave_sense",
+      "effects": {"heat_gain": 0.7},
+      "desc": "You know where the shade will be before it is there."
+    },
+    {
+      "id": "deep_harvest",
+      "track": "gathering",
+      "name": "Deep Harvest",
+      "level": 1,
+      "bonuses": {"node_yield": 1},
+      "desc": "Every node gives up one more than it meant to."
+    },
+    {
+      "id": "dowser",
+      "track": "gathering",
+      "name": "Dowser",
+      "level": 3,
+      "effects": {"dew_yield": 1.5},
+      "desc": "You set a harvester where the night will actually settle."
+    },
+    {
+      "id": "prospector",
+      "track": "gathering",
+      "name": "Prospector",
+      "level": 5,
+      "requires": "deep_harvest",
+      "bonuses": {"node_harvests": 2},
+      "desc": "A vein lasts longer in your hands."
+    },
+    {
+      "id": "efficient_fabrication",
+      "track": "crafting",
+      "name": "Efficient Fabrication",
+      "level": 1,
+      "effects": {"craft_cost": 0.75},
+      "desc": "You waste a quarter less at the bench."
+    },
+    {
+      "id": "master_smith",
+      "track": "crafting",
+      "name": "Master Smith",
+      "level": 3,
+      "effects": {"craft_xp": 2.0},
+      "desc": "You learn from what you make."
+    },
+    {
+      "id": "salvager",
+      "track": "crafting",
+      "name": "Salvager",
+      "level": 5,
+      "requires": "efficient_fabrication",
+      "effects": {"salvage_yield": 2.0},
+      "desc": "A wreck has more in it than the last person thought."
+    }
+  ]
+}

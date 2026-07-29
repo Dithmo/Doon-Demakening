@@ -18,6 +18,7 @@ signal build_changed
 signal container_changed
 signal worm_changed
 signal hostiles_changed
+signal progress_changed
 
 const PICKUP_RANGE := 3.0
 ## Close enough to a POI to count as having got there. A wiki marker is a pin
@@ -45,6 +46,10 @@ var _players: Dictionary = {}
 var _entities: Dictionary = {}  ## entity id -> {item_id, count, pos}
 var _next_entity_id: int = 1
 var _field := NodeField.new()
+## Flow-field navigation for the journeyman bot. Built lazily from the mask on
+## first use, so it costs nothing on the server or for any other profile.
+var _bot_path := CoarsePath.new()
+var _learn_attempted: bool = false
 var _stations := StationField.new()
 var _claims := Claims.new()
 var _build := BuildGrid.new()
@@ -86,6 +91,17 @@ var worm_mirror: Dictionary = {"state": 0, "pos": Vector3.ZERO,
 var my_threat: float = 0.0
 var npc_mirror: Dictionary = {}     ## npc id -> {pos, health}
 var corpse_mirror: Dictionary = {}  ## corpse id -> {pos, blood}
+## Replicated progression and quest state. Display only: the server decides what
+## level you are, the same way it decides where you are standing.
+var progress_mirror: Dictionary = {
+	"xp": 0.0, "level": 1, "solari": 0, "next": 0.0, "points": 0, "skills": [],
+}
+var quest_mirror: Dictionary = {
+	"step": 0, "step_name": "", "step_text": "", "step_kind": "",
+	"step_target": "", "step_need": 0, "step_have": 0, "active": {}, "done": 0,
+}
+## Contracts on offer wherever we last asked: [[id, name, text, solari, giver]]
+var offers_mirror: Array = []
 
 var _input_seq: int = 0
 var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
@@ -170,8 +186,18 @@ func _on_peer_joined(id: int) -> void:
 
 	var inv := Inventory.new()
 	var vit := Vitals.new()
+	var prog := Progression.new()
+	var quests := QuestLog.new()
 	var equipped: Dictionary = {}
+	# New arrivals start at the trading post if the region has one. The
+	# geometric centre of a 4.5 km map is a patch of sand with nothing on it,
+	# and the Journey opens by sending you to a trainer and a bench -- the post
+	# has both within fifty metres, which is what makes it a place to start
+	# rather than a coordinate.
 	var pos := Movement.find_spawn(Vector3(Terrain.size_m.x * 0.5, 0.0, Terrain.size_m.y * 0.5))
+	var town: Dictionary = Pois.nearest("trade", Terrain.size_m.x * 0.5, Terrain.size_m.y * 0.5)
+	if not town.is_empty():
+		pos = Movement.find_spawn(Vector3(float(town["x"]), 0.0, float(town["z"])))
 	if not Net.spawn_poi.is_empty():
 		var at: Dictionary = Pois.find_named(Net.spawn_poi)
 		if at.is_empty():
@@ -186,7 +212,10 @@ func _on_peer_joined(id: int) -> void:
 		vit.from_data(saved.get("vitals", {}))
 		for k: Variant in saved.get("equipped", {}):
 			equipped[int(k)] = str(saved["equipped"][k])
-		print("[world] restored '%s' at %v" % [who, pos])
+		prog.from_data(saved.get("progression", {}))
+		quests.from_data(saved.get("quests", {}))
+		print("[world] restored '%s' at %v level %d, %d solari, journey step %d"
+			% [who, pos, prog.level, prog.solari, quests.step])
 	else:
 		# Seed a new arrival with just enough to prove the loop works.
 		inv.add("water", 3)
@@ -202,7 +231,7 @@ func _on_peer_joined(id: int) -> void:
 	_players[id] = {
 		"identity": who, "pos": pos, "inventory": inv, "vitals": vit,
 		"equipped": equipped, "cooldowns": {}, "spawn": pos,
-		"queue": [], "last_seq": 0,
+		"queue": [], "last_seq": 0, "progression": prog, "quests": quests,
 	}
 	_persist_player(id)
 
@@ -214,6 +243,11 @@ func _on_peer_joined(id: int) -> void:
 	_sync_hostiles.rpc_id(id, hw[0], hw[1])
 	_sync_inventory.rpc_id(id, inv.to_data())
 	_sync_equipment.rpc_id(id, equipped)
+	# Progression has to go out on join like everything else. Without it a
+	# returning player reads as level 1 with no Solari and no Journey until the
+	# next thing that happens to award experience -- the server had it right
+	# the whole time, but nobody had told the client.
+	_push_progress(id)
 	_push_vitals(id)
 	_sync_clock.rpc_id(id, Clock.time_of_day, Clock.day_number)
 
@@ -281,6 +315,7 @@ func _server_tick(delta: float) -> void:
 				_node_state.rpc(nid, int(_field.nodes[nid]["remaining"]))
 
 	_threat_tick(delta)
+	_discovery_tick(delta)
 
 	# Production runs on the server whether or not anyone is connected -- that
 	# is what makes a windtrap infrastructure rather than a button.
@@ -316,11 +351,14 @@ func _threat_tick(delta: float) -> void:
 		# stretches where the nearest outcrop is further than the worm's warning
 		# gives you -- the 20 caves are what makes those stretches crossable
 		# rather than simply fatal.
+		var prog: Progression = p["progression"]
 		var on_sand := Terrain.sample_surface(pos.x, pos.z) == Terrain.Surface.SAND \
-			and not Pois.shelter_at(pos.x, pos.z)
+			and not Pois.shelter_at(pos.x, pos.z, prog.mult("shelter_radius"))
 		var moving := bool(p.get("moving", false))
+		# Light Step multiplies threat down; a shield multiplies it up. Both
+		# land on the same dial, which is the trade the phase is built on.
 		_worm.accrue(id, delta, on_sand, moving, bool(p.get("sprinting", false)),
-			Combat.threat_multiplier(p["equipped"]))
+			Combat.threat_multiplier(p["equipped"]) * prog.mult("threat_rate"))
 		players[id] = {"pos": pos, "on_sand": on_sand,
 			"alive": (p["vitals"] as Vitals).alive}
 
@@ -390,7 +428,12 @@ func _simulate_vitals(delta: float) -> void:
 		var activity: float = 1.0
 		if bool(p.get("sprinting", false)):
 			activity = Vitals.SPRINT_DRAIN_MULT
-		if vit.tick(delta, exposure, shaded, activity, ItemUse.insulation(p["equipped"])):
+		var prog: Progression = p["progression"]
+		# Night Work rides on the insulation dial and Sun Reader on heat gain,
+		# so a skill and a stillsuit compose instead of overriding each other.
+		if vit.tick(delta, exposure, shaded, activity,
+				ItemUse.insulation(p["equipped"]) * prog.mult("night_drain"),
+				prog.mult("heat_gain")):
 			_kill(id)
 
 
@@ -415,6 +458,108 @@ func _push_vitals(id: int) -> void:
 	_sync_vitals.rpc_id(id, v.hydration, v.heat, v.health, bool(p.get("shaded", false)))
 
 
+# --- progression ------------------------------------------------------------
+
+## Experience for doing the thing itself, before any quest reward. Deliberately
+## small next to quest payouts: the Journey and the contract board are what a
+## 2-3 hour path is *made* of, and if grinding nodes out-earned them the
+## directed path would be the slow way round.
+const XP_FOR := {
+	"gather": 4.0,
+	"craft": 8.0,
+	"use": 1.0,
+	"build": 10.0,
+	"stake": 40.0,
+	"kill": 18.0,
+	"extract": 6.0,
+	"visit": 25.0,
+	"learn": 0.0,
+	"sell": 0.0,
+}
+
+## Skill that scales the experience for each kind, where one does.
+const XP_SKILL := {"kill": "kill_xp", "craft": "craft_xp", "visit": "discovery_xp"}
+
+## How close counts as having found somewhere. Wider than ARRIVED_M because
+## discovery is "I came across this", not "I navigated to it".
+const DISCOVER_M := 25.0
+const DISCOVER_HZ := 2.0
+
+var _discover_timer: float = 0.0
+
+
+## The single funnel every rewardable action goes through.
+##
+## One place decides what an action is worth, advances the Journey and any
+## contract it touches, pays out, and tells the client -- so a new action needs
+## one call rather than a fistful of bookkeeping, and no subsystem has to know
+## what a quest is. Everything here runs on the server; the client is only ever
+## told the result.
+func _advance(id: int, kind: String, target: String = "", count: int = 1) -> void:
+	if not _players.has(id) or count <= 0:
+		return
+	var p: Dictionary = _players[id]
+	var prog: Progression = p["progression"]
+	var quests: QuestLog = p["quests"]
+
+	var base := float(XP_FOR.get(kind, 0.0)) * float(count)
+	if XP_SKILL.has(kind):
+		base *= prog.mult(str(XP_SKILL[kind]))
+	var levels := prog.award(base)
+
+	for finished: Dictionary in quests.observe(kind, target, count, p["inventory"]):
+		levels += prog.award(float(finished["xp"]))
+		prog.earn_solari(int(finished["solari"]))
+		var what := "journey" if str(finished["kind"]) == "journey" else "contract"
+		print("[%s] %s completed '%s' (+%d xp, +%d solari)"
+			% [what, p["identity"], finished["name"], int(finished["xp"]),
+			int(finished["solari"])])
+		_notice.rpc_id(id, "%s complete: %s" % [what.capitalize(), finished["name"]])
+
+	if levels > 0:
+		print("[level] %s reached level %d (%d point(s) unspent)"
+			% [p["identity"], prog.level, prog.points_available()])
+		_notice.rpc_id(id, "Level %d. %d specialization point(s) to spend."
+			% [prog.level, prog.points_available()])
+
+	_persist_player(id)
+	_push_progress(id)
+
+
+func _push_progress(id: int) -> void:
+	var p: Dictionary = _players[id]
+	_sync_progress.rpc_id(id, (p["progression"] as Progression).to_wire(),
+		(p["quests"] as QuestLog).to_wire())
+
+
+## Notice the places a player walks into. Polled rather than event-driven
+## because there is nothing to hook: arriving somewhere is not an action the
+## client requests, it is just where the server already knows they are.
+func _discovery_tick(delta: float) -> void:
+	_discover_timer += delta
+	if _discover_timer < 1.0 / DISCOVER_HZ:
+		return
+	_discover_timer = 0.0
+	for id: int in _players:
+		var p: Dictionary = _players[id]
+		if not (p["vitals"] as Vitals).alive:
+			continue
+		var pos: Vector3 = p["pos"]
+		var prog: Progression = p["progression"]
+		for poi: Dictionary in Pois.all:
+			var name := str(poi["name"])
+			if name.is_empty() or prog.discovered.has(name):
+				continue
+			if Vector2(float(poi["x"]) - pos.x, float(poi["z"]) - pos.z).length() > DISCOVER_M:
+				continue
+			prog.discover(name)
+			_notice.rpc_id(id, "Discovered %s" % name)
+			# Two events, because a quest may want this place in particular or
+			# any four caves. Only the first carries the discovery experience.
+			_advance(id, "visit", name, 1)
+			_advance(id, "visit_role", str(poi["role"]), 1)
+
+
 func _broadcast_players() -> void:
 	if _players.is_empty():
 		return
@@ -429,7 +574,9 @@ func _broadcast_players() -> void:
 func _persist_player(id: int) -> void:
 	var p: Dictionary = _players[id]
 	Store.put_player(p["identity"], p["pos"], (p["inventory"] as Inventory).to_data(),
-		(p["vitals"] as Vitals).to_data(), p["equipped"])
+		(p["vitals"] as Vitals).to_data(), p["equipped"],
+		(p["progression"] as Progression).to_data(),
+		(p["quests"] as QuestLog).to_data())
 
 
 func _entity_wire() -> Array:
@@ -572,7 +719,8 @@ func _request_use(slot_index: int) -> void:
 		return
 
 	var result := ItemUse.apply(slot_index, p["inventory"], p["vitals"],
-		p["equipped"], p["cooldowns"])
+		p["equipped"], p["cooldowns"],
+		(p["progression"] as Progression).mult("dew_yield"))
 	if result["changed"]:
 		_persist_player(id)
 		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
@@ -581,6 +729,8 @@ func _request_use(slot_index: int) -> void:
 	print("[use] %s %s: %s"
 		% [p["identity"], "ok" if result["ok"] else "refused", result["msg"]])
 	_notice.rpc_id(id, result["msg"])
+	if result["ok"] and not stack.is_empty():
+		_advance(id, "use", str(stack["id"]), 1)
 
 
 func _deploy(id: int, slot_index: int, item_id: String) -> void:
@@ -609,6 +759,12 @@ func _deploy(id: int, slot_index: int, item_id: String) -> void:
 		_persist_world()
 		_sync_inventory.rpc_id(id, inv.to_data())
 		_sync_stations.rpc(_stations.to_wire())
+		# Deploying a station is "build" to a quest; staking a holding is its
+		# own event on top, because a Sub-Fief is the one placement that
+		# changes who the ground belongs to.
+		_advance(id, "build", item_id, 1)
+		if radius > 0.0:
+			_advance(id, "stake", "", 1)
 	print("[place] %s %s: %s at %.1f,%.1f"
 		% [p["identity"], "ok" if r["ok"] else "refused", r["msg"],
 		(p["pos"] as Vector3).x, (p["pos"] as Vector3).z])
@@ -627,7 +783,9 @@ func _request_harvest(node_id: int) -> void:
 		return
 	# The node's remaining count is the lock. Two players swinging at the same
 	# vein both land here, one at a time, and it can only be decremented to zero.
-	var r := _field.harvest(p["pos"], p["inventory"], node_id, p["cooldowns"], _now())
+	var hprog: Progression = p["progression"]
+	var r := _field.harvest(p["pos"], p["inventory"], node_id, p["cooldowns"], _now(),
+		int(hprog.bonus("node_yield")), hprog.mult("salvage_yield"))
 	if r["ok"]:
 		_persist_player(id)
 		_persist_world()
@@ -635,6 +793,7 @@ func _request_harvest(node_id: int) -> void:
 		_node_state.rpc(node_id, int(r["remaining"]))
 		print("[harvest] %s node=%d %s x%d remaining=%d"
 			% [p["identity"], node_id, r["item"], r["count"], r["remaining"]])
+		_advance(id, "gather", str(r["item"]), int(r["count"]))
 	if not str(r["msg"]).is_empty():
 		_notice.rpc_id(id, r["msg"])
 
@@ -649,10 +808,12 @@ func _request_craft(recipe_id: String) -> void:
 	var p: Dictionary = _players[id]
 	if not (p["vitals"] as Vitals).alive:
 		return
-	var r := _stations.craft(p["pos"], p["inventory"], recipe_id)
+	var r := _stations.craft(p["pos"], p["inventory"], recipe_id,
+		(p["progression"] as Progression).mult("craft_cost"))
 	if r["ok"]:
 		_persist_player(id)
 		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_advance(id, "craft", str(r.get("item", recipe_id)), int(r.get("count", 1)))
 	print("[craft] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
 	_notice.rpc_id(id, r["msg"])
 
@@ -705,7 +866,8 @@ func _request_attack() -> void:
 	# NPCs carry no shields yet, so the rule only bites player-versus-player;
 	# the resolution path is shared so it cannot drift.
 	var r := Combat.strike(p["pos"], p["equipped"], target_pos, {},
-		p["cooldowns"], _now())
+		p["cooldowns"], _now(),
+		(p["progression"] as Progression).mult("melee_damage"))
 	if not r["ok"]:
 		if not str(r["msg"]).is_empty():
 			_notice.rpc_id(id, str(r["msg"]))
@@ -716,6 +878,8 @@ func _request_attack() -> void:
 	_notice.rpc_id(id, str(r["msg"]))
 	var hw := _hostiles.to_wire()
 	_sync_hostiles.rpc(hw[0], hw[1])
+	if out["killed"]:
+		_advance(id, "kill", "", 1)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -729,13 +893,15 @@ func _request_extract() -> void:
 	var cid := _hostiles.nearest_corpse(p["pos"], 3.0)
 	if cid == 0:
 		return
-	var r := _hostiles.extract(p["pos"], p["inventory"], cid, p["cooldowns"], _now())
+	var r := _hostiles.extract(p["pos"], p["inventory"], cid, p["cooldowns"], _now(),
+		(p["progression"] as Progression).mult("extract_cooldown"))
 	if r["ok"]:
 		_persist_player(id)
 		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
 		var hw := _hostiles.to_wire()
 		_sync_hostiles.rpc(hw[0], hw[1])
 		print("[blood] %s %s" % [p["identity"], r["msg"]])
+		_advance(id, "extract", "", 1)
 	if not str(r["msg"]).is_empty():
 		_notice.rpc_id(id, str(r["msg"]))
 
@@ -766,6 +932,7 @@ func _request_build(slot_index: int, aim: Vector3) -> void:
 		_sync_inventory.rpc_id(id, inv.to_data())
 		_sync_base.rpc(_build.to_wire(), _claims.to_wire())
 		print("[build] %s %s" % [p["identity"], r["msg"]])
+		_advance(id, "build", str(stack["id"]), 1)
 	else:
 		print("[build] %s refused: %s" % [p["identity"], r["msg"]])
 	_notice.rpc_id(id, str(r["msg"]))
@@ -815,6 +982,107 @@ func _request_container(station_id: int, slot_index: int, to_container: bool) ->
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _request_learn(skill_id: String) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var prog: Progression = p["progression"]
+
+	# Standing at the right trainer is checked before the point is spent, and
+	# on the server, because "am I near a trainer" is a claim about the world.
+	var where := Trainer.check(p["pos"], skill_id)
+	if not bool(where["ok"]):
+		# Logged like any other refusal. Returning quietly here made a
+		# distance refusal the one server decision with no trace in the log,
+		# which is exactly the decision you want a record of when a player
+		# says training is broken.
+		print("[train] %s refused: %s" % [p["identity"], where["msg"]])
+		_notice.rpc_id(id, str(where["msg"]))
+		return
+
+	var r := prog.learn(skill_id)
+	print("[train] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+	if r["ok"]:
+		_advance(id, "learn", skill_id, 1)
+	else:
+		_push_progress(id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_contract(contract_id: String) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var prog: Progression = p["progression"]
+	var quests: QuestLog = p["quests"]
+
+	# An empty id means "what is on the board here?", which is how a client
+	# finds out without being told the whole board up front.
+	if contract_id.is_empty():
+		var offers: Array = []
+		for giver: Dictionary in Trainer.at(p["pos"]):
+			for c: Dictionary in QuestDB.offered_by(str(giver["name"]), prog.level,
+					quests.done, quests.active):
+				offers.append([str(c["id"]), str(c["name"]), str(c["text"]),
+					int(c["solari"]), str(giver["name"])])
+		_sync_offers.rpc_id(id, offers)
+		return
+
+	var c := QuestDB.contract(contract_id)
+	if not c.is_empty():
+		# You take a contract from the person offering it, not from the desert.
+		var near := false
+		for giver: Dictionary in Trainer.at(p["pos"]):
+			if str(giver["name"]) == str(c["giver"]):
+				near = true
+		if not near:
+			_notice.rpc_id(id, "%s is given out at %s" % [c["name"], c["giver"]])
+			return
+
+	var r := quests.accept(contract_id, prog.level)
+	print("[contract] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+	_persist_player(id)
+	_push_progress(id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_trade(item_id: String, slot_index: int, count: int, buying: bool) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	var prog: Progression = p["progression"]
+
+	var r: Dictionary
+	if buying:
+		r = Vendor.buy(p["pos"], inv, prog, item_id, count)
+	else:
+		r = Vendor.sell(p["pos"], inv, prog, slot_index, count)
+
+	print("[trade] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
+	_notice.rpc_id(id, str(r["msg"]))
+	if not r["ok"]:
+		return
+	_sync_inventory.rpc_id(id, inv.to_data())
+	if buying:
+		_persist_player(id)
+		_push_progress(id)
+	else:
+		_advance(id, "sell", str(r["item"]), int(r["count"]))
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _request_drop(slot_index: int) -> void:
 	if not Net.is_server():
 		return
@@ -847,7 +1115,7 @@ func _client_tick(delta: float) -> void:
 		# Sprinting doubles water loss, so the bot only does it with water spare.
 		sprint = dir != Vector2.ZERO and (Net.bot_profile == "reckless"
 			or Net.bot_profile == "prey" or Net.bot_profile == "quarry"
-			or Net.bot_profile == "pilgrim"
+			or Net.bot_profile == "pilgrim" or Net.bot_profile == "journeyman"
 			or float(vitals_mirror["hydration"]) > 60.0)
 	else:
 		if Input.is_action_pressed("move_forward"): dir.y -= 1.0
@@ -1020,6 +1288,19 @@ func _sync_base(build_rows: Array, claim_rows: Array) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _sync_progress(prog: Dictionary, quests: Dictionary) -> void:
+	progress_mirror = prog
+	quest_mirror = quests
+	progress_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_offers(rows: Array) -> void:
+	offers_mirror = rows
+	progress_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _sync_container(station_id: int, contents: Array) -> void:
 	open_container = station_id
 	container_mirror = contents
@@ -1112,6 +1393,21 @@ func _bot_survive() -> void:
 	# starve everything below it.
 	_bot_use_cd = 8
 
+	# --learn fires once: enough to see the server's ruling in the log, without
+	# a bot that spends the whole run hammering a refusal.
+	if not Net.learn_skill.is_empty() and not _learn_attempted:
+		_learn_attempted = true
+		learn(Net.learn_skill)
+		return
+
+	# The journeyman is the survive bot plus the two things only Phase 6 added:
+	# it spends points when it is standing at someone who can teach, and it
+	# sells when it is standing at someone who will buy. Everything else it
+	# does -- drink, gather, craft, wear -- is the same loop, which is the
+	# point: progression rides on the existing game rather than beside it.
+	if Net.bot_profile == "journeyman" and _bot_train_or_trade():
+		return
+
 	if float(vitals_mirror["hydration"]) < 55.0:
 		var drink := find_use("hydrate")
 		if drink >= 0:
@@ -1149,6 +1445,257 @@ func _bot_survive() -> void:
 	if nearest_node() != 0:
 		try_harvest()
 		_bot_use_cd = 4
+
+
+## Journeyman: do whatever the Journey is currently asking for.
+##
+## This is the bot the Phase 6 acceptance test is built on, and it is written to
+## read the objective rather than to follow a script -- it knows how to satisfy
+## each *kind* of objective, not which steps exist. A hard-coded sequence would
+## pass the test while proving nothing about the path, and would go on passing
+## after someone reordered the Journey into something unplayable.
+##
+## Returns true if it acted.
+func _bot_train_or_trade() -> bool:
+	var kind := str(quest_mirror.get("step_kind", ""))
+	var target := str(quest_mirror.get("step_target", ""))
+
+	match kind:
+		"use":
+			# Drink because the Journey said to, not because we are thirsty --
+			# step one is otherwise blocked behind several minutes of water
+			# loss, which is a bad first instruction and a worse test. But a
+			# drink at full hydration is refused, and a bot that spends every
+			# action on a refusal never gets to anything below this line.
+			var slot := _slot_of(target)
+			var thirsty := float(vitals_mirror["hydration"]) < Vitals.MAX - 1.0
+			var hydrating := str(ItemDB.get_def(target).get("use", "")) == "hydrate"
+			if slot >= 0 and (thirsty or not hydrating):
+				use_slot(slot)
+				return true
+		"gather":
+			# Harvest the node that yields what the step asked for, not the
+			# nearest one. Left to the default steering the bot works whatever
+			# is underfoot, banks experience, and never advances -- which reads
+			# in the log exactly like a broken quest system.
+			var nid := _bot_node_yielding(target, NodeField.REACH)
+			if nid != 0:
+				_request_harvest.rpc_id(1, nid)
+				_bot_use_cd = 4
+				return true
+		"craft":
+			if RecipeDB.has(target) and available_recipes().has(target) \
+					and has_inputs_for(target):
+				craft(target)
+				return true
+		"build", "stake":
+			# Both are satisfied by putting something down; stake wants a
+			# Sub-Fief specifically, which the step names.
+			var want := target if not target.is_empty() else "sub_fief"
+			var slot := _slot_of(want)
+			if slot >= 0:
+				use_slot(slot)
+				return true
+			if RecipeDB.has(want) and available_recipes().has(want) \
+					and has_inputs_for(want):
+				craft(want)
+				return true
+		"learn":
+			if int(progress_mirror.get("points", 0)) > 0:
+				var want := _bot_next_skill()
+				if not want.is_empty():
+					learn(want)
+					return true
+		"kill":
+			if nearest_hostile() != 0:
+				try_attack()
+				return true
+		"extract":
+			if nearest_corpse() != 0:
+				try_extract()
+				return true
+			if nearest_hostile() != 0:
+				try_attack()
+				return true
+		"sell":
+			var slot := _bot_sellable_slot()
+			if slot >= 0 and not Vendor.post_in_reach(local_pos).is_empty():
+				sell(slot, 1)
+				return true
+
+	# Between steps, use whatever is under your feet rather than banking it:
+	# spend a point if standing at a trainer, sell spares if standing at a post.
+	if int(progress_mirror.get("points", 0)) > 0:
+		var spare := _bot_next_skill(true)
+		if not spare.is_empty():
+			learn(spare)
+			return true
+	var spare_slot := _bot_sellable_slot()
+	if spare_slot >= 0 and not Vendor.post_in_reach(local_pos).is_empty():
+		sell(spare_slot, 1)
+		return true
+	return false
+
+
+## Head back to the station a recipe needs, if one is deployed and not already
+## in reach. Returns {} when the bench is close enough, or when the recipe needs
+## no station at all.
+func _bot_bench_errand(recipe_id: String) -> Dictionary:
+	if not RecipeDB.has(recipe_id):
+		return {}
+	var need := str(RecipeDB.get_recipe(recipe_id).get("station", ""))
+	if need.is_empty() or reachable_stations().has(need):
+		return {}
+	var best := Vector3.ZERO
+	var best_d := INF
+	for sid: int in station_mirror:
+		var s: Dictionary = station_mirror[sid]
+		if str(s["kind"]) != need:
+			continue
+		var d: float = local_pos.distance_to(s["pos"])
+		if d < best_d:
+			best_d = d
+			best = s["pos"]
+	if best == Vector3.ZERO:
+		return {}
+	return {"pos": best, "stop": StationField.USE_RANGE * 0.6}
+
+
+## Nearest node within `reach` whose kind yields `item_id`, or 0. The kinds
+## table is loaded on both sides, so the client can answer this without asking.
+func _bot_node_yielding(item_id: String, reach: float) -> int:
+	if item_id.is_empty():
+		return 0
+	var best := 0
+	var best_d := reach
+	for nid: int in node_mirror:
+		var n: Dictionary = node_mirror[nid]
+		if int(n["remaining"]) <= 0:
+			continue
+		var k: Dictionary = _field.kinds.get(str(n["kind"]), {})
+		if str(k.get("yield_id", "")) != item_id:
+			continue
+		var d: float = local_pos.distance_to(n["pos"])
+		if d < best_d:
+			best_d = d
+			best = nid
+	return best
+
+
+## The first skill this bot can afford and qualifies for, in data order.
+##
+## `here_only` restricts it to skills whose trainer is actually within reach.
+## Without that distinction the bot stands at the trading post asking for Blade
+## Training over and over, because the post is *a* trainer and the Trooper who
+## teaches blades is forty-eight metres away -- and every action it spends on
+## that refusal is one it does not spend on anything else.
+func _bot_next_skill(here_only: bool = false) -> String:
+	var known: Array = progress_mirror.get("skills", [])
+	var level := int(progress_mirror.get("level", 1))
+	for track: String in SkillDB.tracks():
+		for sid: String in SkillDB.skills_in(track):
+			if known.has(sid):
+				continue
+			var def := SkillDB.get_skill(sid)
+			if level < int(def["level"]):
+				continue
+			var needs := str(def["requires"])
+			if not needs.is_empty() and not known.has(needs):
+				continue
+			if here_only and not bool(Trainer.check(local_pos, sid)["ok"]):
+				continue
+			return sid
+	return ""
+
+
+func _bot_sellable_slot() -> int:
+	var reserved := _bot_reserved()
+	for i in inventory_mirror.size():
+		var s: Dictionary = inventory_mirror[i]
+		if s.is_empty() or str(s["id"]) == "water":
+			continue
+		if reserved.has(str(s["id"])):
+			continue
+		if Vendor.sell_price(str(s["id"])) > 0 and int(s["count"]) > 1:
+			return i
+	return -1
+
+
+## Items the current Journey step needs, which must not be sold.
+##
+## The bot spawns at the trading post and builds its bench beside it, so the
+## vendor is in reach for most of the early game -- and without this it walks
+## to an agave, cuts four fibre, walks back, and sells the fibre to the man
+## standing next to the bench it needs it at. It never crafts anything again.
+func _bot_reserved() -> Dictionary:
+	var out: Dictionary = {}
+	var kind := str(quest_mirror.get("step_kind", ""))
+	var target := str(quest_mirror.get("step_target", ""))
+	if target.is_empty():
+		return out
+	out[target] = true
+	if kind == "craft" or kind == "build" or kind == "stake":
+		if RecipeDB.has(target):
+			for i: Dictionary in RecipeDB.get_recipe(target)["inputs"]:
+				out[str(i["id"])] = true
+	return out
+
+
+## Where the Journey's current step wants the journeyman to be, and how close it
+## has to get. Returns {} when the step is satisfied wherever it is standing.
+##
+## The stop distance travels with the destination because the ranges differ by
+## an order of magnitude -- a trainer answers from 20 m, a node has to be within
+## 3.5 -- and a single threshold quietly parks the bot ten metres short of every
+## agave on the map, which reads as "gathering is broken" rather than "the bot
+## stopped walking".
+func _bot_errand() -> Dictionary:
+	var kind := str(quest_mirror.get("step_kind", ""))
+	var target := str(quest_mirror.get("step_target", ""))
+	match kind:
+		"gather":
+			var nid := _bot_node_yielding(target, INF)
+			if nid != 0:
+				return {"pos": node_mirror[nid]["pos"], "stop": NodeField.REACH * 0.6}
+		"craft":
+			return _bot_bench_errand(target)
+		"build", "stake":
+			# Both may need the thing made first, and the bench is wherever the
+			# bot left it -- which by now is several hundred metres behind the
+			# agave it just finished cutting. Walking back is the loop, not a
+			# detour around it.
+			var want := target if not target.is_empty() else "sub_fief"
+			if _slot_of(want) < 0:
+				return _bot_bench_errand(want)
+		"visit":
+			var poi := Pois.find_named(target)
+			if not poi.is_empty():
+				return {"pos": Vector3(float(poi["x"]), 0.0, float(poi["z"])),
+					"stop": ARRIVED_M * 0.5}
+		"visit_role":
+			var any := Pois.nearest(target, local_pos.x, local_pos.z)
+			if not any.is_empty():
+				return {"pos": Vector3(float(any["x"]), 0.0, float(any["z"])),
+					"stop": ARRIVED_M * 0.5}
+		"learn":
+			var want := _bot_next_skill()
+			if not want.is_empty():
+				var t := Pois.find_named(SkillDB.trainer_for(want))
+				if not t.is_empty():
+					return {"pos": Vector3(float(t["x"]), 0.0, float(t["z"])),
+						"stop": Trainer.RANGE * 0.5}
+		"sell":
+			var post := Pois.nearest("trade", local_pos.x, local_pos.z)
+			if not post.is_empty():
+				return {"pos": Vector3(float(post["x"]), 0.0, float(post["z"])),
+					"stop": Vendor.RANGE * 0.5}
+		"kill", "extract":
+			if nearest_hostile() == 0 and nearest_corpse() == 0:
+				var camp := Pois.nearest("threat", local_pos.x, local_pos.z)
+				if not camp.is_empty():
+					return {"pos": Vector3(float(camp["x"]), 0.0, float(camp["z"])),
+						"stop": Hostiles.AGGRO_RANGE * 0.5}
+	return {}
 
 
 func _held(item_id: String) -> int:
@@ -1275,6 +1822,8 @@ func _nearest_corpse_anywhere() -> int:
 
 
 func _slot_of(item_id: String) -> int:
+	if item_id.is_empty():
+		return -1
 	for i in inventory_mirror.size():
 		var s: Dictionary = inventory_mirror[i]
 		if not s.is_empty() and str(s["id"]) == item_id:
@@ -1315,6 +1864,24 @@ func _bot_direction() -> Vector2:
 			return _steer_to(_bot_dune)
 		_bot_orbit += 0.03
 		return Vector2(cos(_bot_orbit), sin(_bot_orbit))
+
+	if Net.bot_profile == "journeyman":
+		# Errands outrank gathering, but only until you arrive: standing on the
+		# thing is what lets the action fire, and a bot that kept walking would
+		# orbit the marker it needs to be at.
+		var errand := _bot_errand()
+		if not errand.is_empty():
+			var where: Vector3 = errand["pos"]
+			var d := Vector2(where.x - local_pos.x, where.z - local_pos.z).length()
+			if d > float(errand["stop"]):
+				# Route around terrain rather than into it. The pilgrim stays
+				# deliberately dumb -- crossing the region unaided is what
+				# Phase 5 asserts -- but this bot has to arrive at particular
+				# things, and a cliff between it and the nearest agave is not a
+				# finding about progression.
+				var via := _bot_path.step_from(local_pos, where)
+				return _steer_to(via if via != Vector3.ZERO else where)
+			return Vector2.ZERO
 
 	if Net.bot_profile == "pilgrim":
 		# Navigate by the map's own landmarks. Deliberately dead simple steering
@@ -1537,6 +2104,23 @@ func try_harvest() -> void:
 
 func craft(recipe_id: String) -> void:
 	_request_craft.rpc_id(1, recipe_id)
+
+
+func learn(skill_id: String) -> void:
+	_request_learn.rpc_id(1, skill_id)
+
+
+## Empty id asks what is on the board here; a real id takes that contract on.
+func ask_contracts(contract_id: String = "") -> void:
+	_request_contract.rpc_id(1, contract_id)
+
+
+func sell(slot_index: int, count: int = 1) -> void:
+	_request_trade.rpc_id(1, "", slot_index, count, false)
+
+
+func buy(item_id: String, count: int = 1) -> void:
+	_request_trade.rpc_id(1, item_id, -1, count, true)
 
 
 ## Where the player is building: a couple of metres ahead of them. A real aim

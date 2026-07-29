@@ -59,9 +59,13 @@ static func threat_multiplier(equipped: Dictionary) -> float:
 ##
 ## Range is measured against the server's own positions, and the cooldown lives
 ## in the attacker's own state -- neither is taken from the client.
+## `damage_mult` is the attacker's Blade Training; `shield_mult` shortens the
+## *defender's* shield recovery. Both default to 1.0 so every existing caller
+## and the unit suite keep meaning what they meant before skills existed.
 static func strike(attacker_pos: Vector3, attacker_equipped: Dictionary,
 		target_pos: Vector3, target_equipped: Dictionary,
-		cooldowns: Dictionary, now: float) -> Dictionary:
+		cooldowns: Dictionary, now: float, damage_mult: float = 1.0,
+		shield_mult: float = 1.0) -> Dictionary:
 	var weapon := weapon_of(attacker_equipped)
 
 	if now < float(cooldowns.get("swing_at", 0.0)):
@@ -75,9 +79,10 @@ static func strike(attacker_pos: Vector3, attacker_equipped: Dictionary,
 	# The rule: a shield turns anything fast, and nothing slow.
 	if has_shield(target_equipped) and str(weapon["attack"]) != "slow":
 		if now >= float(cooldowns.get("their_shield_ready", 0.0)):
-			cooldowns["their_shield_ready"] = now + SHIELD_RECOVERY
+			cooldowns["their_shield_ready"] = now + SHIELD_RECOVERY * shield_mult
 			return {"ok": true, "msg": "%s turned by a shield" % weapon["name"],
 				"damage": 0.0, "blocked": true}
 
-	return {"ok": true, "msg": "%s hits for %.0f" % [weapon["name"], weapon["damage"]],
-		"damage": float(weapon["damage"]), "blocked": false}
+	var dealt := float(weapon["damage"]) * damage_mult
+	return {"ok": true, "msg": "%s hits for %.0f" % [weapon["name"], dealt],
+		"damage": dealt, "blocked": false}

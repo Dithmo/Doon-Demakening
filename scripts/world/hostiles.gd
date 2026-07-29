@@ -184,8 +184,9 @@ func nearest_corpse(pos: Vector3, reach: float) -> int:
 
 ## Draw water from a body. Needs the extractor in hand: this is the step that
 ## turns a kill into hydration, and it should cost a tool slot to do.
+## `cooldown_mult` is Quick Hands.
 func extract(player_pos: Vector3, inv: Inventory, corpse_id: int,
-		cooldowns: Dictionary, now: float) -> Dictionary:
+		cooldowns: Dictionary, now: float, cooldown_mult: float = 1.0) -> Dictionary:
 	if not corpses.has(corpse_id):
 		return {"ok": false, "msg": "nothing to draw from"}
 	var c: Dictionary = corpses[corpse_id]
@@ -200,7 +201,7 @@ func extract(player_pos: Vector3, inv: Inventory, corpse_id: int,
 
 	if inv.add("blood_sack", 1) > 0:
 		return {"ok": false, "msg": "no room"}
-	cooldowns["extract_at"] = now + EXTRACT_COOLDOWN
+	cooldowns["extract_at"] = now + EXTRACT_COOLDOWN * cooldown_mult
 	c["blood"] = int(c["blood"]) - 1
 	if int(c["blood"]) <= 0:
 		corpses.erase(corpse_id)

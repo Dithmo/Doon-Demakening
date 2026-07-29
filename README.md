@@ -36,6 +36,7 @@ python3 tools/test_phase2.py                            # the economy
 python3 tools/test_phase3.py                            # bases and power
 python3 tools/test_phase4.py                            # worms and combat
 python3 tools/test_phase5.py                            # the real Hagga Basin
+python3 tools/test_phase6.py                            # progression and content
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -46,10 +47,11 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim`,
+`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim|journeyman`,
 `--peaceful` (server: suppress worm and hostiles, for test isolation),
 `--spawn-at "<wiki POI name>"` (server: where new players start),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
+`--learn <skill id>` (client: attempt to learn once, for testing the trainer rule),
 `--debug-steer`.
 
 ## Layout
@@ -62,7 +64,7 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 | `scripts/world/` | World authority, clock, nodes, stations, base, worm |
 | `scripts/terrain/` | `sample_height` / `sample_surface` contract |
 | `scripts/items/` | Item database, recipes, inventory, use hooks, combat |
-| `scripts/player/` | Shared movement and survival vitals |
+| `scripts/player/` | Shared movement, survival vitals, progression and skills |
 | `scripts/client/` | Presentation only; owns no game state |
 | `tools/` | Data pipeline and test harnesses |
 | `tests/` | In-engine unit tests (`-- --run-tests`) |

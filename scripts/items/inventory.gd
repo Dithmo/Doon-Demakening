@@ -81,6 +81,39 @@ func remove(id: String, count: int = 1) -> int:
 	return count - left
 
 
+## Remove up to `count` from one specific slot. Returns how many went.
+##
+## Distinct from remove() because a player pointing at a stack means *that*
+## stack: selling "3 water" when two slots hold water should empty the one they
+## clicked, not skim both.
+func remove_at(i: int, count: int = 1) -> int:
+	if i < 0 or i >= slots.size() or slots[i].is_empty() or count <= 0:
+		return 0
+	var s := slots[i]
+	var take: int = mini(int(s["count"]), count)
+	var rem: int = int(s["count"]) - take
+	slots[i] = {} if rem <= 0 else {"id": str(s["id"]), "count": rem}
+	return take
+
+
+## Whether `count` of `id` would fit, counting partial stacks and empty slots.
+## Asked *before* taking payment for a purchase, so a full bag refuses the sale
+## rather than swallowing the solari and dropping the goods.
+func can_accept(id: String, count: int = 1) -> bool:
+	if not ItemDB.has(id):
+		return false
+	var cap := ItemDB.stack_size(id)
+	var room := 0
+	for s in slots:
+		if s.is_empty():
+			room += cap
+		elif s["id"] == id:
+			room += maxi(0, cap - int(s["count"]))
+		if room >= count:
+			return true
+	return room >= count
+
+
 ## Take everything out of one slot. Returns {} if it was already empty.
 func take_slot(i: int) -> Dictionary:
 	if i < 0 or i >= slots.size() or slots[i].is_empty():

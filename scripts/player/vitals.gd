@@ -45,8 +45,11 @@ var alive: bool = true
 ## Advance one server tick. `exposure` is 0..1 from the clock, `shaded` from the
 ## terrain, `activity` the movement multiplier, `insulation` the stillsuit's
 ## contribution (1.0 = none). Returns true if this tick killed the player.
+## `heat_gain_mult` is Sun Reader; insulation already carries both the worn
+## stillsuit and Night Work. Defaulted so callers and tests written before
+## skills existed keep meaning what they meant.
 func tick(delta: float, exposure: float, shaded: bool, activity: float,
-		insulation: float) -> bool:
+		insulation: float, heat_gain_mult: float = 1.0) -> bool:
 	if not alive:
 		return false
 
@@ -56,7 +59,7 @@ func tick(delta: float, exposure: float, shaded: bool, activity: float,
 
 	# Heat tracks exposure directly, and shade is the only relief available
 	# before Phase 3 gives players somewhere to shelter.
-	var heat_delta := effective * HEAT_GAIN - HEAT_LOSS * (1.0 - effective)
+	var heat_delta := effective * HEAT_GAIN * heat_gain_mult - HEAT_LOSS * (1.0 - effective)
 	heat = clampf(heat + heat_delta * delta, 0.0, MAX)
 
 	var dying := 0.0

@@ -292,11 +292,48 @@ than actual interiors; wrecks are salvage nodes rather than places you enter;
 and the heightmap feeds gameplay sampling but there is no mesh or collider built
 from it yet.
 
-### Phase 6 — Progression and content
+### Phase 6 — Progression and content — **done**
 Player level, the five specializations, trainers, contracts, testing stations, a
 Journey questline. Solari and vendors. All progression state server-owned.
 
-*Test:* a new character has a directed 2–3 hour path.
+*Test:* a new character has a directed 2–3 hour path,
+`python3 tools/test_phase6.py`.
+
+Done: experience and twelve levels, five specializations with fifteen skills
+between them, trainers you have to physically stand at, a twelve-step Journey,
+eight contracts in four chains, Solari, and a trading post that buys and sells.
+
+**Progress is observed, never claimed.** One server-side funnel — `_advance` —
+takes every rewardable thing that actually happened, awards the experience,
+advances whatever Journey step or contract it touches, pays out, and tells the
+client. No client ever reports finishing anything, and no subsystem knows what a
+quest is: harvesting calls it with `gather`, the worm's victims never do. Adding
+an objective kind is a data change plus one call.
+
+**Skills move dials that already existed** rather than adding a parallel stat
+sheet. Blade Training multiplies the damage `Combat.strike` already computed,
+Light Step multiplies the threat rate the worm already accrues, Cave Sense
+widens the shelter radius Phase 5 introduced, Deep Harvest adds to the node
+yield. Every one of them defaults to 1.0 or 0, so the call sites multiply
+unconditionally and every test written before Phase 6 still means what it meant.
+
+The Journey is the phase's headline and it is tested by a bot that reads the
+objective rather than following a script — it knows how to satisfy each *kind*
+of goal, not which steps exist, so reordering the Journey into something
+unplayable fails the test instead of passing it quietly.
+
+Two bugs this phase surfaced that were not its own. Node counts were tuned
+against a 0.26 km² test map and never rescaled when Phase 5 made the world
+7.0 km², so density had silently dropped twenty-seven-fold and the nearest agave
+was 700 m from anywhere; nodes now carry a per-km² density with the old count as
+a floor. And new players spawned at the geometric centre of the map, which on
+the real region is a patch of empty sand — they now start at Griffin's Reach
+Trading Post, which has a trainer fifty metres away.
+
+Not done: testing stations are a Journey step that asks you to carry a blade to
+a marker rather than a system of their own; contracts do not expire or repeat;
+there is no faction rank, no Landsraad, and no guilds; and the five tracks share
+three trainers because the region crop only contains three trainer-ish markers.
 
 ### Phase 7 — Stretch, in value order
 Vehicles (groundcar first — it changes water logistics most, and is the hardest

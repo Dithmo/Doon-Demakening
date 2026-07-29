@@ -114,12 +114,19 @@ def main():
     # The client quits well before the server does, so the tail of the server
     # log is the holding working with nobody connected.
     print("\n=== run 1: build a base, then log out ===")
-    server = launch(["--server"] + clock + ["--grant", KIT], user_dir, 62, PORT)
+    # The builder has a fixed sequence -- stake, deploy, four foundations, four
+    # walls, two ceilings, then stow water in the chest -- and the chest is
+    # last, so a short client window loses that assertion first. 26 s was
+    # enough on an idle machine and not enough behind six other suites, which
+    # is a flaky test rather than a finding. The server still outlives the
+    # client by a wide margin, because the tail of its log is what proves the
+    # holding keeps working unattended.
+    server = launch(["--server"] + clock + ["--grant", KIT], user_dir, 100, PORT)
     time.sleep(2.0)
     ada = launch(["--client", "--auto", "--bot-profile", "builder",
-                  "--identity", "ada"] + clock, user_dir, 26, PORT)
-    ada.wait(60)
-    server.wait(90)
+                  "--identity", "ada"] + clock, user_dir, 45, PORT)
+    ada.wait(80)
+    server.wait(120)
     log = server.text()
 
     check("deployed Sub-Fief Console" in log, "a holding is staked")

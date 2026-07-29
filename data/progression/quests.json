@@ -1,0 +1,169 @@
+{
+  "_comment": "The Journey is the directed path a new character follows; contracts are the optional work alongside it. Both are built from the same objective kinds -- gather, craft, use, build, stake, kill, extract, visit, learn, sell -- so adding either is a data change. `target` means an item id, a POI name, or a skill id depending on kind. POI names are the wiki's own, which is why the path only works on the real region.",
+
+  "journey": [
+    {
+      "id": "j_drink",
+      "name": "First Thirst",
+      "text": "Water is the clock. Drink before you do anything else.",
+      "objective": {"kind": "use", "target": "water", "count": 1},
+      "reward": {"xp": 40, "solari": 0}
+    },
+    {
+      "id": "j_gather",
+      "name": "Something To Work With",
+      "text": "Cut four plant fibre out of the agave.",
+      "objective": {"kind": "gather", "target": "plant_fiber", "count": 4},
+      "reward": {"xp": 60, "solari": 15}
+    },
+    {
+      "id": "j_weave",
+      "name": "At The Bench",
+      "text": "Weave the fibre at your survival fabricator.",
+      "objective": {"kind": "craft", "target": "fiber_weave", "count": 1},
+      "reward": {"xp": 70, "solari": 20}
+    },
+    {
+      "id": "j_stillsuit",
+      "name": "A Suit Of Your Own",
+      "text": "Make a stillsuit. Every hour after this one costs you less water.",
+      "objective": {"kind": "craft", "target": "stillsuit", "count": 1},
+      "reward": {"xp": 120, "solari": 40}
+    },
+    {
+      "id": "j_train",
+      "name": "Someone Who Knows",
+      "text": "Find a trainer and commit to a specialization.",
+      "objective": {"kind": "learn", "target": "", "count": 1},
+      "reward": {"xp": 100, "solari": 30}
+    },
+    {
+      "id": "j_windtrap",
+      "name": "Water Without Walking",
+      "text": "Deploy a windtrap. Let the air pay you while you sleep.",
+      "objective": {"kind": "build", "target": "windtrap", "count": 1},
+      "reward": {"xp": 130, "solari": 50}
+    },
+    {
+      "id": "j_claim",
+      "name": "A Holding",
+      "text": "Stake a sub-fief. Nobody builds inside it but you.",
+      "objective": {"kind": "stake", "target": "", "count": 1},
+      "reward": {"xp": 150, "solari": 60}
+    },
+    {
+      "id": "j_cave",
+      "name": "Know Your Ground",
+      "text": "Find Wali Hole. On open sand a cave is the only argument you have.",
+      "objective": {"kind": "visit", "target": "Wali Hole", "count": 1},
+      "reward": {"xp": 140, "solari": 40}
+    },
+    {
+      "id": "j_camp",
+      "name": "The Basin Is Occupied",
+      "text": "Clear three of whatever is holding the camps.",
+      "objective": {"kind": "kill", "target": "", "count": 3},
+      "reward": {"xp": 220, "solari": 90}
+    },
+    {
+      "id": "j_blood",
+      "name": "Water Is Water",
+      "text": "Draw a body. You will stop minding after the first one.",
+      "objective": {"kind": "extract", "target": "", "count": 1},
+      "reward": {"xp": 180, "solari": 60}
+    },
+    {
+      "id": "j_testing",
+      "name": "Testing Station 2",
+      "text": "Take a blade out to the Emperor's Wings and prove it works.",
+      "objective": {"kind": "visit", "target": "The Emperor's Wings Mk1 (Testing Station 2)", "count": 1, "carrying": "crysknife"},
+      "reward": {"xp": 260, "solari": 120}
+    },
+    {
+      "id": "j_market",
+      "name": "Griffin's Reach",
+      "text": "Walk in to the trading post and sell what you do not need.",
+      "objective": {"kind": "sell", "target": "", "count": 1},
+      "reward": {"xp": 200, "solari": 0}
+    }
+  ],
+
+  "contracts": [
+    {
+      "id": "c_water_1",
+      "name": "Standing Order: Water",
+      "giver": "Griffin's Reach Trading Post",
+      "text": "The post buys water at a premium this week. Bring six.",
+      "level": 1,
+      "objective": {"kind": "gather", "target": "water", "count": 6},
+      "reward": {"xp": 90, "solari": 70},
+      "next": "c_water_2"
+    },
+    {
+      "id": "c_water_2",
+      "name": "Standing Order: Cisterns",
+      "giver": "Griffin's Reach Trading Post",
+      "text": "Anyone can carry water. Build something that keeps it.",
+      "level": 3,
+      "objective": {"kind": "build", "target": "water_cistern", "count": 1},
+      "reward": {"xp": 200, "solari": 180}
+    },
+    {
+      "id": "c_steel_1",
+      "name": "Ore For The Post",
+      "giver": "Griffin's Reach Trading Post",
+      "text": "Eight iron out of the rock, and we will not ask which rock.",
+      "level": 1,
+      "objective": {"kind": "gather", "target": "iron_ore", "count": 8},
+      "reward": {"xp": 110, "solari": 80},
+      "next": "c_steel_2"
+    },
+    {
+      "id": "c_steel_2",
+      "name": "Refined Goods",
+      "giver": "Griffin's Reach Trading Post",
+      "text": "Ore is ore. Bring it back as steel.",
+      "level": 3,
+      "objective": {"kind": "craft", "target": "steel_ingot", "count": 3},
+      "reward": {"xp": 240, "solari": 200}
+    },
+    {
+      "id": "c_cull_1",
+      "name": "Thinning The Camps",
+      "giver": "Trooper Trainer",
+      "text": "Five of them. Do not be precious about how.",
+      "level": 2,
+      "objective": {"kind": "kill", "target": "", "count": 5},
+      "reward": {"xp": 250, "solari": 150},
+      "next": "c_cull_2"
+    },
+    {
+      "id": "c_cull_2",
+      "name": "Nothing Wasted",
+      "giver": "Trooper Trainer",
+      "text": "Three bodies drawn. On Arrakis that is not cruelty, it is book-keeping.",
+      "level": 4,
+      "objective": {"kind": "extract", "target": "", "count": 3},
+      "reward": {"xp": 320, "solari": 220}
+    },
+    {
+      "id": "c_survey_1",
+      "name": "Survey: The Safeways",
+      "giver": "Planetologist Trainer",
+      "text": "Four caves on the map, and I want to know they are still there.",
+      "level": 2,
+      "objective": {"kind": "visit_role", "target": "shelter", "count": 4},
+      "reward": {"xp": 280, "solari": 160},
+      "next": "c_survey_2"
+    },
+    {
+      "id": "c_survey_2",
+      "name": "Survey: The Wrecks",
+      "giver": "Planetologist Trainer",
+      "text": "Three wrecks. Take what you like, tell me what is there.",
+      "level": 4,
+      "objective": {"kind": "visit_role", "target": "loot", "count": 3},
+      "reward": {"xp": 360, "solari": 260}
+    }
+  ]
+}

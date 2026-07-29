@@ -124,8 +124,9 @@ func find_named(wanted: String) -> Dictionary:
 ## True inside a cave mouth. The worm treats this exactly as it treats rock:
 ## caves are the mask's escape hatches out in the open sand, and without them a
 ## dune field a kilometre across has no answer in it at all.
-func shelter_at(x: float, z: float) -> bool:
-	var r2 := SHELTER_RADIUS * SHELTER_RADIUS
+func shelter_at(x: float, z: float, radius_mult: float = 1.0) -> bool:
+	var r := SHELTER_RADIUS * radius_mult
+	var r2 := r * r
 	for s: Vector2 in _shelters:
 		if Vector2(s.x - x, s.y - z).length_squared() <= r2:
 			return true

@@ -54,6 +54,8 @@ var screenshot_path: String = ""
 ##   fighter  -- hunts hostiles, then draws water from what it kills
 ##   pilgrim  -- walks to a named wiki POI and stops; the Phase 5 harness uses
 ##               it to prove the real map is navigable by its own landmarks
+##   journeyman -- plays the ordinary survival loop, and additionally walks to
+##               trainers to spend points and to the post to sell
 var bot_profile: String = "survive"
 ## Named POI a `pilgrim` bot walks to. Client-side: steering is the client's
 ## business, and the server validates the movement that results.
@@ -63,6 +65,11 @@ var goto_poi: String = ""
 ## client alone does nothing at all. Both take the wiki's own marker names, so
 ## a test reads as the journey it is making rather than a pair of coordinates.
 var spawn_poi: String = ""
+## Client debug: attempt to learn this skill once, shortly after joining.
+## Exists so the trainer rule can be tested directly -- both the refusal at
+## distance and the success at the trainer -- instead of waiting for a bot to
+## reach the Journey step that asks for it.
+var learn_skill: String = ""
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
 var start_hydration: float = -1.0
@@ -120,6 +127,7 @@ func _parse_args() -> void:
 	bot_profile = Args.value("--bot-profile", "survive")
 	goto_poi = Args.value("--goto", "")
 	spawn_poi = Args.value("--spawn-at", "")
+	learn_skill = Args.value("--learn", "")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")
 	peaceful = Args.has("--peaceful")

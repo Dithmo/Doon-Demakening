@@ -1,5 +1,5 @@
 {
-  "_comment": "Resource nodes. Unlike loose ground pickups these deplete over several harvests and regrow, so a patch is a place you come back to rather than a one-shot. `surface` matches Terrain.Surface.",
+  "_comment": "Resource nodes. Unlike loose ground pickups these deplete over several harvests and regrow, so a patch is a place you come back to rather than a one-shot. `surface` matches Terrain.Surface. `count` is a floor; `per_km2` scales the real thing to whatever region is loaded, because these numbers were first tuned against a 0.26 km2 test map and the real Hagga Basin South crop is 7.0 km2 -- the same counts there put the nearest agave 700 m from anywhere, which turns the Journey's second step into a ten-minute walk.",
   "kinds": [
     {
       "id": "agave",
@@ -12,7 +12,8 @@
       "harvests": 3,
       "respawn_seconds": 90.0,
       "tool": "",
-      "count": 18
+      "count": 18,
+      "per_km2": 20
     },
     {
       "id": "iron_vein",
@@ -25,7 +26,8 @@
       "harvests": 4,
       "respawn_seconds": 120.0,
       "tool": "tool_gather",
-      "count": 14
+      "count": 14,
+      "per_km2": 16
     },
     {
       "id": "stone_outcrop",
@@ -38,7 +40,8 @@
       "harvests": 4,
       "respawn_seconds": 100.0,
       "tool": "",
-      "count": 12
+      "count": 12,
+      "per_km2": 14
     },
     {
       "id": "wreck_debris",

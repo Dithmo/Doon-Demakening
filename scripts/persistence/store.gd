@@ -9,7 +9,10 @@ extends Node
 
 const SAVE_PATH := "user://world_save.json"
 const AUTOSAVE_SECONDS := 30.0
-const SAVE_VERSION := 2
+## Bumped in Phase 6: player records gained progression and quest state. A save
+## from before that has neither, and loading it would give everyone level 1
+## with the Journey reset -- refusing is the lesser surprise.
+const SAVE_VERSION := 3
 
 var _data: Dictionary = {"version": SAVE_VERSION, "players": {}, "entities": [], "blobs": {}}
 var _dirty: bool = false
@@ -48,7 +51,8 @@ func player_state(who: String) -> Dictionary:
 
 
 func put_player(who: String, pos: Vector3, inventory: Array,
-		vitals: Dictionary = {}, equipped: Dictionary = {}) -> void:
+		vitals: Dictionary = {}, equipped: Dictionary = {},
+		progression: Dictionary = {}, quests: Dictionary = {}) -> void:
 	(_data["players"] as Dictionary)[who] = {
 		"pos": [pos.x, pos.y, pos.z],
 		"inventory": inventory,
@@ -56,6 +60,11 @@ func put_player(who: String, pos: Vector3, inventory: Array,
 		# JSON object keys are strings; Vitals/World cast them back to the slot
 		# enum on load.
 		"equipped": equipped,
+		# Level, skills and Solari are the things a player would most mind
+		# losing, so they persist with everything else rather than in a
+		# separate file that could get out of step with it.
+		"progression": progression,
+		"quests": quests,
 	}
 	_dirty = true
 

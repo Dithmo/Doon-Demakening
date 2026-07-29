@@ -15,8 +15,11 @@ const DEW_MAX_YIELD := 4
 
 ## Returns {ok: bool, msg: String, changed: bool}.
 ## `changed` means inventory or equipment moved and needs replicating.
+## `dew_mult` is the Dowser skill. Defaulted so every existing caller, and the
+## unit suite, keep the yields they were written against.
 static func apply(slot_index: int, inv: Inventory, vit: Vitals,
-		equipped: Dictionary, cooldowns: Dictionary) -> Dictionary:
+		equipped: Dictionary, cooldowns: Dictionary,
+		dew_mult: float = 1.0) -> Dictionary:
 	if slot_index < 0 or slot_index >= inv.slots.size():
 		return _fail("no such slot")
 	var stack: Dictionary = inv.slots[slot_index]
@@ -30,7 +33,7 @@ static func apply(slot_index: int, inv: Inventory, vit: Vitals,
 
 	match hook:
 		"hydrate": return _hydrate(slot_index, stack, def, inv, vit)
-		"tool_dew": return _harvest_dew(def, inv, cooldowns)
+		"tool_dew": return _harvest_dew(def, inv, cooldowns, dew_mult)
 		"equip": return _equip(slot_index, stack, def, inv, equipped)
 		"tool_gather": return _fail("nothing here to cut")
 	return _fail("unknown use '%s'" % hook)
@@ -53,7 +56,7 @@ static func _hydrate(slot_index: int, stack: Dictionary, def: Dictionary,
 ## is what gives Phase 1 a schedule: the best water in the game is available at
 ## the moment furthest from safety.
 static func _harvest_dew(def: Dictionary, inv: Inventory,
-		cooldowns: Dictionary) -> Dictionary:
+		cooldowns: Dictionary, dew_mult: float = 1.0) -> Dictionary:
 	if not Clock.is_night():
 		return _fail("dew only condenses after dark")
 
@@ -63,8 +66,8 @@ static func _harvest_dew(def: Dictionary, inv: Inventory,
 		return _fail("harvester recharging (%.0fs)" % (ready_at - now))
 	cooldowns["dew"] = now + DEW_COOLDOWN
 
-	var amount := int(round(lerpf(float(DEW_MIN_YIELD), float(DEW_MAX_YIELD),
-		Clock.night_progress())))
+	var amount := maxi(1, int(round(lerpf(float(DEW_MIN_YIELD), float(DEW_MAX_YIELD),
+		Clock.night_progress()) * dew_mult)))
 	var leftover := inv.add("water", amount)
 	if leftover >= amount:
 		return _fail("no room for water")

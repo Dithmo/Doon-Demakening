@@ -59,6 +59,12 @@ func load_kinds() -> bool:
 			# carrying this use hook.
 			"tool": str(d.get("tool", "")),
 			"count": int(d.get("count", 10)),
+			# Nodes per square kilometre. `count` is a floor, so the small
+			# synthetic regions keep the densities their harnesses were tuned
+			# against and the real map gets scattered properly instead of
+			# inheriting a test map's headcount across twenty-seven times the
+			# ground.
+			"per_km2": float(d.get("per_km2", 0.0)),
 			# Anchored kinds are placed at POIs of a role rather than scattered.
 			# Salvage belongs at the wrecks the map actually draws: that is what
 			# makes a shipwreck somewhere you go rather than a silhouette.
@@ -87,7 +93,8 @@ func seed(seed_value: int = 424242) -> void:
 			# No markers for that role -- a synthetic region, or a crop that
 			# caught none. Fall through and scatter rather than ship a kind
 			# that silently does not exist.
-		while placed < int(k["count"]) and tries < 4000:
+		var want := _target_count(k)
+		while placed < want and tries < want * 300:
 			tries += 1
 			var x := _rng.randf_range(6.0, Terrain.size_m.x - 6.0)
 			var z := _rng.randf_range(6.0, Terrain.size_m.y - 6.0)
@@ -99,9 +106,16 @@ func seed(seed_value: int = 424242) -> void:
 				continue
 			_spawn(kind_id, Vector3(x, Terrain.sample_height(x, z), z))
 			placed += 1
-		if placed < int(k["count"]):
-			push_warning("NodeField: only placed %d/%d %s" % [placed, k["count"], kind_id])
+		if placed < want:
+			push_warning("NodeField: only placed %d/%d %s" % [placed, want, kind_id])
 	print("[nodes] seeded %d node(s)" % nodes.size())
+
+
+## How many of a kind this region should carry: whichever is larger of the
+## authored floor and the density applied to the region's actual area.
+func _target_count(k: Dictionary) -> int:
+	var area_km2 := (Terrain.size_m.x * Terrain.size_m.y) / 1000000.0
+	return maxi(int(k["count"]), int(round(float(k["per_km2"]) * area_km2)))
 
 
 func _spawn(kind_id: String, pos: Vector3) -> int:
@@ -136,8 +150,11 @@ func tick(now: float) -> Array:
 ## Every rule is checked here rather than trusted from the client: reach against
 ## the server's own position, the tool actually in the bag, and the node's own
 ## remaining count.
+## `bonus` is Deep Harvest's flat extra, `salvage_mult` is Salvager. Both
+## default to neutral so callers written before skills keep their meaning.
 func harvest(player_pos: Vector3, inv: Inventory, node_id: int,
-		cooldowns: Dictionary, now: float) -> Dictionary:
+		cooldowns: Dictionary, now: float, bonus: int = 0,
+		salvage_mult: float = 1.0) -> Dictionary:
 	if not nodes.has(node_id):
 		return _fail("nothing there")
 	var n: Dictionary = nodes[node_id]
@@ -154,7 +171,12 @@ func harvest(player_pos: Vector3, inv: Inventory, node_id: int,
 	if not tool_hook.is_empty() and not _has_tool(inv, tool_hook):
 		return _fail("need a cutting tool for %s" % k["name"])
 
-	var amount := int(k["yield_count"])
+	var amount := int(k["yield_count"]) + maxi(0, bonus)
+	# Salvager applies only where the map says there is a wreck, which is what
+	# makes it a crafting skill rather than a second gathering one.
+	if not str(k["anchor"]).is_empty():
+		amount = int(round(float(amount) * salvage_mult))
+	amount = maxi(1, amount)
 	var leftover := inv.add(str(k["yield_id"]), amount)
 	if leftover >= amount:
 		return _fail("no room for %s" % ItemDB.display_name(k["yield_id"]))

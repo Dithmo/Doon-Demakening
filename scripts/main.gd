@@ -75,6 +75,14 @@ func _log_position() -> void:
 		world.build_mirror.size(), world.claim_mirror.size(),
 		world.my_threat, int(world.worm_mirror["state"]),
 		Terrain.surface_name(Terrain.sample_surface(world.local_pos.x, world.local_pos.z))])
+	var pr: Dictionary = world.progress_mirror
+	var q: Dictionary = world.quest_mirror
+	print("[prog] %s lvl=%d xp=%.0f next=%.0f pts=%d solari=%d skills=%d "
+		% [Net.identity, pr["level"], pr["xp"], pr["next"], pr["points"],
+		pr["solari"], (pr["skills"] as Array).size()]
+		+ "step=%d/%d '%s' %d/%d contracts=%d done=%d"
+		% [q["step"], QuestDB.journey.size(), q["step_name"], q["step_have"],
+		q["step_need"], (q["active"] as Dictionary).size(), q["done"]])
 	if Net.bot_profile == "pilgrim":
 		var dest: Dictionary = Pois.find_named(Net.goto_poi)
 		if not dest.is_empty():

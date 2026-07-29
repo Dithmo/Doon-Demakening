@@ -172,7 +172,11 @@ func kinds_in_reach(player_pos: Vector3) -> Array:
 ##
 ## Inputs are only removed once everything has been checked, so a failed craft
 ## never eats materials.
-func craft(player_pos: Vector3, inv: Inventory, recipe_id: String) -> Dictionary:
+## `cost_mult` is the crafter's Efficient Fabrication discount, applied to every
+## input. Rounded up and floored at one, so a discount can make a recipe cheaper
+## but never free -- a zero-input recipe is an item printer.
+func craft(player_pos: Vector3, inv: Inventory, recipe_id: String,
+		cost_mult: float = 1.0) -> Dictionary:
 	if not RecipeDB.has(recipe_id):
 		return {"ok": false, "msg": "no such recipe"}
 	var r := RecipeDB.get_recipe(recipe_id)
@@ -181,8 +185,11 @@ func craft(player_pos: Vector3, inv: Inventory, recipe_id: String) -> Dictionary
 	if not kind.is_empty() and station_in_reach(player_pos, kind) == 0:
 		return {"ok": false, "msg": "need a %s in reach" % kind}
 
+	var needs: Array = []
 	for i: Dictionary in r["inputs"]:
-		if inv.count_of(i["id"]) < int(i["count"]):
+		var n: int = maxi(1, int(ceil(float(i["count"]) * cost_mult)))
+		needs.append({"id": str(i["id"]), "count": n})
+		if inv.count_of(i["id"]) < n:
 			return {"ok": false,
 				"msg": "need %s" % RecipeDB.describe_inputs(recipe_id)}
 
@@ -191,13 +198,14 @@ func craft(player_pos: Vector3, inv: Inventory, recipe_id: String) -> Dictionary
 	if not _has_room(inv, str(out["id"]), int(out["count"])):
 		return {"ok": false, "msg": "no room for %s" % ItemDB.display_name(out["id"])}
 
-	for i: Dictionary in r["inputs"]:
+	for i: Dictionary in needs:
 		inv.remove(str(i["id"]), int(i["count"]))
 	var leftover := inv.add(str(out["id"]), int(out["count"]))
 	if leftover > 0:
 		# _has_room said otherwise; surface it rather than silently voiding it.
 		push_error("StationField: lost %d %s crafting %s" % [leftover, out["id"], recipe_id])
-	return {"ok": true, "msg": "crafted %s x%d" % [ItemDB.display_name(out["id"]),
+	return {"ok": true, "item": str(out["id"]), "count": int(out["count"]) - leftover,
+		"msg": "crafted %s x%d" % [ItemDB.display_name(out["id"]),
 		int(out["count"]) - leftover]}
 
 

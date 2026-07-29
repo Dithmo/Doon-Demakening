@@ -8,7 +8,8 @@
       "weight": 1.0,
       "use": "hydrate",
       "use_value": 25.0,
-      "desc": "Litre of potable water. The only currency that matters."
+      "desc": "Litre of potable water. The only currency that matters.",
+      "value": 12
     },
     {
       "id": "blood_sack",
@@ -17,28 +18,32 @@
       "weight": 1.2,
       "use": "hydrate",
       "use_value": 12.0,
-      "desc": "Recovered body water. Needs purifying before it is worth drinking."
+      "desc": "Recovered body water. Needs purifying before it is worth drinking.",
+      "value": 8
     },
     {
       "id": "plant_fiber",
       "name": "Plant Fibre",
       "stack": 50,
       "weight": 0.1,
-      "desc": "Tough desert growth. Feedstock for everything woven."
+      "desc": "Tough desert growth. Feedstock for everything woven.",
+      "value": 3
     },
     {
       "id": "salvaged_metal",
       "name": "Salvaged Metal",
       "stack": 50,
       "weight": 0.8,
-      "desc": "Stripped from wrecks. The basis of every fabricated part."
+      "desc": "Stripped from wrecks. The basis of every fabricated part.",
+      "value": 6
     },
     {
       "id": "granite_stone",
       "name": "Granite Stone",
       "stack": 50,
       "weight": 1.5,
-      "desc": "Quarried from outcrops. Bulk building material."
+      "desc": "Quarried from outcrops. Bulk building material.",
+      "value": 3
     },
     {
       "id": "cutteray",
@@ -47,7 +52,8 @@
       "slot": "utility",
       "weight": 3.0,
       "use": "tool_gather",
-      "desc": "Cutting beam. Harvests ore and strips wrecks."
+      "desc": "Cutting beam. Harvests ore and strips wrecks.",
+      "value": 45
     },
     {
       "id": "dew_harvester",
@@ -56,7 +62,8 @@
       "slot": "utility",
       "weight": 2.5,
       "use": "tool_dew",
-      "desc": "Draws moisture from plants. Works dusk to dawn only."
+      "desc": "Draws moisture from plants. Works dusk to dawn only.",
+      "value": 55
     },
     {
       "id": "stillsuit",
@@ -66,7 +73,8 @@
       "weight": 4.0,
       "use": "equip",
       "use_value": 0.45,
-      "desc": "Reclaims body moisture. Cuts water loss substantially."
+      "desc": "Reclaims body moisture. Cuts water loss substantially.",
+      "value": 140
     },
     {
       "id": "kindjal",
@@ -79,7 +87,8 @@
       "desc": "Short blade. Slow enough to pass a shield.",
       "damage": 22.0,
       "attack": "fast",
-      "reach": 2.2
+      "reach": 2.2,
+      "value": 70
     },
     {
       "id": "maula_pistol",
@@ -92,28 +101,32 @@
       "desc": "Spring-loaded dart pistol.",
       "damage": 14.0,
       "attack": "ranged",
-      "reach": 24.0
+      "reach": 24.0,
+      "value": 110
     },
     {
       "id": "iron_ore",
       "name": "Iron Ore",
       "stack": 50,
       "weight": 1.6,
-      "desc": "Raw vein rock. Worthless until refined."
+      "desc": "Raw vein rock. Worthless until refined.",
+      "value": 5
     },
     {
       "id": "steel_ingot",
       "name": "Steel Ingot",
       "stack": 20,
       "weight": 2.0,
-      "desc": "Refined from ore. The backbone of every fabricated part."
+      "desc": "Refined from ore. The backbone of every fabricated part.",
+      "value": 18
     },
     {
       "id": "fiber_weave",
       "name": "Fibre Weave",
       "stack": 20,
       "weight": 0.4,
-      "desc": "Spun plant fibre. Holds a seal against the skin."
+      "desc": "Spun plant fibre. Holds a seal against the skin.",
+      "value": 14
     },
     {
       "id": "survival_fabricator",
@@ -122,7 +135,8 @@
       "weight": 12.0,
       "use": "place",
       "station": "fabricator",
-      "desc": "Portable workbench. Deploy it and it stays put."
+      "desc": "Portable workbench. Deploy it and it stays put.",
+      "value": 120
     },
     {
       "id": "ore_refinery",
@@ -131,7 +145,8 @@
       "weight": 20.0,
       "use": "place",
       "station": "refinery",
-      "desc": "Cooks ore down to workable metal."
+      "desc": "Cooks ore down to workable metal.",
+      "value": 150
     },
     {
       "id": "foundation",
@@ -140,7 +155,8 @@
       "weight": 6.0,
       "use": "build",
       "build": "foundation",
-      "desc": "Levelled plate. Everything else keys off one of these."
+      "desc": "Levelled plate. Everything else keys off one of these.",
+      "value": 10
     },
     {
       "id": "wall",
@@ -149,7 +165,8 @@
       "weight": 4.0,
       "use": "build",
       "build": "wall",
-      "desc": "Panel for a foundation edge. Keeps sand and people out."
+      "desc": "Panel for a foundation edge. Keeps sand and people out.",
+      "value": 10
     },
     {
       "id": "ceiling",
@@ -158,7 +175,8 @@
       "weight": 5.0,
       "use": "build",
       "build": "ceiling",
-      "desc": "Roof plate. Doubles as the floor of whatever you put on top."
+      "desc": "Roof plate. Doubles as the floor of whatever you put on top.",
+      "value": 10
     },
     {
       "id": "sub_fief",
@@ -168,7 +186,8 @@
       "use": "place",
       "station": "sub_fief",
       "claim_radius": 28.0,
-      "desc": "Registers a holding. Nobody else builds inside it."
+      "desc": "Registers a holding. Nobody else builds inside it.",
+      "value": 200
     },
     {
       "id": "fuel_generator",
@@ -178,7 +197,8 @@
       "use": "place",
       "station": "generator",
       "power_output": 10.0,
-      "desc": "Burns down reliably. Runs whatever you wire near it."
+      "desc": "Burns down reliably. Runs whatever you wire near it.",
+      "value": 130
     },
     {
       "id": "wind_turbine",
@@ -188,7 +208,8 @@
       "use": "place",
       "station": "turbine",
       "power_output": 4.0,
-      "desc": "Less output than a generator, but it never needs feeding."
+      "desc": "Less output than a generator, but it never needs feeding.",
+      "value": 145
     },
     {
       "id": "windtrap",
@@ -200,7 +221,8 @@
       "power_draw": 6.0,
       "produces": "water",
       "produce_rate": 0.25,
-      "desc": "Wrings moisture from the wind. Needs power, and somewhere to put it."
+      "desc": "Wrings moisture from the wind. Needs power, and somewhere to put it.",
+      "value": 175
     },
     {
       "id": "water_cistern",
@@ -210,7 +232,8 @@
       "use": "place",
       "station": "cistern",
       "container_slots": 8,
-      "desc": "Holds what the windtrap makes, whether you are here or not."
+      "desc": "Holds what the windtrap makes, whether you are here or not.",
+      "value": 160
     },
     {
       "id": "storage_chest",
@@ -220,7 +243,8 @@
       "use": "place",
       "station": "storage",
       "container_slots": 16,
-      "desc": "Somewhere to leave things that is not your own back."
+      "desc": "Somewhere to leave things that is not your own back.",
+      "value": 70
     },
     {
       "id": "stilltent",
@@ -230,7 +254,8 @@
       "use": "place",
       "station": "stilltent",
       "shade_radius": 4.0,
-      "desc": "Sealed shelter. Casts its own shade wherever you pitch it."
+      "desc": "Sealed shelter. Casts its own shade wherever you pitch it.",
+      "value": 80
     },
     {
       "id": "crysknife",
@@ -243,7 +268,8 @@
       "damage": 30.0,
       "attack": "slow",
       "reach": 2.0,
-      "desc": "Fremen tooth. Slow enough to pass a shield, which is the point."
+      "desc": "Fremen tooth. Slow enough to pass a shield, which is the point.",
+      "value": 160
     },
     {
       "id": "body_shield",
@@ -255,7 +281,8 @@
       "use_value": 1.0,
       "shield": true,
       "worm_threat_mult": 3.0,
-      "desc": "Turns fast blades and darts. Drives worms into a frenzy."
+      "desc": "Turns fast blades and darts. Drives worms into a frenzy.",
+      "value": 190
     },
     {
       "id": "thumper",
@@ -265,7 +292,8 @@
       "use": "place",
       "station": "thumper",
       "worm_threat": 9.0,
-      "desc": "Pounds the sand. Calls a worm to somewhere that is not you."
+      "desc": "Pounds the sand. Calls a worm to somewhere that is not you.",
+      "value": 60
     },
     {
       "id": "blood_extractor",
@@ -274,7 +302,9 @@
       "slot": "utility",
       "weight": 2.0,
       "use": "tool_blood",
-      "desc": "Reclaims a body's water. Nobody said Arrakis was polite."
+      "desc": "Reclaims a body's water. Nobody said Arrakis was polite.",
+      "value": 65
     }
-  ]
+  ],
+  "_comment_value": "`value` is what the trading post pays for one. It sells at VENDOR_MARKUP times this -- see scripts/world/vendor.gd."
 }
