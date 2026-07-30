@@ -53,7 +53,9 @@
       "weight": 3.0,
       "use": "tool_gather",
       "desc": "Cutting beam. Harvests ore and strips wrecks.",
-      "value": 45
+      "value": 45,
+      "beam_rate": 4.0,
+      "beam_range": 5.0
     },
     {
       "id": "dew_harvester",

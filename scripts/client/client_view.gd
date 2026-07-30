@@ -48,6 +48,14 @@ var _actions: Array = []
 var _look_yaw: float = 0.0
 var _look_pitch: float = -0.35
 var _mouse_look: bool = false
+## The node the crosshair is on, or 0. Aiming is a cone test against the
+## camera's forward vector rather than a physics ray: the terrain and the nodes
+## are drawn meshes with no collision bodies, so there is nothing for a ray to
+## hit. A cone is also more forgiving, which is what you want for a beam.
+var _aimed_node: int = 0
+var _beaming: int = 0
+const AIM_COS := 0.94        ## about a 20-degree cone
+var _crosshair: Label
 const LOOK_SENS := 0.0032
 const PITCH_MIN := -1.15
 const PITCH_MAX := 0.45
@@ -65,6 +73,12 @@ var _dispatch: Dictionary = {}
 ## every tick and sent with the movement command, not fired as events.
 const MOTION := ["move_forward", "move_back", "move_left", "move_right", "sprint",
 	"jump", "climb"]
+## Handled by press *and* release rather than as a single fired action, so it
+## cannot live in the dispatch table -- the whole point of the trigger is that
+## holding it keeps the beam running. Listed here so the coverage guard knows it
+## is answered; it caught this the moment the action left the table, which is
+## what the guard is for.
+const HELD := ["attack"]
 
 
 func _ready() -> void:
@@ -97,6 +111,14 @@ func _ready() -> void:
 	_panel.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
 	_panel.add_theme_font_size_override("font_size", 13)
 	layer.add_child(_panel)
+
+	# A beam needs somewhere to point. Centre of the screen, drawn under
+	# everything else that matters.
+	_crosshair = Label.new()
+	_crosshair.text = "+"
+	_crosshair.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+	_crosshair.add_theme_font_size_override("font_size", 22)
+	layer.add_child(_crosshair)
 
 	_notice = Label.new()
 	_notice.position = Vector2(12, 200)
@@ -216,6 +238,11 @@ func _process(_delta: float) -> void:
 			(_remote_nodes[id] as Node).queue_free()
 			_remote_nodes.erase(id)
 
+	if _crosshair != null:
+		var vp := get_viewport().get_visible_rect().size
+		_crosshair.position = vp * 0.5 - Vector2(7.0, 15.0)
+	_update_aim()
+
 	_advance_sky()
 	_refresh_panel()
 	_refresh_vehicles()
@@ -267,15 +294,21 @@ func _build_dispatch() -> void:
 		# tested server-side; none of them had a key that reached it.
 		"build": func() -> void: world.try_build(),
 		"demolish": func() -> void: world.try_demolish(),
-		"attack": func() -> void: world.try_attack(),
+
 		"extract": func() -> void: world.try_extract(),
 		"container": _toggle_container,
+		# Not a key: the trigger is a mouse button held down, and a harness
+		# cannot press one. Phase 9's lesson was that an action no test can
+		# reach is an action that quietly stops working, so the trigger gets an
+		# entry here and the mouse calls the same two functions.
+		"trigger": _pull_trigger,
+		"release": _release_trigger,
 		"toggle_debug": func() -> void: _hud.visible = not _hud.visible,
 		"bag": func() -> void:
 			_page = -1 if _page == Panels.Page.BAG else Panels.Page.BAG
 			_refresh_panel(),
 	}
-	for n in range(1, Panels.MAX_ROWS + 1):
+	for n in range(1, Panels.HOTBAR_KEYS + 1):
 		_dispatch["row_%d" % n] = _act_on_row.bind(n - 1)
 
 
@@ -296,7 +329,8 @@ func _run_debug_actions() -> void:
 func _check_coverage() -> void:
 	for action: StringName in InputMap.get_actions():
 		var name := str(action)
-		if name.begins_with("ui_") or MOTION.has(name) or _dispatch.has(name):
+		if name.begins_with("ui_") or MOTION.has(name) or HELD.has(name) \
+				or _dispatch.has(name):
 			continue
 		push_warning("input: '%s' is bound to a key but nothing handles it" % name)
 
@@ -371,6 +405,10 @@ func _input(event: InputEvent) -> void:
 		world.look_yaw = _look_yaw
 	elif event.is_action_pressed("ui_cancel"):
 		_set_mouse_look(false)
+	elif event.is_action_pressed("attack") and _mouse_look:
+		_pull_trigger()
+	elif event.is_action_released("attack"):
+		_release_trigger()
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
 			and not _mouse_look:
 		# The first click reclaims the pointer rather than swinging: otherwise
@@ -401,6 +439,9 @@ func _unhandled_input(event: InputEvent) -> void:
 ## harness go through one implementation.
 func _act_on_row(i: int) -> void:
 	if _page < 0:
+		# No page open: the number keys are the hotbar, which is what they are
+		# for most of the time you are playing.
+		world.hold_key(i)
 		return
 	Panels.act(_page, world, i, _actions)
 
@@ -486,6 +527,14 @@ func _refresh_hud() -> void:
 	if blows:
 		lines.append("SPICE: " + "   ".join(blows))
 
+	# What the crosshair is on, and how much is left in it. This is the readout
+	# the beam is played against.
+	if _aimed_node != 0 and world.node_mirror.has(_aimed_node):
+		var an: Dictionary = world.node_mirror[_aimed_node]
+		var kn := str(world._field.kinds.get(str(an["kind"]), {}).get("name", an["kind"]))
+		lines.append("AIM: %s -- %d left%s"
+			% [kn, int(an.get("units", 0)), "   CUTTING" if _beaming != 0 else ""])
+
 	var hints: Array = []
 	var nid: int = world.nearest_node()
 	if nid != 0:
@@ -516,6 +565,14 @@ func _refresh_hud() -> void:
 		hints.append("[C] craft")
 	hints.append("[Q] drop")
 	lines.append(" ".join(hints))
+	# The bar itself. Ten slots, the selected one in brackets.
+	var bar: Array = []
+	for k in Panels.HOTBAR_KEYS:
+		var stack: Dictionary = world.hotbar_item(k)
+		var label: String = ItemDB.display_name(str(stack["id"])) if not stack.is_empty() else "-"
+		var key := "0" if k == 9 else str(k + 1)
+		bar.append(("[%s:%s]" if k == int(world.held_key) else " %s:%s ") % [key, label])
+	lines.append("HAND " + "".join(bar))
 	lines.append("[I] bag  [Tab] pages  %s"
 		% ("[Esc] free the mouse" if _mouse_look else "[click] look around"))
 	_hud.text = "\n".join(lines)
@@ -759,3 +816,68 @@ func _build_lighting() -> void:
 	env.environment = e
 	_env = e
 	add_child(env)
+
+
+## What the crosshair is on. Only nodes with anything left in them, only within
+## the reach of whatever is in your hand, and only inside the aim cone.
+func _update_aim() -> void:
+	_aimed_node = 0
+	var def := _held_def()
+	var reach := float(def.get("beam_range", 0.0))
+	if reach <= 0.0:
+		if _beaming != 0:
+			_stop_beam()
+		return
+	var eye := _cam.global_position
+	var fwd := -_cam.global_transform.basis.z
+	var best := 0.0
+	for nid: int in world.node_mirror:
+		var n: Dictionary = world.node_mirror[nid]
+		if int(n.get("units", 1)) <= 0:
+			continue
+		var at: Vector3 = n["pos"] + Vector3.UP * 0.6
+		if world.local_pos.distance_to(at) > reach:
+			continue
+		var facing := eye.direction_to(at).dot(fwd)
+		if facing >= AIM_COS and facing > best:
+			best = facing
+			_aimed_node = nid
+	# Cutting something and then looking away stops the beam, rather than
+	# leaving it running on a node behind you.
+	if _beaming != 0 and _aimed_node != _beaming:
+		_stop_beam()
+
+
+## The definition of whatever is on the selected hotbar key.
+func _held_def() -> Dictionary:
+	var stack: Dictionary = world.hotbar_item(world.held_key)
+	return {} if stack.is_empty() else ItemDB.get_def(str(stack["id"]))
+
+
+func _start_beam() -> void:
+	if _aimed_node == 0:
+		world.notice.emit("nothing in your sights")
+		return
+	_beaming = _aimed_node
+	world.fire_beam(_beaming, true)
+
+
+func _stop_beam() -> void:
+	if _beaming == 0:
+		return
+	world.fire_beam(_beaming, false)
+	_beaming = 0
+
+
+## What the left button does is decided by what is in your hand: a cutteray
+## opens a beam that runs until you let go, anything else swings once. One
+## implementation, called by the mouse and by --do alike.
+func _pull_trigger() -> void:
+	if float(_held_def().get("beam_rate", 0.0)) > 0.0:
+		_start_beam()
+	else:
+		world.try_attack()
+
+
+func _release_trigger() -> void:
+	_stop_beam()

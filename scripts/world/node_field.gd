@@ -54,6 +54,11 @@ func load_kinds() -> bool:
 			"yield_id": str(y["id"]),
 			"yield_count": int(y.get("count", 1)),
 			"harvests": int(d.get("harvests", 3)),
+			# Units of resource in one node. A cutteray drains this at its own
+			# rate per second, so a node is ten seconds of beam rather than
+			# three taps of a key. `harvests` stays for the hand-picked kinds
+			# and for the older tests, which count swings.
+			"amount": int(d.get("amount", 40)),
 			"respawn_seconds": float(d.get("respawn_seconds", 120.0)),
 			# Empty means bare hands will do; otherwise the player needs an item
 			# carrying this use hook.
@@ -124,6 +129,10 @@ func _spawn(kind_id: String, pos: Vector3) -> int:
 	nodes[id] = {
 		"kind": kind_id, "pos": pos,
 		"remaining": int(kinds[kind_id]["harvests"]), "respawn_at": 0.0,
+		# Units left in the pool, and the fraction of a unit the beam has cut
+		# but not yet handed over -- a 4/s beam on a 1/60 s tick moves 0.067 of
+		# a unit, and dropping that would mean the beam yielded nothing at all.
+		"units": int(kinds[kind_id]["amount"]), "part": 0.0,
 	}
 	return id
 
@@ -134,10 +143,14 @@ func tick(now: float) -> Array:
 	var regrown: Array = []
 	for id: int in nodes:
 		var n: Dictionary = nodes[id]
-		if int(n["remaining"]) > 0 or float(n["respawn_at"]) <= 0.0:
+		if float(n["respawn_at"]) <= 0.0:
+			continue
+		if int(n["remaining"]) > 0 and int(n.get("units", 0)) > 0:
 			continue
 		if now >= float(n["respawn_at"]):
 			n["remaining"] = int(kinds[n["kind"]]["harvests"])
+			n["units"] = int(kinds[n["kind"]]["amount"])
+			n["part"] = 0.0
 			n["respawn_at"] = 0.0
 			regrown.append(id)
 	return regrown
@@ -210,7 +223,7 @@ func to_wire() -> Array:
 	for id: int in nodes:
 		var n: Dictionary = nodes[id]
 		var p: Vector3 = n["pos"]
-		out.append([id, n["kind"], p.x, p.y, p.z, int(n["remaining"])])
+		out.append([id, n["kind"], p.x, p.y, p.z, int(n["remaining"]), int(n["units"])])
 	return out
 
 
@@ -224,11 +237,17 @@ func from_wire(rows: Array, now: float) -> void:
 		if not kinds.has(kind):
 			continue
 		var remaining := int(row[5])
+		# Saves written before nodes had a unit pool have no sixth column; those
+		# nodes come back full rather than unmineable.
+		var units := int(row[6]) if row.size() > 6 else int(kinds[kind]["amount"])
+		var dry := remaining <= 0 or units <= 0
 		nodes[id] = {
 			"kind": kind,
 			"pos": Vector3(float(row[2]), float(row[3]), float(row[4])),
 			"remaining": remaining,
-			"respawn_at": now + kinds[kind]["respawn_seconds"] if remaining <= 0 else 0.0,
+			"units": units,
+			"part": 0.0,
+			"respawn_at": now + kinds[kind]["respawn_seconds"] if dry else 0.0,
 		}
 		_next_id = maxi(_next_id, id + 1)
 
@@ -236,3 +255,50 @@ func from_wire(rows: Array, now: float) -> void:
 func _fail(msg: String) -> Dictionary:
 	return {"ok": false, "msg": msg, "item": "", "count": 0,
 		"depleted": false, "remaining": 0}
+
+
+## Cut `dt` seconds of beam at `rate` units/second out of a node.
+##
+## Server-only, and the node's `units` count is the lock exactly as `remaining`
+## is for a swung harvest: two players beaming the same wreck both land here,
+## one at a time, and between them they can take out what is in it and no more.
+##
+## Returns {ok, msg, count, units, exhausted}. `count` is whole units moved to
+## the bag this call, which is usually zero on any given frame -- the fraction
+## is banked on the node until it adds up.
+func beam(player_pos: Vector3, inv: Inventory, node_id: int, rate: float,
+		range_m: float, dt: float, yield_mult: float = 1.0) -> Dictionary:
+	if not nodes.has(node_id):
+		return _fail("no such node")
+	var n: Dictionary = nodes[node_id]
+	var k: Dictionary = kinds[str(n["kind"])]
+	if int(n["units"]) <= 0:
+		return _fail("that is stripped bare")
+	if player_pos.distance_to(n["pos"]) > range_m:
+		return _fail("out of range")
+
+	n["part"] = float(n["part"]) + rate * yield_mult * dt
+	var whole := int(floor(float(n["part"])))
+	if whole <= 0:
+		return {"ok": true, "msg": "", "count": 0,
+			"units": int(n["units"]), "exhausted": false}
+	whole = mini(whole, int(n["units"]))
+	n["part"] = float(n["part"]) - float(whole)
+
+	var leftover := inv.add(str(k["yield_id"]), whole)
+	var taken := whole - leftover
+	if taken <= 0:
+		# Bag is full. Put the fraction back rather than burning the node down
+		# into a bag that cannot hold it.
+		n["part"] = 0.0
+		return _fail("no room for the %s" % k["yield_id"])
+
+	n["units"] = int(n["units"]) - taken
+	var dry := int(n["units"]) <= 0
+	if dry:
+		# A stripped node goes on the same respawn timer a swung-out one uses.
+		n["remaining"] = 0
+		n["part"] = 0.0
+		n["respawn_at"] = Time.get_ticks_msec() / 1000.0 + float(k["respawn_seconds"])
+	return {"ok": true, "msg": "", "count": taken, "item": str(k["yield_id"]),
+		"units": int(n["units"]), "exhausted": dry}

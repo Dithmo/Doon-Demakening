@@ -52,7 +52,8 @@ func player_state(who: String) -> Dictionary:
 
 func put_player(who: String, pos: Vector3, inventory: Array,
 		vitals: Dictionary = {}, equipped: Dictionary = {},
-		progression: Dictionary = {}, quests: Dictionary = {}) -> void:
+		progression: Dictionary = {}, quests: Dictionary = {},
+		hotbar: Array = []) -> void:
 	(_data["players"] as Dictionary)[who] = {
 		"pos": [pos.x, pos.y, pos.z],
 		"inventory": inventory,
@@ -65,6 +66,9 @@ func put_player(who: String, pos: Vector3, inventory: Array,
 		# separate file that could get out of step with it.
 		"progression": progression,
 		"quests": quests,
+		# Which inventory slot each of the ten hotbar keys points at. Arranging
+		# your bar is work; losing it on every reconnect would be a bug.
+		"hotbar": hotbar,
 	}
 	_dirty = true
 

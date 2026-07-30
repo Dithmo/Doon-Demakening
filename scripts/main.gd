@@ -203,6 +203,9 @@ func _register_input() -> void:
 	}
 	for n in range(1, 10):
 		binds["row_%d" % n] = [KEY_1 + n - 1]
+	# The tenth hotbar key. Panels only ever offer nine rows, so 0 does nothing
+	# while a page is open.
+	binds["row_10"] = [KEY_0]
 
 	# Swinging belongs on the mouse now that the mouse aims the camera. It used
 	# to be Space, which Phase 10 needed for jumping -- and a key doing two jobs

@@ -14,6 +14,7 @@ signal vitals_changed
 signal notice(text: String)
 signal nodes_changed
 signal spice_changed
+signal hotbar_changed
 signal stations_changed
 signal build_changed
 signal container_changed
@@ -104,6 +105,12 @@ var build_mirror: Array = []         ## [{piece, pos, side}]
 var claim_mirror: Array = []         ## [{owner, pos, radius}]
 ## Contents of whichever container we last opened, plus its id.
 ## Client: live spice blows only -- dormant fields are not replicated.
+## Ten quick-use slots. The wiki's bar is ten, so ours is ten.
+const HOTBAR_SLOTS := 10
+## Client: hotbar_mirror[k] is the inventory slot key k+1 points at, or -1.
+var hotbar_mirror: Array = []
+## Client: which hotbar key is in hand.
+var held_key: int = 0
 var spice_mirror: Dictionary = {}
 var container_mirror: Array = []
 var open_container: int = 0
@@ -298,6 +305,15 @@ func _on_peer_joined(id: int) -> void:
 		"equipped": equipped, "cooldowns": {}, "spawn": pos,
 		"queue": [], "last_seq": 0, "progression": prog, "quests": quests,
 		"motion": Movement.new_motion(),
+		# The hotbar maps each of ten slots to an inventory slot index, -1 for
+		# empty. Server-owned and persisted like everything else the player
+		# arranges: the client asks to assign a slot, it does not decide.
+		"hotbar": _restored_hotbar(saved),
+		"held": 0,
+		# {"node": id} while the trigger is down. Re-validated every tick rather
+		# than trusted from the moment it was pressed -- otherwise a client
+		# could hold the beam and walk away with it still cutting.
+		"beam": {},
 	}
 	_persist_player(id)
 
@@ -403,6 +419,12 @@ func _server_tick(delta: float) -> void:
 			if int(_vehicles.vehicles[vid]["driver"]) != 0:
 				_sync_vehicles.rpc(_vehicles.to_wire())
 				break
+
+	# Every tick, with the real frame delta. It lived in the once-a-second node
+	# block for one run, which meant a 4/s beam advanced 4 x 0.0167 units per
+	# *second* -- a node that should strip in ten seconds would have taken ten
+	# minutes.
+	_tick_beams(delta)
 
 	_vitals_accum += delta
 	if _vitals_accum >= 1.0 / VITALS_HZ:
@@ -770,7 +792,8 @@ func _persist_player(id: int) -> void:
 	Store.put_player(p["identity"], p["pos"], (p["inventory"] as Inventory).to_data(),
 		(p["vitals"] as Vitals).to_data(), p["equipped"],
 		(p["progression"] as Progression).to_data(),
-		(p["quests"] as QuestLog).to_data())
+		(p["quests"] as QuestLog).to_data(),
+		p["hotbar"])
 
 
 func _entity_wire() -> Array:
@@ -1880,6 +1903,24 @@ func _bot_survive() -> void:
 
 	if Net.bot_profile == "reckless":
 		return
+	if Net.bot_profile == "cutter":
+		# Walks to the nearest node and holds the trigger on it. Exists to prove
+		# the beam without a keyboard: the bot puts the cutteray on hotbar key 1,
+		# holds it, and fires until the node is stripped.
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 4
+		if hotbar_mirror.is_empty() or int(hotbar_mirror[0]) < 0:
+			var c := find_use("tool_gather")
+			if c >= 0:
+				assign_hotbar(0, c)
+				hold_key(0)
+			return
+		var target := nearest_node()
+		if target != 0:
+			fire_beam(target, true)
+		return
 	if Net.bot_profile == "spicer":
 		# Runs to the nearest live blow and cuts it until it is picked clean.
 		# The point of the profile is that spice is reachable, cuttable and
@@ -2509,6 +2550,16 @@ func _bot_direction() -> Vector2:
 				return _steer_to(via if via != Vector3.ZERO else where)
 			return Vector2.ZERO
 
+	if Net.bot_profile == "cutter":
+		var nid := nearest_node()
+		if nid != 0:
+			return Vector2.ZERO      # in range; stand still and cut
+		var to: Vector3 = _bot_nearest_node_pos()
+		if to == Vector3.ZERO:
+			return Vector2.ZERO
+		var step := _bot_path.step_from(local_pos, to)
+		return _steer_to(step if step != Vector3.ZERO else to)
+
 	if Net.bot_profile == "spicer":
 		# Steer at the nearest blow the server has told us about. Straight-line,
 		# like the pilgrim: whether the sand between here and the spice is
@@ -3026,3 +3077,215 @@ func cut_spice() -> void:
 		notice.emit("no spice within reach")
 		return
 	_request_spice.rpc_id(1, fid)
+
+
+# --- hotbar and the held item ------------------------------------------------
+
+## Ten slots, each holding an inventory slot index or -1. Restored from the save
+## when there is one, and validated: a saved bar that points at slots which no
+## longer exist would put an item in your hand that is not in your bag.
+func _restored_hotbar(saved: Dictionary) -> Array:
+	var bar: Array = []
+	var raw: Array = saved.get("hotbar", [])
+	for i in HOTBAR_SLOTS:
+		var v := int(raw[i]) if i < raw.size() else -1
+		bar.append(v if v >= -1 and v < Inventory.DEFAULT_SLOTS else -1)
+	return bar
+
+
+## What the player is holding: the inventory slot the selected hotbar key points
+## at, or -1. Every server rule that cares what is in your hand asks this.
+func _held_slot(p: Dictionary) -> int:
+	var bar: Array = p["hotbar"]
+	var k := int(p["held"])
+	if k < 0 or k >= bar.size():
+		return -1
+	return int(bar[k])
+
+
+func _held_def(p: Dictionary) -> Dictionary:
+	var slot := _held_slot(p)
+	if slot < 0:
+		return {}
+	var stack: Dictionary = (p["inventory"] as Inventory).slots[slot]
+	return {} if stack.is_empty() else ItemDB.get_def(str(stack["id"]))
+
+
+## Assign an inventory slot to a hotbar key. This is the whole of "drag the
+## cutteray onto slot 1" as far as the server is concerned -- the dragging is
+## the client's business, where the item ends up is not.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_hotbar(key: int, inv_slot: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	if key < 0 or key >= HOTBAR_SLOTS:
+		return
+	var p: Dictionary = _players[id]
+	if inv_slot < -1 or inv_slot >= (p["inventory"] as Inventory).slots.size():
+		return
+	# One item cannot sit on two keys: assigning it to a new one clears the old.
+	var bar: Array = p["hotbar"]
+	if inv_slot >= 0:
+		for i in bar.size():
+			if int(bar[i]) == inv_slot:
+				bar[i] = -1
+	bar[key] = inv_slot
+	_persist_player(id)
+	print("[hotbar] %s slot %d -> inventory %d" % [p["identity"], key + 1, inv_slot])
+	_sync_hotbar.rpc_id(id, bar, int(p["held"]))
+
+
+## Select which hotbar key is in hand. Named for selecting rather than holding
+## because `_request_hold` is already taken by a vehicle's cargo hold.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_select(key: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	if key < 0 or key >= HOTBAR_SLOTS:
+		return
+	var p: Dictionary = _players[id]
+	p["held"] = key
+	# Changing what is in your hand drops the beam: you cannot keep cutting with
+	# a tool you have just put away.
+	(p["beam"] as Dictionary).clear()
+	var def := _held_def(p)
+	print("[hold] %s holds slot %d (%s)"
+		% [p["identity"], key + 1, def.get("name", "nothing")])
+	_sync_hotbar.rpc_id(id, p["hotbar"], key)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_hotbar(bar: Array, held: int) -> void:
+	hotbar_mirror = bar.duplicate()
+	held_key = held
+	hotbar_changed.emit()
+
+
+# --- the beam ----------------------------------------------------------------
+
+## Trigger down or up. The client says which node it is aiming at; the server
+## checks that it is a node, that the player is holding something that cuts,
+## and that they are in range -- then re-checks all of it every tick until the
+## trigger comes up.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_beam(node_id: int, firing: bool) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not firing:
+		(p["beam"] as Dictionary).clear()
+		return
+	if not (p["vitals"] as Vitals).alive:
+		return
+	var def := _held_def(p)
+	if float(def.get("beam_rate", 0.0)) <= 0.0:
+		_notice.rpc_id(id, "you are not holding a cutter")
+		print("[beam] %s refused: nothing that cuts in hand" % p["identity"])
+		return
+	if not _field.nodes.has(node_id):
+		_notice.rpc_id(id, "nothing to cut there")
+		return
+	p["beam"] = {"node": node_id}
+	print("[beam] %s opened up on node %d with %s"
+		% [p["identity"], node_id, def.get("name", "?")])
+
+
+## Drain every live beam. Called from the server tick, so the rate is per real
+## second regardless of how the frames fall.
+func _tick_beams(delta: float) -> void:
+	for id: int in _players:
+		var p: Dictionary = _players[id]
+		var b: Dictionary = p["beam"]
+		if b.is_empty():
+			continue
+		if not (p["vitals"] as Vitals).alive:
+			b.clear()
+			continue
+		var def := _held_def(p)
+		if float(def.get("beam_rate", 0.0)) <= 0.0:
+			# Put the tool down mid-cut and the beam stops, whatever the client
+			# thinks it is still doing.
+			b.clear()
+			continue
+		var prog: Progression = p["progression"]
+		var r := _field.beam(p["pos"], p["inventory"], int(b["node"]),
+			float(def["beam_rate"]), float(def.get("beam_range", 5.0)), delta,
+			prog.mult("salvage_yield"))
+		if not bool(r["ok"]):
+			if not str(r["msg"]).is_empty():
+				_notice.rpc_id(id, str(r["msg"]))
+			print("[beam] %s stopped: %s" % [p["identity"], r["msg"]])
+			b.clear()
+			continue
+		if int(r["count"]) <= 0:
+			continue
+		# Whole units came off. Everything below is the same bookkeeping a
+		# swung harvest does.
+		_persist_player(id)
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_node_units.rpc(int(b["node"]), int(r["units"]))
+		print("[beam] %s cut %d %s (node %d, %d left)"
+			% [p["identity"], int(r["count"]), r["item"], int(b["node"]), int(r["units"])])
+		_advance(id, "gather", str(r["item"]), int(r["count"]))
+		if bool(r["exhausted"]):
+			_notice.rpc_id(id, "stripped bare")
+			_persist_world()
+			b.clear()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _node_units(node_id: int, units: int) -> void:
+	if node_mirror.has(node_id):
+		node_mirror[node_id]["units"] = units
+		if units <= 0:
+			node_mirror[node_id]["remaining"] = 0
+		nodes_changed.emit()
+
+
+## Client: ask the server to start or stop cutting the node we are aiming at.
+func fire_beam(node_id: int, firing: bool) -> void:
+	_request_beam.rpc_id(1, node_id, firing)
+
+
+## Client: put an inventory slot on a hotbar key, or clear it with -1.
+func assign_hotbar(key: int, inv_slot: int) -> void:
+	_request_hotbar.rpc_id(1, key, inv_slot)
+
+
+## Client: select a hotbar key.
+func hold_key(key: int) -> void:
+	_request_select.rpc_id(1, key)
+
+
+## Client: the item on a hotbar key, or {}.
+func hotbar_item(key: int) -> Dictionary:
+	if key < 0 or key >= hotbar_mirror.size():
+		return {}
+	var slot := int(hotbar_mirror[key])
+	if slot < 0 or slot >= inventory_mirror.size():
+		return {}
+	return inventory_mirror[slot]
+
+
+## Nearest node of any kind, ignoring reach -- for a bot deciding where to walk.
+func _bot_nearest_node_pos() -> Vector3:
+	var best := Vector3.ZERO
+	var best_d := INF
+	for nid: int in node_mirror:
+		var n: Dictionary = node_mirror[nid]
+		if int(n.get("units", 1)) <= 0:
+			continue
+		var d: float = local_pos.distance_to(n["pos"])
+		if d < best_d:
+			best_d = d
+			best = n["pos"]
+	return best

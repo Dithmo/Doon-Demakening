@@ -13,7 +13,8 @@
       "respawn_seconds": 90.0,
       "tool": "",
       "count": 18,
-      "per_km2": 20
+      "per_km2": 20,
+      "amount": 12
     },
     {
       "id": "iron_vein",
@@ -27,7 +28,8 @@
       "respawn_seconds": 120.0,
       "tool": "tool_gather",
       "count": 14,
-      "per_km2": 16
+      "per_km2": 16,
+      "amount": 40
     },
     {
       "id": "stone_outcrop",
@@ -41,7 +43,8 @@
       "respawn_seconds": 100.0,
       "tool": "",
       "count": 12,
-      "per_km2": 14
+      "per_km2": 14,
+      "amount": 40
     },
     {
       "id": "wreck_debris",
@@ -56,7 +59,8 @@
       "tool": "tool_gather",
       "count": 12,
       "anchor": "loot",
-      "_comment": "Anchored to the wiki's shipwreck and unique-loot markers, so salvage is at the wrecks the map draws."
+      "_comment": "Anchored to the wiki's shipwreck and unique-loot markers, so salvage is at the wrecks the map draws.",
+      "amount": 40
     }
   ]
 }

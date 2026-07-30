@@ -21,6 +21,8 @@ const PAGE_NAMES := ["BAG", "JOURNEY", "SKILLS", "CONTRACTS", "MARKET", "GUILD",
 ## How many rows a page offers to the number keys. 1-9 plus 0 would be ten, but
 ## nine is enough for every list here and keeps 0 free.
 const MAX_ROWS := 9
+## Hotbar keys, which is one more than a page ever offers.
+const HOTBAR_KEYS := 10
 
 
 ## The panel body for a page, plus the ids the number keys map to.

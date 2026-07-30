@@ -137,7 +137,7 @@ def main():
     srv, cli = session(
         user_dir, 45, PORT, clock + kit,
         ["--client", "--identity", "tester", "--panel", "BAG",
-         "--do", "attack,extract,demolish,build,container"])
+         "--do", "trigger,extract,demolish,build,container"])
     s, c = srv.text(), cli.text()
 
     check("bound to both" not in c, "no two actions share a key")
@@ -146,8 +146,10 @@ def main():
     check(not dead, "every registered action is handled"
           + (f" -- dead: {', '.join(dead)}" if dead else ""))
 
+    # The trigger is the left mouse button now, and what it does depends on
+    # what you are holding: empty-handed it swings.
     check("[combat] tester refused: nothing in reach" in s,
-          "[Space] attack reaches the server")
+          "the trigger reaches the server as an attack")
     check("[blood] tester refused: nothing to draw from" in s,
           "[Z] draw water reaches the server")
     check("[demolish] tester refused: nothing to remove" in s,
