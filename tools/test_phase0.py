@@ -34,7 +34,7 @@ SYNTHETIC_REGION = "res://data/regions/synthetic_test"
 # What World._on_peer_joined hands a brand-new player. Stated explicitly so
 # that adding to the starting kit fails loudly here instead of silently
 # skewing the "gathered off the ground" arithmetic.
-STARTING_KIT = {"water": 3, "cutteray": 1, "dew_harvester": 1,
+STARTING_KIT = {"water": 3, "improvised_cutteray": 1, "dew_harvester": 1,
                 "survival_fabricator": 1}
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27099"))

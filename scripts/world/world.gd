@@ -291,7 +291,10 @@ func _on_peer_joined(id: int) -> void:
 	else:
 		# Seed a new arrival with just enough to prove the loop works.
 		inv.add("water", 3)
-		inv.add("cutteray", 1)
+		# The Improvised Cutteray, not the full one: the wiki's starting tool is
+		# the lashed-up version, and the proper Cutteray is something you craft
+		# once you have stripped a few wrecks.
+		inv.add("improvised_cutteray", 1)
 		inv.add("dew_harvester", 1)
 		# A fabricator in the starting kit: everything else is craftable, but
 		# the first station cannot be, or there is no way in.

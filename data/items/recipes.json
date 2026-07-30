@@ -70,6 +70,23 @@
       ]
     },
     {
+      "id": "improvised_cutteray",
+      "name": "Improvised Cutteray",
+      "station": "fabricator",
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ],
+      "output": {
+        "id": "improvised_cutteray",
+        "count": 1
+      },
+      "seconds": 4.0,
+      "desc": "Two plates off a wreck and a night's work. The first tool anyone makes."
+    },
+    {
       "id": "cutteray",
       "name": "Cutteray",
       "station": "fabricator",

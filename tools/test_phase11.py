@@ -158,7 +158,7 @@ def main():
         windowed=False)
     s3, c3 = srv3.text(), cli3.text()
 
-    check("[hold] cutter holds slot 1 (Cutteray)" in s3,
+    check("[hold] cutter holds slot 1 (Improvised Cutteray)" in s3,
           "pressing the key takes it in hand")
     check("opened up on node" in s3, "and the trigger opens a beam")
 

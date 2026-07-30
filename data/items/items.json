@@ -46,6 +46,18 @@
       "value": 3
     },
     {
+      "id": "improvised_cutteray",
+      "name": "Improvised Cutteray",
+      "stack": 1,
+      "slot": "utility",
+      "weight": 2.0,
+      "use": "tool_gather",
+      "desc": "Low-power cutting beam lashed up from wreck plate. Takes copper, granite and salvage; harmless to a person.",
+      "value": 70,
+      "beam_rate": 4.0,
+      "beam_range": 5.0
+    },
+    {
       "id": "cutteray",
       "name": "Cutteray",
       "stack": 1,
@@ -54,7 +66,7 @@
       "use": "tool_gather",
       "desc": "Cutting beam. Harvests ore and strips wrecks.",
       "value": 45,
-      "beam_rate": 4.0,
+      "beam_rate": 6.0,
       "beam_range": 5.0
     },
     {
