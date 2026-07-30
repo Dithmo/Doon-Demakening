@@ -1920,7 +1920,7 @@ func _bot_survive() -> void:
 				assign_hotbar(0, c)
 				hold_key(0)
 			return
-		var target := nearest_node()
+		var target := _bot_cut_target()
 		if target != 0:
 			fire_beam(target, true)
 		return
@@ -2554,8 +2554,7 @@ func _bot_direction() -> Vector2:
 			return Vector2.ZERO
 
 	if Net.bot_profile == "cutter":
-		var nid := nearest_node()
-		if nid != 0:
+		if _bot_cut_target() != 0:
 			return Vector2.ZERO      # in range; stand still and cut
 		var to: Vector3 = _bot_nearest_node_pos()
 		if to == Vector3.ZERO:
@@ -3287,6 +3286,8 @@ func _bot_nearest_node_pos() -> Vector3:
 		var n: Dictionary = node_mirror[nid]
 		if int(n.get("units", 1)) <= 0:
 			continue
+		if not Net.cut_kind.is_empty() and str(n["kind"]) != Net.cut_kind:
+			continue
 		var d: float = local_pos.distance_to(n["pos"])
 		if d < best_d:
 			best_d = d
@@ -3357,3 +3358,21 @@ func _after_move(id: int, p: Dictionary, inv: Inventory,
 ## Client: ask to move one bag slot onto another.
 func move_item(from_slot: int, to_slot: int) -> void:
 	_request_move.rpc_id(1, from_slot, to_slot)
+
+
+## The node a `cutter` bot should be working: the nearest in reach, filtered to
+## --cut's kind when one was named.
+func _bot_cut_target() -> int:
+	var best := 0
+	var best_d := 5.0
+	for nid: int in node_mirror:
+		var n: Dictionary = node_mirror[nid]
+		if int(n.get("units", 1)) <= 0:
+			continue
+		if not Net.cut_kind.is_empty() and str(n["kind"]) != Net.cut_kind:
+			continue
+		var d: float = local_pos.distance_to(n["pos"])
+		if d <= best_d:
+			best_d = d
+			best = nid
+	return best

@@ -65,6 +65,8 @@ func run() -> int:
 	_test_traversal()
 	print("\n=== Spice ===")
 	_test_spice()
+	print("\n=== Granite and the beam ===")
+	_test_granite()
 
 	print()
 	if _failures.is_empty():
@@ -1516,3 +1518,75 @@ func _test_spice() -> void:
 	_check(majors == 5, "each specialization has a trait that costs melange (%d)" % majors)
 	_check(SpiceField.HARVEST_THREAT > 10.0,
 		"and cutting it is the loudest thing you can do (x%.0f)" % SpiceField.HARVEST_THREAT)
+
+
+## Granite, and the beam that takes it.
+##
+## Granite is the first thing the build chain needs -- foundations are granite
+## and salvage -- and until now it was the one node kind you could strip with
+## your bare hands, which made the cutteray pointless for two thirds of what
+## the wiki says it is for.
+func _test_granite() -> void:
+	var field := NodeField.new()
+	field.load_kinds()
+	_check(field.kinds.has("stone_outcrop"), "there is a granite node kind")
+	var k: Dictionary = field.kinds["stone_outcrop"]
+	_check(str(k["yield_id"]) == "granite_stone", "and it yields granite")
+	_check(str(k["tool"]) == "tool_gather",
+		"and it takes a cutting tool, as the wiki says it should")
+	_check(int(k["amount"]) > 0, "and holds a pool of units (%d)" % int(k["amount"]))
+
+	# The tool the player starts with must actually be able to cut it.
+	var start := ItemDB.get_def("improvised_cutteray")
+	_check(str(start.get("use", "")) == "tool_gather",
+		"the Improvised Cutteray is a cutting tool")
+	_check(float(start.get("beam_rate", 0.0)) > 0.0,
+		"and it is a beam (%.0f/s)" % float(start.get("beam_rate", 0.0)))
+	_check(float(ItemDB.get_def("cutteray").get("beam_rate", 0.0))
+		> float(start.get("beam_rate", 0.0)),
+		"and the full Cutteray is the upgrade, not a rename")
+
+	# Beam it bare-handed and it must refuse; with the tool it must not.
+	field.seed()
+	var nid := 0
+	for id: int in field.nodes:
+		if str(field.nodes[id]["kind"]) == "stone_outcrop":
+			nid = id
+			break
+	_check(nid != 0, "granite is seeded on the map")
+	if nid == 0:
+		return
+	var at: Vector3 = field.nodes[nid]["pos"]
+
+	var barehanded := Inventory.new()
+	var refused := field.beam(at, barehanded, nid, 4.0, 5.0, 1.0)
+	_check(not bool(refused["ok"]), "bare hands cannot cut granite")
+
+	var kitted := Inventory.new()
+	kitted.add("improvised_cutteray", 1)
+	var got := field.beam(at, kitted, nid, 4.0, 5.0, 1.0)
+	_check(bool(got["ok"]) and int(got["count"]) == 4,
+		"a second of beam takes four units (%d)" % int(got["count"]))
+	_check(kitted.count_of("granite_stone") == 4, "which land in the bag")
+
+	# Out of range is refused even with the tool in hand.
+	var far := at + Vector3(50.0, 0.0, 0.0)
+	_check(not bool(field.beam(far, kitted, nid, 4.0, 5.0, 1.0)["ok"]),
+		"and you have to be standing at it")
+
+	# Strip it and it goes on the respawn timer rather than staying at zero.
+	var guard := 0
+	while int(field.nodes[nid]["units"]) > 0 and guard < 200:
+		guard += 1
+		field.beam(at, kitted, nid, 4.0, 5.0, 1.0)
+	_check(int(field.nodes[nid]["units"]) == 0, "an outcrop can be stripped bare")
+	_check(float(field.nodes[nid]["respawn_at"]) > 0.0, "and then it regrows")
+
+	# Granite is what foundations are made of: the chain has to close.
+	var found := RecipeDB.get_recipe("foundation")
+	_check(not found.is_empty(), "there is a foundation recipe")
+	var uses_granite := false
+	for i: Dictionary in found.get("inputs", []):
+		if str(i["id"]) == "granite_stone":
+			uses_granite = true
+	_check(uses_granite, "and it is built from granite")

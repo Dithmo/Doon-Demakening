@@ -96,6 +96,10 @@ var do_actions: String = ""
 ## *decision* is a function the harness can call with the same arguments the
 ## pointer would produce. Needs a window: the grid lives in the view.
 var drags: String = ""
+## Client debug: which node kind a `cutter` bot walks to and beams. Without it
+## the bot takes whatever is nearest, which makes "can you mine granite" a test
+## of what happens to be next to the spawn.
+var cut_kind: String = ""
 ## Server debug: bring every spice field to a blow immediately. The cycle runs
 ## on a 7-15 minute dormancy, which is right for play and useless for a test.
 var spice_now: bool = false
@@ -163,6 +167,7 @@ func _parse_args() -> void:
 	panel_press = Args.integer("--press", 0)
 	do_actions = Args.value("--do", "")
 	drags = Args.value("--drag", "")
+	cut_kind = Args.value("--cut", "")
 	spice_now = Args.has("--spice-now")
 	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)

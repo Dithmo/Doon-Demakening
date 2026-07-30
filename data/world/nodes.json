@@ -41,7 +41,7 @@
       },
       "harvests": 4,
       "respawn_seconds": 100.0,
-      "tool": "",
+      "tool": "tool_gather",
       "count": 12,
       "per_km2": 14,
       "amount": 40

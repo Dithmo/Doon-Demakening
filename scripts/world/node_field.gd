@@ -276,6 +276,13 @@ func beam(player_pos: Vector3, inv: Inventory, node_id: int, rate: float,
 		return _fail("that is stripped bare")
 	if player_pos.distance_to(n["pos"]) > range_m:
 		return _fail("out of range")
+	# The node's own requirement, not just "is the thing in my hand a beam".
+	# Only cutterays carry a beam rate today, so nothing could reach here
+	# without one -- but the requirement belongs to the rock, and when tiered
+	# tools arrive this is the line that has to already be right.
+	var need := str(k["tool"])
+	if not need.is_empty() and not _has_tool(inv, need):
+		return _fail("%s needs the right tool" % k["name"])
 
 	n["part"] = float(n["part"]) + rate * yield_mult * dt
 	var whole := int(floor(float(n["part"])))

@@ -179,6 +179,29 @@ def main():
 
     check("SCRIPT ERROR" not in c3, "and nothing errors while cutting")
 
+    # --- run 4: granite, the first thing the build chain needs -------------
+    # Aimed at stone outcrops specifically rather than "whatever is nearest",
+    # or this becomes a test of what happens to be beside the spawn point.
+    print("\n=== run 4: mining granite ===")
+    srv4, cli4 = session(
+        user_dir, 150, PORT + 3, clock,
+        ["--client", "--identity", "mason", "--auto", "--bot-profile", "cutter",
+         "--cut", "stone_outcrop", "--grant", "water:6"],
+        windowed=False)
+    s4, c4 = srv4.text(), cli4.text()
+
+    gran = re.findall(r"\[beam\] mason cut (\d+) granite_stone \(node (\d+), (\d+) left\)", s4)
+    check(bool(gran), f"a player can walk to an outcrop and cut granite ({len(gran)})")
+    check("granite_stone" in c4, "and the granite reaches their bag")
+    # Enough for the foundations the build chain wants, from one trip.
+    invs4 = re.findall(r"\[inv\] mason \| (.*)", c4)
+    total = 0
+    if invs4:
+        total = sum(int(m) for m in re.findall(r"granite_stone x(\d+)", invs4[-1]))
+    check(total >= 8, f"enough for foundations in one trip ({total} granite)")
+    check("needs the right tool" not in s4,
+          "and the cutteray they started with is the right tool")
+
     if not args.keep:
         shutil.rmtree(user_dir, ignore_errors=True)
 
