@@ -67,6 +67,8 @@ func run() -> int:
 	_test_spice()
 	print("\n=== Granite and the beam ===")
 	_test_granite()
+	print("\n=== The first base ===")
+	_test_first_base()
 
 	print()
 	if _failures.is_empty():
@@ -1590,3 +1592,47 @@ func _test_granite() -> void:
 		if str(i["id"]) == "granite_stone":
 			uses_granite = true
 	_check(uses_granite, "and it is built from granite")
+
+
+## The first base has to be buildable out of the ground.
+##
+## The Sub-Fief console cost two Steel Ingots, and steel comes out of a
+## refinery, and a refinery is a thing you build on a holding you have staked
+## with a Sub-Fief. That is a loop: the item that lets you claim ground required
+## a building you could not put anywhere yet. It went unnoticed because bots are
+## granted their kit and never walk the chain in order.
+##
+## So this is a test of the *ordering* rather than of any one recipe: everything
+## needed to stake a claim, raise a shell and stand up a refinery must be
+## craftable from things a player can gather with the tool they start with.
+func _test_first_base() -> void:
+	var refined := {}
+	for rid: String in RecipeDB.ids():
+		var r := RecipeDB.get_recipe(rid)
+		if str(r.get("station", "")) == "refinery":
+			refined[str((r["output"] as Dictionary)["id"])] = true
+	_check(not refined.is_empty(), "the refinery makes something (%d)" % refined.size())
+
+	# Everything the wiki's opening sequence asks for, in order.
+	for rid: String in ["improvised_cutteray", "sub_fief", "foundation",
+			"ore_refinery"]:
+		var r := RecipeDB.get_recipe(rid)
+		if r.is_empty():
+			_check(false, "'%s' has a recipe" % rid)
+			continue
+		var blocked: Array = []
+		for raw: Variant in r["inputs"]:
+			var i: Dictionary = raw
+			if refined.has(str(i["id"])):
+				blocked.append(str(i["id"]))
+		_check(blocked.is_empty(),
+			"%s can be made before you own a refinery%s"
+			% [rid, "" if blocked.is_empty() else " -- needs " + ", ".join(blocked)])
+
+	# And the console specifically: staking ground is the first thing you do,
+	# so it must be the cheapest thing in the chain.
+	var fief := RecipeDB.get_recipe("sub_fief")
+	var total := 0
+	for raw: Variant in fief.get("inputs", []):
+		total += int((raw as Dictionary)["count"])
+	_check(total <= 6, "and a Sub-Fief is cheap enough to stake early (%d parts)" % total)
