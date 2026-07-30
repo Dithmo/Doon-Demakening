@@ -74,6 +74,11 @@ func load_kinds() -> bool:
 			# Salvage belongs at the wrecks the map actually draws: that is what
 			# makes a shipwreck somewhere you go rather than a silhouette.
 			"anchor": str(d.get("anchor", "")),
+			# Kinds added after Phases 0-4 were tuned stay off the synthetic test
+			# region. That map is a fixture: its node layout is what those
+			# suites' thresholds were measured against, so new content must not
+			# rearrange it.
+			"real_only": bool(d.get("real_only", false)),
 		}
 	print("[nodes] loaded %d kind(s)" % kinds.size())
 	return true
@@ -81,8 +86,17 @@ func load_kinds() -> bool:
 
 ## Scatter nodes across the region, each on the surface its kind belongs to.
 func seed(seed_value: int = 424242) -> void:
-	_rng.seed = seed_value
+	var synthetic := Terrain.region_dir.contains("synthetic")
 	for kind_id: String in kinds:
+		if synthetic and bool(kinds[kind_id]["real_only"]):
+			continue
+		# Each kind draws from its own stream, derived from the world seed and
+		# the kind's name. One shared RNG meant that *adding* a resource
+		# reshuffled the positions of every resource already on the map: copper
+		# and carbon arrived, and every vein, outcrop and wreck moved with them.
+		# A new material should appear alongside the old ones, not rearrange
+		# the world.
+		_rng.seed = seed_value ^ hash(kind_id)
 		var k: Dictionary = kinds[kind_id]
 		var placed := 0
 		var tries := 0

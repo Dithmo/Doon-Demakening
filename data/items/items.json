@@ -119,6 +119,38 @@
       "value": 110
     },
     {
+      "id": "copper_ore",
+      "name": "Copper Ore",
+      "stack": 50,
+      "weight": 1.4,
+      "desc": "Green-streaked rock. The first ore worth carrying home.",
+      "value": 4
+    },
+    {
+      "id": "copper_ingot",
+      "name": "Copper Ingot",
+      "stack": 50,
+      "weight": 1.8,
+      "desc": "Refined copper. Everything you build before you have iron.",
+      "value": 14
+    },
+    {
+      "id": "carbon_ore",
+      "name": "Carbon Ore",
+      "stack": 50,
+      "weight": 1.2,
+      "desc": "Black seams in the rock. Useless alone; steel needs it.",
+      "value": 6
+    },
+    {
+      "id": "iron_ingot",
+      "name": "Iron Ingot",
+      "stack": 50,
+      "weight": 2.0,
+      "desc": "Refined iron. Half of steel.",
+      "value": 22
+    },
+    {
       "id": "iron_ore",
       "name": "Iron Ore",
       "stack": 50,

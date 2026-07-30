@@ -17,6 +17,40 @@
       ]
     },
     {
+      "id": "copper_ingot",
+      "name": "Copper Ingot",
+      "station": "refinery",
+      "inputs": [
+        {
+          "id": "copper_ore",
+          "count": 4
+        }
+      ],
+      "output": {
+        "id": "copper_ingot",
+        "count": 1
+      },
+      "seconds": 5.0,
+      "desc": "Four parts raw to one part refined, in a small refinery."
+    },
+    {
+      "id": "iron_ingot",
+      "name": "Iron Ingot",
+      "station": "refinery",
+      "inputs": [
+        {
+          "id": "iron_ore",
+          "count": 4
+        }
+      ],
+      "output": {
+        "id": "iron_ingot",
+        "count": 1
+      },
+      "seconds": 5.0,
+      "desc": "Four parts raw to one part refined, in a small refinery."
+    },
+    {
       "id": "steel_ingot",
       "name": "Steel Ingot",
       "station": "refinery",
@@ -26,10 +60,15 @@
       },
       "inputs": [
         {
-          "id": "iron_ore",
-          "count": 2
+          "id": "carbon_ore",
+          "count": 4
+        },
+        {
+          "id": "iron_ingot",
+          "count": 1
         }
-      ]
+      ],
+      "seconds": 5.0
     },
     {
       "id": "ore_refinery",
@@ -119,8 +158,8 @@
           "count": 4
         },
         {
-          "id": "steel_ingot",
-          "count": 2
+          "id": "copper_ingot",
+          "count": 1
         }
       ]
     },
@@ -176,7 +215,7 @@
           "count": 3
         },
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 1
         }
       ]
@@ -206,7 +245,7 @@
       },
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 3
         },
         {
@@ -225,7 +264,7 @@
       },
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 2
         },
         {
@@ -244,7 +283,7 @@
       },
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 3
         },
         {
@@ -263,7 +302,7 @@
       },
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 2
         },
         {
@@ -396,7 +435,7 @@
       },
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 2
         },
         {
@@ -410,7 +449,7 @@
       "station": "refinery",
       "inputs": [
         {
-          "id": "steel_ingot",
+          "id": "copper_ingot",
           "count": 1
         },
         {

@@ -197,7 +197,7 @@ def main():
                          [["--client", "--auto", "--identity", "bare"]])
     shutil.rmtree(user_dir); user_dir.mkdir()
     srv6, (suited,) = session(user_dir, 30, PORT + 5,
-                              noon + ["--grant", "fiber_weave:4,steel_ingot:2"],
+                              noon + ["--grant", "fiber_weave:4,copper_ingot:1"],
                               [["--client", "--auto", "--identity", "suited"]])
     check("crafted Stillsuit" in srv6.text(), "the stillsuit is crafted")
     check("equipped Stillsuit" in srv6.text(), "the stillsuit is worn")

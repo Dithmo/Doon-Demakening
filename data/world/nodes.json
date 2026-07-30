@@ -61,6 +61,40 @@
       "anchor": "loot",
       "_comment": "Anchored to the wiki's shipwreck and unique-loot markers, so salvage is at the wrecks the map draws.",
       "amount": 40
+    },
+    {
+      "id": "copper_vein",
+      "name": "Copper Vein",
+      "surface": "rock",
+      "yield": {
+        "id": "copper_ore",
+        "count": 3
+      },
+      "harvests": 4,
+      "respawn_seconds": 110.0,
+      "tool": "tool_gather",
+      "count": 12,
+      "per_km2": 16,
+      "amount": 40,
+      "_comment": "Kept off the small synthetic fixture. Adding any kind to a 512 m map changes its node density, and Phases 0-4 are pinned to that map so their tuned thresholds keep meaning what they meant. Suites that need copper there grant it.",
+      "real_only": true
+    },
+    {
+      "id": "carbon_seam",
+      "name": "Carbon Seam",
+      "surface": "rock",
+      "yield": {
+        "id": "carbon_ore",
+        "count": 2
+      },
+      "harvests": 4,
+      "respawn_seconds": 160.0,
+      "tool": "tool_gather",
+      "count": 8,
+      "per_km2": 7,
+      "amount": 40,
+      "real_only": true,
+      "_comment": "Steel is a late tier and the small fixture has no use for it, so carbon stays off the synthetic region."
     }
   ]
 }

@@ -360,7 +360,9 @@ func _test_crafting() -> void:
 	# The full Phase 2 chain: gather -> refine -> craft the stillsuit.
 	var chain := Inventory.new()
 	chain.add("plant_fiber", 12)
-	chain.add("iron_ore", 4)
+	# Copper, not iron: the stillsuit is early gear, and copper is the first
+	# metal you can refine. Eight ore makes the two ingots it wants.
+	chain.add("copper_ore", 4)
 	chain.add("salvaged_metal", 4)
 	chain.add("granite_stone", 6)
 	var bench := StationField.new()
@@ -372,9 +374,8 @@ func _test_crafting() -> void:
 	# Deploy it a little away, so both stations are reachable but not stacked.
 	var spot := here + Vector3(StationField.MIN_SPACING + 0.5, 0.0, 0.0)
 	_check(bench.place("tester", spot, "ore_refinery")["ok"], "the refinery deploys")
-	for i in range(2):
-		bench.craft(spot, chain, "steel_ingot")
-	_check(chain.count_of("steel_ingot") == 2, "two ingots from four ore")
+	bench.craft(spot, chain, "copper_ingot")
+	_check(chain.count_of("copper_ingot") == 1, "one ingot from four ore")
 	var suit := bench.craft(here, chain, "stillsuit")
 	_check(suit["ok"], "the stillsuit is craftable at the end of the chain")
 	_check(chain.count_of("stillsuit") == 1, "the stillsuit lands in the bag")
@@ -1628,6 +1629,49 @@ func _test_first_base() -> void:
 		_check(blocked.is_empty(),
 			"%s can be made before you own a refinery%s"
 			% [rid, "" if blocked.is_empty() else " -- needs " + ", ".join(blocked)])
+
+	# Nothing a player can reach before they own a refinery may need steel.
+	# Steel was the only refined material in the game for ten phases, so
+	# everything that wanted "some refined metal" was written against it --
+	# which quietly put a three-tier material into a first-afternoon recipe.
+	for rid: String in ["sub_fief", "foundation", "wall", "ore_refinery",
+			"storage_chest", "improvised_cutteray", "cutteray", "dew_harvester"]:
+		var r := RecipeDB.get_recipe(rid)
+		var wants_steel := false
+		for raw: Variant in r.get("inputs", []):
+			if str((raw as Dictionary)["id"]) == "steel_ingot":
+				wants_steel = true
+		_check(not wants_steel, "%s does not need steel" % rid)
+
+	# The ladder, as the wiki lays it out. Each rung may only ask for the ones
+	# below it, so a tier cannot quietly collapse into the one under it again.
+	var tier := {
+		"salvaged_metal": 0, "granite_stone": 0, "plant_fiber": 0,
+		"copper_ore": 0, "iron_ore": 0, "carbon_ore": 0, "water": 0,
+		"copper_ingot": 1, "iron_ingot": 1,
+		"steel_ingot": 2,
+	}
+	for rid: String in ["copper_ingot", "iron_ingot", "steel_ingot"]:
+		var r := RecipeDB.get_recipe(rid)
+		_check(not r.is_empty(), "%s has a recipe" % rid)
+		if r.is_empty():
+			continue
+		_check(str(r["station"]) == "refinery", "%s is refined, not fabricated" % rid)
+		var mine := int(tier.get(rid, 99))
+		var ok := true
+		for raw: Variant in r["inputs"]:
+			var id := str((raw as Dictionary)["id"])
+			if int(tier.get(id, 99)) >= mine:
+				ok = false
+		_check(ok, "%s is made only from things below it" % rid)
+
+	# Steel specifically: carbon and iron, per the wiki, not iron alone.
+	var st := RecipeDB.get_recipe("steel_ingot")
+	var st_ins := {}
+	for raw: Variant in st.get("inputs", []):
+		st_ins[str((raw as Dictionary)["id"])] = true
+	_check(st_ins.has("carbon_ore") and st_ins.has("iron_ingot"),
+		"steel is carbon plus an iron ingot")
 
 	# And the console specifically: staking ground is the first thing you do,
 	# so it must be the cheapest thing in the chain.
