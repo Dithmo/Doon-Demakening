@@ -62,6 +62,10 @@ func load_defs() -> bool:
 			"name": str(d.get("name", sid)),
 			"level": int(d.get("level", 1)),
 			"requires": str(d.get("requires", "")),
+			# The wiki splits traits into minor and major, and a major trait is
+			# paid for in spice melange on top of the point. This is what makes
+			# spice a progression currency rather than just an expensive item.
+			"melange": int(d.get("melange", 0)),
 			"effects": d.get("effects", {}),
 			"bonuses": d.get("bonuses", {}),
 			"desc": str(d.get("desc", "")),
@@ -106,3 +110,9 @@ func trainer_for(skill_id: String) -> String:
 	if s.is_empty():
 		return ""
 	return str(get_track(str(s["track"])).get("trainer", ""))
+
+
+## Every skill id, in no particular order. For validation and for the tests --
+## the pages walk tracks instead, because a player reads by specialization.
+func all_ids() -> Array:
+	return _skills.keys()

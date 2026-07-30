@@ -61,8 +61,10 @@ const PITCH_MAX := 0.45
 ## key. `_check_coverage` below is the fix for the whole class.
 var _dispatch: Dictionary = {}
 
-## Handled in world.gd's input gathering rather than here.
-const MOTION := ["move_forward", "move_back", "move_left", "move_right", "sprint"]
+## Handled in world.gd's input gathering rather than here: these are sampled
+## every tick and sent with the movement command, not fired as events.
+const MOTION := ["move_forward", "move_back", "move_left", "move_right", "sprint",
+	"jump", "climb"]
 
 
 func _ready() -> void:
@@ -246,7 +248,13 @@ func _build_dispatch() -> void:
 		"drink": func() -> void: _use_hook("hydrate"),
 		"harvest": func() -> void: _use_hook("tool_dew"),
 		"deploy": func() -> void: _use_hook("place"),
-		"work": func() -> void: world.try_harvest(),
+		# One "work what is in front of me" key. A blow wins over a node when
+		# both are in reach: you are standing in spice, that is what you meant.
+		"work": func() -> void:
+			if world.nearest_spice() != 0:
+				world.cut_spice()
+			else:
+				world.try_harvest(),
 		"craft": _craft_first,
 		"drop": _drop_first,
 		"panel": _cycle_page,
@@ -363,8 +371,13 @@ func _input(event: InputEvent) -> void:
 		world.look_yaw = _look_yaw
 	elif event.is_action_pressed("ui_cancel"):
 		_set_mouse_look(false)
-	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
+			and not _mouse_look:
+		# The first click reclaims the pointer rather than swinging: otherwise
+		# clicking back into the window after Esc would attack whatever happened
+		# to be standing there.
 		_set_mouse_look(true)
+		get_viewport().set_input_as_handled()
 
 
 func _set_mouse_look(on: bool) -> void:
@@ -416,6 +429,11 @@ func _refresh_hud() -> void:
 	lines.append("WATER  %s %3.0f" % [_bar(float(v["hydration"]) / Vitals.MAX), v["hydration"]])
 	lines.append("HEAT   %s %3.0f" % [_bar(float(v["heat"]) / Vitals.MAX), v["heat"]])
 	lines.append("HEALTH %s %3.0f" % [_bar(float(v["health"]) / Vitals.MAX), v["health"]])
+	# Stamina gates sprinting, jumping and climbing, so it belongs next to the
+	# other three rather than buried in a panel.
+	var smax := maxf(1.0, float(v.get("max_stamina", Vitals.STAMINA_MAX)))
+	lines.append("VIGOUR %s %3.0f" % [_bar(float(v.get("stamina", smax)) / smax),
+		float(v.get("stamina", smax))])
 	# Threat sits next to the surface reading on purpose: the two together are
 	# the decision the player is making.
 	lines.append("THREAT %s %3.0f   %s"
@@ -458,6 +476,16 @@ func _refresh_hud() -> void:
 		lines.append("at %s -- can make: %s"
 			% [", ".join(reach), ", ".join(craftable) if craftable else "(nothing yet)"])
 
+	# A live blow is time-critical and worth more than anything else on screen,
+	# so it gets its own line rather than a hint at the end.
+	var blows: Array = []
+	for fid: int in world.spice_mirror:
+		var f: Dictionary = world.spice_mirror[fid]
+		var d: int = int(world.local_pos.distance_to(f["pos"]))
+		blows.append("%s %s %d m" % [f["name"], SpiceField.state_name(int(f["state"])), d])
+	if blows:
+		lines.append("SPICE: " + "   ".join(blows))
+
 	var hints: Array = []
 	var nid: int = world.nearest_node()
 	if nid != 0:
@@ -474,6 +502,8 @@ func _refresh_hud() -> void:
 		hints.append("[B] deploy")
 	if world.find_use("build") >= 0:
 		hints.append("[V] build  [X] remove")
+	if world.nearest_spice() != 0:
+		hints.append("[R] cut spice")
 	if world.nearest_container() != 0:
 		hints.append("[T] %s chest" % ("close" if world.open_container != 0 else "open"))
 	if world.nearest_hostile() != 0:

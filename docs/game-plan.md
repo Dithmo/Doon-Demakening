@@ -481,6 +481,70 @@ placeholder; the panel sells but cannot buy; no map screen, and the wiki's 97
 markers are invisible until you walk into them; and the trading post you spawn
 at has no building, so the Market page names a place the world does not draw.
 
+### Phase 10 — The mechanics, read against the wiki — **done**
+Four things that were missing outright rather than scaled down.
+
+*Test:* `python3 tools/test_phase10.py`, plus the traversal and spice unit suites.
+
+Phases 0–9 were built from the design in this document. Phase 10 is the first
+time the build was checked against [awakening.wiki](https://awakening.wiki)
+system by system, and four gaps were not demake cuts — they were things the game
+is *made of* that simply did not exist.
+
+**Spice.** The defining substance of the setting was absent in every form: no
+item, no blow, no melange, no reason to cross open sand. It is now a cycle
+rather than a resource node, which is what the wiki describes: a field is
+dormant for 7–15 minutes, erupts for 45 seconds — announced to every player on
+the server, with a bearing, because a blow is visible for miles and the race to
+it is the point — then dries into cuttable spice for four minutes before the
+sand takes it back. Cutting it needs a cutteray and is the **loudest act in the
+game** (×34 threat), so the richest thing on the map is also the one that rings
+the dinner bell hardest. Spice sand refines 5:1 into melange at a refinery, and
+melange is what a major trait costs — one per specialization — so spice is a
+progression currency and not merely an expensive rock.
+
+The wiki's eight Spiceblows markers all sit in the north-west of Hagga Basin,
+outside the southern crop this region is built from. That is a fact about the
+crop, not the game: a blow is an eruption on open sand, not a landmark. So the
+seeder takes any marker inside the region and makes up the shortfall on real
+open sand, out past a keep-out radius from the trading post — spice you can
+reach without crossing open sand is spice without a decision attached.
+
+**Dying cost nothing.** You revived on the spot with a full bag, which made the
+worm, the heat and the entire water clock theatre. The wiki is blunt: a player
+the worm takes "loses all carried items, including gear and equipment". Now
+death empties the bag *and* the equipment slots. Being eaten destroys it;
+anything else leaves it where you fell, so a night lost to thirst is a walk back
+rather than a wipe.
+
+**Stamina.** Sprinting was limited only by water, making it a travel mode. It is
+now a second-to-second budget — sprint, jump and climb all spend it, it returns
+only after you ease off, and thirst caps the ceiling. Sprinting is a burst now,
+not a way to cross the map, which the bots demonstrated immediately by dropping
+to a walk.
+
+**A vertical axis.** Cliffs were walls: `is_walkable` refused them and that was
+the end of it, so a mesa was a hole in the map and rock — the one surface a worm
+cannot strike through — was reachable only where the ground happened to ramp.
+Jumping, gravity, fall damage and stamina-priced climbing are all in the shared
+`Movement.step`, advanced from a motion state both sides carry, so prediction
+stays exact. Walking into a cliff still slides along it; *holding* climb takes
+you up it, and an exhausted climber does exactly what a walker does.
+
+Three real bugs came out of building it, all caught by tests rather than by eye:
+stamina regeneration depended on the tick rate (a long tick consumed the delay
+and recovered nothing); `Inventory.add` returns the *leftover* rather than the
+amount taken, so the spice harvest added the spice and then reported failure;
+and only spice *eruptions* were replicated, not the dry-out — a bot walked 750 m,
+stood on the blow, and could not cut it, because as far as the client knew it was
+still erupting.
+
+Not done, and honestly outstanding: **durability and repair** (the wiki's
+Crafting specialization is largely about them) needs per-item wear in inventory
+slots, which is a refactor of the stacking model that trading, containers and
+persistence all sit on; **armour beyond the stillsuit** — the slots exist,
+the items do not; and **ammunition** for the maula pistol.
+
 ## Where the demake cuts
 
 Tight spine, ~30–50 items:

@@ -23,7 +23,7 @@ const MAX_CLIENTS := 8
 
 ## Bumped whenever the wire format changes. Mismatched clients are rejected at
 ## handshake rather than desyncing later.
-const PROTOCOL_VERSION := 1
+const PROTOCOL_VERSION := 2
 
 var role: Role = Role.NONE
 var port: int = DEFAULT_PORT
@@ -56,6 +56,8 @@ var screenshot_path: String = ""
 ##               it to prove the real map is navigable by its own landmarks
 ##   journeyman -- plays the ordinary survival loop, and additionally walks to
 ##               trainers to spend points and to the post to sell
+##   spicer   -- runs to the nearest live spice blow and cuts it, which is the
+##               loudest thing anyone can do and the fastest way to raise a worm
 ##   driver   -- unloads the vehicle it was given, fuels it, drives it, stows
 ##               cargo, and gets out again
 var bot_profile: String = "survive"
@@ -89,6 +91,9 @@ var panel_press: int = 0
 ## world's methods directly and never presses anything. This runs the same
 ## dispatch table the keyboard runs, so a harness can prove a key does its job.
 var do_actions: String = ""
+## Server debug: bring every spice field to a blow immediately. The cycle runs
+## on a 7-15 minute dormancy, which is right for play and useless for a test.
+var spice_now: bool = false
 var deliver_to_landsraad: bool = false
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
@@ -152,6 +157,7 @@ func _parse_args() -> void:
 	panel_page = Args.value("--panel", "")
 	panel_press = Args.integer("--press", 0)
 	do_actions = Args.value("--do", "")
+	spice_now = Args.has("--spice-now")
 	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")

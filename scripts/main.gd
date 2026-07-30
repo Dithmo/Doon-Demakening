@@ -79,9 +79,10 @@ func _capture() -> void:
 
 func _log_position() -> void:
 	var v: Dictionary = world.vitals_mirror
-	print("[bot] %s t=%.3f %s water=%.1f heat=%.1f hp=%.1f %s pos %.1f,%.1f seen %d nodes %d stations %d build %d claims %d threat=%.1f worm=%d on=%s"
+	print("[bot] %s t=%.3f %s water=%.1f heat=%.1f hp=%.1f stam=%.1f %s pos %.1f,%.1f seen %d nodes %d stations %d build %d claims %d threat=%.1f worm=%d on=%s"
 		% [Net.identity, Clock.time_of_day, Clock.phase_name(),
 		v["hydration"], v["heat"], v["health"],
+		float(v.get("stamina", -1.0)),
 		"shade" if world.shaded_mirror else "sun",
 		world.local_pos.x, world.local_pos.z, world.entity_mirror.size(),
 		world.node_mirror.size(), world.station_mirror.size(),
@@ -170,6 +171,11 @@ func _register_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT],
 		"move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT],
+		# Phase 10: the desert has a vertical axis now. Climb is held, not
+		# tapped -- Ctrl rather than a second Space -- because letting go is
+		# how you come back down.
+		"jump": [KEY_SPACE],
+		"climb": [KEY_CTRL],
 		"interact": [KEY_E],
 		"drink": [KEY_F],
 		"harvest": [KEY_G],
@@ -179,7 +185,6 @@ func _register_input() -> void:
 		"build": [KEY_V],
 		"demolish": [KEY_X],
 		"container": [KEY_T],
-		"attack": [KEY_SPACE],
 		"extract": [KEY_Z],
 		"drop": [KEY_Q],
 		"toggle_debug": [KEY_F3],
@@ -198,6 +203,11 @@ func _register_input() -> void:
 	}
 	for n in range(1, 10):
 		binds["row_%d" % n] = [KEY_1 + n - 1]
+
+	# Swinging belongs on the mouse now that the mouse aims the camera. It used
+	# to be Space, which Phase 10 needed for jumping -- and a key doing two jobs
+	# is the bug this file already guards against.
+	var mouse_binds := {"attack": [MOUSE_BUTTON_LEFT]}
 	# Two actions on one key is a bug that does not announce itself: both fire,
 	# and the one you did not want happens quietly. Phase 8 bound "ask the trader
 	# what is on offer" to R, which was already "work the node in front of you",
@@ -220,3 +230,13 @@ func _register_input() -> void:
 			var ev := InputEventKey.new()
 			ev.physical_keycode = key
 			InputMap.action_add_event(action, ev)
+
+	for action: String in mouse_binds:
+		if InputMap.has_action(action):
+			InputMap.action_erase_events(action)
+		else:
+			InputMap.add_action(action)
+		for button: int in mouse_binds[action]:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = button as MouseButton
+			InputMap.action_add_event(action, mb)

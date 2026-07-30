@@ -453,6 +453,23 @@
         "id": "ornithopter",
         "count": 1
       }
+    },
+    {
+      "id": "melange",
+      "name": "Refine Melange",
+      "station": "refinery",
+      "inputs": [
+        {
+          "id": "spice_sand",
+          "count": 5
+        }
+      ],
+      "output": {
+        "id": "melange",
+        "count": 1
+      },
+      "seconds": 4.0,
+      "desc": "Wash the sand out of a spice harvest. Five parts raw to one part pure."
     }
   ]
 }

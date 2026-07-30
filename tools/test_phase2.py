@@ -22,6 +22,7 @@ import os
 import pathlib
 import re
 import shutil
+import tempfile
 import subprocess
 import sys
 import time
@@ -44,9 +45,15 @@ BOT = re.compile(r"\[bot\] (\S+) t=[\d.]+ \w+ water=([\d.-]+)")
 class Proc:
     def __init__(self, args, env):
         self.lines = []
+        # Output goes to a file, never a pipe. Nothing drains stdout while the
+        # run is in flight, so a chatty session used to fill the 64 KB pipe
+        # buffer and block the child mid-play -- which looks exactly like the
+        # game being broken rather than the harness being wrong.
+        self._out = tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".log", delete=False)
         self.p = subprocess.Popen(
             args, cwd=ROOT, env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            stdout=self._out, stderr=subprocess.STDOUT,
         )
 
     def wait(self, timeout):
@@ -54,9 +61,18 @@ class Proc:
             self.p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             self.p.kill()
-        if self.p.stdout:
-            for line in self.p.stdout:
-                self.lines.append(line.rstrip())
+        self._collect()
+
+    def _collect(self):
+        # Read the log file the child wrote to. See the note on _out above.
+        if self._out is None:
+            return
+        self._out.flush()
+        self._out.close()
+        with open(self._out.name, errors="replace") as fh:
+            self.lines = [ln.rstrip() for ln in fh]
+        os.unlink(self._out.name)
+        self._out = None
 
     def text(self):
         return "\n".join(self.lines)

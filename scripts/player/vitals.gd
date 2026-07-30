@@ -36,10 +36,37 @@ const HEATSTROKE_DAMAGE := 2.5
 ## Health only returns when you are not actively dying.
 const HEAL_RATE := 1.5
 
+## Stamina gates effort: sprinting, jumping and hauling yourself up a rock face
+## all spend it, and it only comes back when you ease off. Water is still the
+## clock -- stamina is the second-to-second budget inside it, and the reason a
+## cliff is a decision rather than a ramp. The Combat specialization raises the
+## ceiling, which is why `max_stamina` is a variable and not a constant.
+const STAMINA_MAX := 100.0
+const STAMINA_REGEN := 14.0
+## Delay before regeneration restarts, so spending is not free the instant you
+## stop. Without it, tapping sprint costs nothing at all.
+const STAMINA_REGEN_DELAY := 1.1
+const SPRINT_STAMINA := 9.0
+## A jump is a lump cost; climbing is a rate. Both are charged by Movement, the
+## one place that knows what the player actually managed to do.
+const JUMP_STAMINA := 12.0
+const CLIMB_STAMINA := 16.0
+## Fraction of the bar you must recover after bottoming out before effort is
+## available again.
+const EXHAUST_RECOVER := 0.30
+## Exhaustion is not damage -- it is being unable to run away, which on open
+## sand with a worm listening is quite bad enough.
+
 var hydration: float = MAX
 var heat: float = 0.0
 var health: float = MAX
 var alive: bool = true
+var stamina: float = STAMINA_MAX
+var max_stamina: float = STAMINA_MAX
+var _regen_hold: float = 0.0
+## True once you have run the bar to nothing, until it comes back far enough
+## to be worth anything. See spend_stamina.
+var _exhausted: bool = false
 
 
 ## Advance one server tick. `exposure` is 0..1 from the clock, `shaded` from the
@@ -61,6 +88,22 @@ func tick(delta: float, exposure: float, shaded: bool, activity: float,
 	# before Phase 3 gives players somewhere to shelter.
 	var heat_delta := effective * HEAT_GAIN * heat_gain_mult - HEAT_LOSS * (1.0 - effective)
 	heat = clampf(heat + heat_delta * delta, 0.0, MAX)
+
+	# Stamina recovers only after a pause, and thirst caps how much of it you
+	# can get back: a dry player cannot keep sprinting, which is the same rule
+	# the whole game runs on expressed one layer down.
+	# The hold is spent out of this tick and the remainder regenerates, rather
+	# than the whole tick going to one or the other: with a single `else` a
+	# three-second tick consumed the one-second delay and recovered nothing,
+	# which made recovery depend on the tick rate.
+	var spare := delta
+	if _regen_hold > 0.0:
+		var used := minf(_regen_hold, spare)
+		_regen_hold -= used
+		spare -= used
+	if spare > 0.0:
+		var ceiling := max_stamina * clampf(0.35 + 0.65 * (hydration / MAX), 0.0, 1.0)
+		stamina = minf(ceiling, stamina + STAMINA_REGEN * spare)
 
 	var dying := 0.0
 	if hydration <= 0.0:
@@ -87,11 +130,40 @@ func drink(amount: float) -> float:
 	return hydration - before
 
 
+## Spend stamina if there is enough. Returns false and spends nothing when
+## there is not, so the caller can refuse the sprint rather than half-do it.
+## Called from Movement, which runs identically on both sides -- so this has to
+## be a pure function of the state both sides hold, with no clock of its own.
+func spend_stamina(amount: float) -> bool:
+	if amount <= 0.0:
+		return true
+	# Once you have run yourself out you have to get some of it back before you
+	# can push again. Without this an exhausted player holding sprint spends
+	# every point the instant it arrives and never accumulates any -- they get a
+	# tick of running per second and no recovery, which is neither a sprint nor
+	# a rest. The threshold turns it into a proper cycle: run, blow up, walk it
+	# off, run again.
+	if _exhausted:
+		if stamina < max_stamina * EXHAUST_RECOVER:
+			return false
+		_exhausted = false
+	if stamina < amount:
+		# A refused spend must not restart the hold, or recovery never begins.
+		_exhausted = true
+		return false
+	stamina -= amount
+	_regen_hold = STAMINA_REGEN_DELAY
+	return true
+
+
 func revive() -> void:
 	hydration = MAX * 0.5
 	heat = 0.0
 	health = MAX
 	alive = true
+	stamina = max_stamina
+	_regen_hold = 0.0
+	_exhausted = false
 
 
 ## Rough danger read for the HUD, 0 = fine, 1 = about to die.
@@ -100,13 +172,16 @@ func severity() -> float:
 
 
 func to_data() -> Dictionary:
-	return {"hydration": hydration, "heat": heat, "health": health, "alive": alive}
+	return {"hydration": hydration, "heat": heat, "health": health, "alive": alive,
+		"stamina": stamina, "max_stamina": max_stamina}
 
 
 func from_data(d: Dictionary) -> void:
 	hydration = clampf(float(d.get("hydration", MAX)), 0.0, MAX)
 	heat = clampf(float(d.get("heat", 0.0)), 0.0, MAX)
 	health = clampf(float(d.get("health", MAX)), 0.0, MAX)
+	max_stamina = maxf(1.0, float(d.get("max_stamina", STAMINA_MAX)))
+	stamina = clampf(float(d.get("stamina", max_stamina)), 0.0, max_stamina)
 	alive = bool(d.get("alive", true))
 	if not alive:
 		# Never restore a corpse -- a player who logs in dead can do nothing.

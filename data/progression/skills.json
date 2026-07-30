@@ -38,7 +38,9 @@
       "track": "combat",
       "name": "Blade Training",
       "level": 1,
-      "effects": {"melee_damage": 1.35},
+      "effects": {
+        "melee_damage": 1.35
+      },
       "desc": "Your blades land harder."
     },
     {
@@ -47,7 +49,9 @@
       "name": "Shield Drill",
       "level": 3,
       "requires": "blade_training",
-      "effects": {"shield_recovery": 0.6},
+      "effects": {
+        "shield_recovery": 0.6
+      },
       "desc": "A shield you have practised with comes back faster."
     },
     {
@@ -55,15 +59,20 @@
       "track": "combat",
       "name": "Trophy Hunter",
       "level": 5,
-      "effects": {"kill_xp": 2.0},
-      "desc": "You learn more from a fight than most."
+      "effects": {
+        "kill_xp": 2.0
+      },
+      "desc": "You learn more from a fight than most.",
+      "melange": 2
     },
     {
       "id": "light_step",
       "track": "sabotage",
       "name": "Light Step",
       "level": 1,
-      "effects": {"threat_rate": 0.6},
+      "effects": {
+        "threat_rate": 0.6
+      },
       "desc": "The sand carries less of you to whatever is listening."
     },
     {
@@ -71,7 +80,9 @@
       "track": "sabotage",
       "name": "Quick Hands",
       "level": 3,
-      "effects": {"extract_cooldown": 0.5},
+      "effects": {
+        "extract_cooldown": 0.5
+      },
       "desc": "You draw a body dry in half the time."
     },
     {
@@ -80,15 +91,20 @@
       "name": "Night Work",
       "level": 5,
       "requires": "light_step",
-      "effects": {"night_drain": 0.7},
-      "desc": "You have learned to work the dark cheaply."
+      "effects": {
+        "night_drain": 0.7
+      },
+      "desc": "You have learned to work the dark cheaply.",
+      "melange": 2
     },
     {
       "id": "cave_sense",
       "track": "exploration",
       "name": "Cave Sense",
       "level": 1,
-      "effects": {"shelter_radius": 1.6},
+      "effects": {
+        "shelter_radius": 1.6
+      },
       "desc": "You find the mouth of a cave from further out."
     },
     {
@@ -96,7 +112,9 @@
       "track": "exploration",
       "name": "Cartographer",
       "level": 3,
-      "effects": {"discovery_xp": 2.0},
+      "effects": {
+        "discovery_xp": 2.0
+      },
       "desc": "Somewhere new is worth more to you than to anyone else."
     },
     {
@@ -105,15 +123,20 @@
       "name": "Sun Reader",
       "level": 5,
       "requires": "cave_sense",
-      "effects": {"heat_gain": 0.7},
-      "desc": "You know where the shade will be before it is there."
+      "effects": {
+        "heat_gain": 0.7
+      },
+      "desc": "You know where the shade will be before it is there.",
+      "melange": 2
     },
     {
       "id": "deep_harvest",
       "track": "gathering",
       "name": "Deep Harvest",
       "level": 1,
-      "bonuses": {"node_yield": 1},
+      "bonuses": {
+        "node_yield": 1
+      },
       "desc": "Every node gives up one more than it meant to."
     },
     {
@@ -121,7 +144,9 @@
       "track": "gathering",
       "name": "Dowser",
       "level": 3,
-      "effects": {"dew_yield": 1.5},
+      "effects": {
+        "dew_yield": 1.5
+      },
       "desc": "You set a harvester where the night will actually settle."
     },
     {
@@ -130,15 +155,20 @@
       "name": "Prospector",
       "level": 5,
       "requires": "deep_harvest",
-      "bonuses": {"node_harvests": 2},
-      "desc": "A vein lasts longer in your hands."
+      "bonuses": {
+        "node_harvests": 2
+      },
+      "desc": "A vein lasts longer in your hands.",
+      "melange": 2
     },
     {
       "id": "efficient_fabrication",
       "track": "crafting",
       "name": "Efficient Fabrication",
       "level": 1,
-      "effects": {"craft_cost": 0.75},
+      "effects": {
+        "craft_cost": 0.75
+      },
       "desc": "You waste a quarter less at the bench."
     },
     {
@@ -146,7 +176,9 @@
       "track": "crafting",
       "name": "Master Smith",
       "level": 3,
-      "effects": {"craft_xp": 2.0},
+      "effects": {
+        "craft_xp": 2.0
+      },
       "desc": "You learn from what you make."
     },
     {
@@ -155,8 +187,11 @@
       "name": "Salvager",
       "level": 5,
       "requires": "efficient_fabrication",
-      "effects": {"salvage_yield": 2.0},
-      "desc": "A wreck has more in it than the last person thought."
+      "effects": {
+        "salvage_yield": 2.0
+      },
+      "desc": "A wreck has more in it than the last person thought.",
+      "melange": 2
     }
   ]
 }

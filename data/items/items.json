@@ -349,6 +349,22 @@
       "cruise_altitude": 34.0,
       "desc": "Wings, not wheels. Nothing under the sand can hear you up here.",
       "value": 900
+    },
+    {
+      "id": "spice_sand",
+      "name": "Spice Sand",
+      "stack": 40,
+      "weight": 2.4,
+      "desc": "Raw melange, still gritty with the sand it dried in. Worth more than the vein rock a whole day's mining gives you.",
+      "value": 95
+    },
+    {
+      "id": "melange",
+      "name": "Melange",
+      "stack": 20,
+      "weight": 1.1,
+      "desc": "Refined spice. The Guild flies on it, the Bene Gesserit see with it, and a Landsraad house will pay for it. Advancing a specialization costs it.",
+      "value": 480
     }
   ],
   "_comment_value": "`value` is what the trading post pays for one. It sells at VENDOR_MARKUP times this -- see scripts/world/vendor.gd."

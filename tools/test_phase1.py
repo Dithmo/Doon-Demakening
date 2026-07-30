@@ -23,6 +23,7 @@ import os
 import pathlib
 import re
 import shutil
+import tempfile
 import subprocess
 import sys
 import time
@@ -38,17 +39,29 @@ SYNTHETIC_REGION = "res://data/regions/synthetic_test"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27140"))
 
+# `stam=` is optional so this keeps parsing logs from before Phase 10 added it.
+# It is written that way because the field was inserted into the middle of the
+# line and silently shifted this capture group by one -- every sample then read
+# as "not shaded", and the failure looked like a terrain bug rather than a
+# regex one.
 BOT = re.compile(
-    r"\[bot\] (\S+) t=([\d.]+) (\w+) water=([\d.-]+) heat=([\d.-]+) hp=([\d.-]+) (\w+)"
+    r"\[bot\] (\S+) t=([\d.]+) (\w+) water=([\d.-]+) heat=([\d.-]+) hp=([\d.-]+)"
+    r"(?: stam=[\d.-]+)? (\w+)"
 )
 
 
 class Proc:
     def __init__(self, args, cwd, env):
         self.lines = []
+        # Output goes to a file, never a pipe. Nothing drains stdout while the
+        # run is in flight, so a chatty session used to fill the 64 KB pipe
+        # buffer and block the child mid-play -- which looks exactly like the
+        # game being broken rather than the harness being wrong.
+        self._out = tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".log", delete=False)
         self.p = subprocess.Popen(
             args, cwd=cwd, env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            stdout=self._out, stderr=subprocess.STDOUT,
         )
 
     def wait(self, timeout):
@@ -56,9 +69,18 @@ class Proc:
             self.p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             self.p.kill()
-        if self.p.stdout:
-            for line in self.p.stdout:
-                self.lines.append(line.rstrip())
+        self._collect()
+
+    def _collect(self):
+        # Read the log file the child wrote to. See the note on _out above.
+        if self._out is None:
+            return
+        self._out.flush()
+        self._out.close()
+        with open(self._out.name, errors="replace") as fh:
+            self.lines = [ln.rstrip() for ln in fh]
+        os.unlink(self._out.name)
+        self._out = None
 
     def text(self):
         return "\n".join(self.lines)

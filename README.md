@@ -32,8 +32,15 @@ cutteray, a dew harvester and a fabricator.
 | Key | Does |
 | --- | --- |
 | `WASD` / arrows | Walk, relative to where the camera is facing |
-| `Shift` | Sprint — doubles water loss, and noise wakes the worm |
+| `Shift` | Sprint — spends vigour and water, and the noise wakes the worm |
+| `Space` | Jump |
+| `Ctrl` (hold) | Climb the cliff you are pushing into, while your vigour lasts |
 | Mouse | Look around. Click the window to capture the pointer, `Esc` to release |
+
+Vigour is the second-to-second budget: sprinting, jumping and climbing all
+spend it, it only returns once you ease off, and thirst caps how much of it you
+get back. A cliff is a decision, not a ramp — and rock is the one surface a worm
+cannot strike through, so it is worth the climb.
 
 **Acting on the world** — the HUD only lists a key when there is something for
 it to act on, and every one of them answers, refusals included.
@@ -41,14 +48,14 @@ it to act on, and every one of them answers, refusals included.
 | Key | Does |
 | --- | --- |
 | `E` | Pick up what is on the ground |
-| `R` | Work the resource node in front of you (needs a cutteray) |
+| `R` | Work what is in front of you: a resource node, or a spice blow |
 | `F` | Drink |
 | `G` | Harvest dew — after dark only, richest just before sunrise |
 | `B` | Deploy the first deployable in your bag |
 | `C` | Craft the first thing you have the parts for |
 | `V` / `X` | Build a piece / remove one |
 | `T` | Open or close the chest you are standing at |
-| `Space` | Attack what is in reach |
+| Left mouse | Attack what is in reach |
 | `Z` | Draw water from a body |
 | `Y` / `U` / `P` | Vehicle: climb in or out / refuel / pack up |
 | `Q` | Drop the first thing you are carrying |
@@ -84,6 +91,7 @@ python3 tools/test_phase6.py                            # progression and conten
 python3 tools/test_phase7.py                            # vehicles and guilds
 python3 tools/test_phase8.py                            # the client (needs xvfb-run)
 python3 tools/test_phase9.py                            # the controls (needs xvfb-run)
+python3 tools/test_phase10.py                           # spice, death, stamina, climbing
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -94,7 +102,10 @@ dew-harvest refusal in daylight, death and respawn.
 Useful debug flags when running by hand: `--day-seconds N` (a huge value pins
 the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--start-hydration N`, `--grant "id:count,id:count"`,
-`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim|journeyman|driver`,
+`--bot-profile survive|reckless|forager|builder|prey|quarry|fighter|pilgrim|journeyman|driver|spicer`,
+`--spice-now` (server: bring every spice field to a cuttable blow and hold it
+there — the real cycle is 7–15 minutes of nothing, which is right for play and
+useless for a test),
 `--peaceful` (server: suppress worm and hostiles, for test isolation),
 `--spawn-at "<wiki POI name>"` (server: where new players start),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),

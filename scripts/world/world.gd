@@ -13,6 +13,7 @@ signal local_state_changed(pos: Vector3, surface: int)
 signal vitals_changed
 signal notice(text: String)
 signal nodes_changed
+signal spice_changed
 signal stations_changed
 signal build_changed
 signal container_changed
@@ -48,6 +49,7 @@ var _players: Dictionary = {}
 var _entities: Dictionary = {}  ## entity id -> {item_id, count, pos}
 var _next_entity_id: int = 1
 var _field := NodeField.new()
+var _spice := SpiceField.new()
 ## Flow-field navigation for the journeyman bot. Built lazily from the mask on
 ## first use, so it costs nothing on the server or for any other profile.
 var _bot_path := CoarsePath.new()
@@ -84,7 +86,16 @@ var remote_players: Dictionary = {}  ## peer id -> Vector3
 ## Replicated copy of our own vitals. Display only -- never simulated here.
 var vitals_mirror: Dictionary = {
 	"hydration": Vitals.MAX, "heat": 0.0, "health": Vitals.MAX, "alive": true,
+	"stamina": Vitals.STAMINA_MAX, "max_stamina": Vitals.STAMINA_MAX,
 }
+## Client: the vertical half of prediction, advanced by the same Movement.step
+## the server runs. Without it a jump would be a server-only event the client
+## saw a fifteenth of a second late.
+var _motion: Dictionary = Movement.new_motion()
+## Client: a stand-in Vitals used only to charge prediction for stamina, kept
+## in step by every vitals sync. Prediction has to spend the same stamina the
+## server does or the two disagree about how fast the player is going.
+var _shadow: Vitals = Vitals.new()
 var equipped_mirror: Dictionary = {}
 var shaded_mirror: bool = false
 var node_mirror: Dictionary = {}     ## node id -> {kind, pos, remaining}
@@ -92,6 +103,8 @@ var station_mirror: Dictionary = {}  ## station id -> {kind, item_id, pos}
 var build_mirror: Array = []         ## [{piece, pos, side}]
 var claim_mirror: Array = []         ## [{owner, pos, radius}]
 ## Contents of whichever container we last opened, plus its id.
+## Client: live spice blows only -- dormant fields are not replicated.
+var spice_mirror: Dictionary = {}
 var container_mirror: Array = []
 var open_container: int = 0
 ## Client only: which way the camera is facing, set by the view when the pointer
@@ -166,6 +179,20 @@ func _restore_world() -> void:
 	_stations.from_wire(Store.get_blob("stations"))
 	if not _stations.stations.is_empty():
 		print("[stations] restored %d" % _stations.stations.size())
+
+	# Spice field *positions* are derived, not saved -- they come from the POIs
+	# and the terrain, both fixed. Only the cycle is restored.
+	_spice.seed()
+	_spice.from_data(Store.get_blob("spice"), now)
+	if Net.spice_now:
+		_spice.always_on = true
+		for fid: int in _spice.fields:
+			# Straight to cuttable: a harness should not have to wait out the
+			# 45-second eruption before it can test the harvest.
+			_spice.fields[fid]["state"] = SpiceField.State.DRYING
+			_spice.fields[fid]["remaining"] = SpiceField.HARVESTS
+			_spice.fields[fid]["until"] = now + SpiceField.DRYING_SECONDS
+	print("[spice] %d field(s) on the cycle" % _spice.fields.size())
 	# Camps are static furniture, so reseeding every boot is fine and keeps
 	# them out of the save.
 	if not Net.peaceful:
@@ -206,6 +233,7 @@ func _persist_world() -> void:
 	Store.put_blob("build", _build.to_wire())
 	Store.put_blob("vehicles", _vehicles.to_data())
 	Store.put_blob("guilds", _guilds.to_data())
+	Store.put_blob("spice", _spice.to_data(_now()))
 	Store.put_blob("production_stamp", [float(Time.get_unix_time_from_system())])
 
 
@@ -269,11 +297,13 @@ func _on_peer_joined(id: int) -> void:
 		"identity": who, "pos": pos, "inventory": inv, "vitals": vit,
 		"equipped": equipped, "cooldowns": {}, "spawn": pos,
 		"queue": [], "last_seq": 0, "progression": prog, "quests": quests,
+		"motion": Movement.new_motion(),
 	}
 	_persist_player(id)
 
 	_full_state.rpc_id(id, _entity_wire(), pos)
 	_sync_nodes.rpc_id(id, _field.to_wire())
+	_sync_spice.rpc_id(id, _spice.to_wire())
 	_sync_stations.rpc_id(id, _stations.to_wire())
 	_sync_base.rpc_id(id, _build.to_wire(), _claims.to_wire())
 	var hw := _hostiles.to_wire()
@@ -346,7 +376,9 @@ func _server_tick(delta: float) -> void:
 				if bool(r["ran_dry"]):
 					_notice.rpc_id(id, "out of fuel")
 			else:
-				p["pos"] = Movement.step(p["pos"], cmd["dir"], cmd["sprint"], delta)
+				p["pos"] = Movement.step(p["pos"], cmd["dir"], cmd["sprint"], delta,
+					p["motion"], p["vitals"], bool(cmd["jump"]), bool(cmd["climb"]))
+				_land(id, float(p["motion"]["impact"]))
 			p["last_seq"] = int(cmd["seq"])
 		# A driver who sent nothing this tick still coasts, rather than freezing
 		# mid-roll. Only when nothing was stepped, though: doing it
@@ -381,6 +413,7 @@ func _server_tick(delta: float) -> void:
 	_node_accum += delta
 	if _node_accum >= 1.0:
 		_node_accum = 0.0
+		_tick_spice()
 		var regrown := _field.tick(_now())
 		if not regrown.is_empty():
 			_persist_world()
@@ -443,6 +476,13 @@ func _threat_tick(delta: float) -> void:
 				on_sand = false
 			equip_mult *= vm
 			moving = VehicleMotion.is_moving(float(v["speed"]))
+		# Cutting spice out of a fresh blow is the single loudest act available.
+		# It rides the same dial as everything else so the trade stays legible:
+		# the richest thing on the map is also the one that rings the dinner
+		# bell hardest.
+		if _now() < float(p.get("spice_until", -1.0)):
+			equip_mult *= SpiceField.HARVEST_THREAT
+			moving = true
 		_worm.accrue(id, delta, on_sand, moving, bool(p.get("sprinting", false)),
 			equip_mult)
 		players[id] = {"pos": pos, "on_sand": on_sand,
@@ -526,22 +566,90 @@ func _simulate_vitals(delta: float) -> void:
 ## `cause` is passed by whatever did the killing; only the survival tick has to
 ## infer it from vitals. Without that, a worm strike reported itself twice --
 ## once correctly, then again as heatstroke.
+## Dying costs you what you were carrying. Until Phase 10 it cost nothing at
+## all -- you revived on the spot with a full bag -- which meant the worm, the
+## heat and the whole water clock were theatre. The wiki is blunt about it: a
+## player the worm takes "loses all carried items, including gear and
+## equipment", and everything the game is built on assumes that.
+##
+## Two outcomes, because they are genuinely different events:
+##
+##   eaten     the worm has it. Everything is gone, and there is nothing to go
+##             back for.
+##   otherwise your things stay where you fell, as a cache anyone can reach.
+##             Losing a run to thirst should be a journey back, not a wipe.
+##
+## Equipment goes with the bag either way: a stillsuit is the difference between
+## a walk home and a second death, and keeping it would make dying free again.
 func _kill(id: int, cause: String = "") -> void:
 	var p: Dictionary = _players[id]
 	if cause.is_empty():
 		cause = "dehydration" if p["vitals"].hydration <= 0.0 else "heatstroke"
-	print("[death] %s died of %s at %s" % [p["identity"], cause, Clock.hhmm()])
+	var eaten := cause.begins_with("worm") or cause == "Shai-Hulud"
+	var fell: Vector3 = p["pos"]
+	var inv: Inventory = p["inventory"]
+
+	var lost: Array = []
+	for slot: Dictionary in inv.slots:
+		if not slot.is_empty():
+			lost.append({"id": str(slot["id"]), "count": int(slot["count"])})
+	for slot_key: int in (p["equipped"] as Dictionary):
+		lost.append({"id": str(p["equipped"][slot_key]), "count": 1})
+
+	for i in inv.slots.size():
+		inv.slots[i] = {}
+	(p["equipped"] as Dictionary).clear()
+
+	if not lost.is_empty() and not eaten:
+		# Dropped where you fell rather than deleted, so a night lost to thirst
+		# is a walk back rather than a wipe.
+		for row: Dictionary in lost:
+			spawn_entity(str(row["id"]), int(row["count"]),
+				Movement.find_spawn(fell + Vector3(randf_range(-2.0, 2.0), 0.0,
+					randf_range(-2.0, 2.0))))
+	print("[death] %s died of %s at %s -- %d stack(s) %s"
+		% [p["identity"], cause, Clock.hhmm(), lost.size(),
+		"eaten with them" if eaten else "left where they fell"])
+
 	p["vitals"].revive()
 	p["pos"] = Movement.find_spawn(p["spawn"])
+	p["motion"] = Movement.new_motion()
 	_persist_player(id)
 	_player_died.rpc_id(id, cause, p["pos"])
+	_sync_inventory.rpc_id(id, inv.to_data())
+	_sync_equipment.rpc_id(id, p["equipped"])
+	_notice.rpc_id(id, "You lost everything you were carrying."
+		if eaten else "Your things are where you fell.")
 	_push_vitals(id)
+
+
+## Fall damage, applied on the server only -- Movement runs on both sides and
+## hands back the landing speed, but nobody except the server may take health
+## off a player. A jump on the flat lands well under the threshold; coming off
+## a mesa does not.
+func _land(id: int, impact: float) -> void:
+	if impact <= Movement.SAFE_LANDING_SPEED:
+		return
+	var p: Dictionary = _players[id]
+	var vit: Vitals = p["vitals"]
+	if not vit.alive:
+		return
+	var hurt := (impact - Movement.SAFE_LANDING_SPEED) * Movement.FALL_DAMAGE_PER_MS
+	vit.health = maxf(0.0, vit.health - hurt)
+	print("[fall] %s landed at %.1f m/s for %.0f damage" % [p["identity"], impact, hurt])
+	_notice.rpc_id(id, "a hard landing (-%.0f)" % hurt)
+	if vit.health <= 0.0:
+		vit.alive = false
+		_kill(id, "the fall")
+	else:
+		_push_vitals(id)
 
 
 func _push_vitals(id: int) -> void:
 	var p: Dictionary = _players[id]
 	var v: Vitals = p["vitals"]
-	_sync_vitals.rpc_id(id, v.hydration, v.heat, v.health, bool(p.get("shaded", false)))
+	_sync_vitals.rpc_id(id, v.hydration, v.heat, v.health, bool(p.get("shaded", false)),
+		v.stamina, v.max_stamina)
 
 
 # --- progression ------------------------------------------------------------
@@ -735,7 +843,8 @@ func _seed_entities() -> void:
 # --- client -> server requests ------------------------------------------------
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _submit_input(seq: int, dx: float, dz: float, sprint: bool) -> void:
+func _submit_input(seq: int, dx: float, dz: float, sprint: bool,
+		jump: bool = false, climb: bool = false) -> void:
 	if not Net.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -744,7 +853,8 @@ func _submit_input(seq: int, dx: float, dz: float, sprint: bool) -> void:
 	var queue: Array = _players[id]["queue"]
 	if queue.size() >= MAX_QUEUED_INPUTS:
 		return  # flooding or a stalled client; drop rather than let it bank time
-	queue.append({"seq": seq, "dir": Vector2(dx, dz), "sprint": sprint})
+	queue.append({"seq": seq, "dir": Vector2(dx, dz), "sprint": sprint,
+		"jump": jump, "climb": climb})
 	# Sprinting costs water, so the simulation needs to know about it even
 	# though movement itself is resolved from the queue.
 	var is_moving := dx != 0.0 or dz != 0.0
@@ -884,6 +994,37 @@ func _request_harvest(node_id: int) -> void:
 		print("[harvest] %s node=%d %s x%d remaining=%d"
 			% [p["identity"], node_id, r["item"], r["count"], r["remaining"]])
 		_advance(id, "gather", str(r["item"]), int(r["count"]))
+	if not str(r["msg"]).is_empty():
+		_notice.rpc_id(id, r["msg"])
+
+
+## Cutting spice out of a blow. Separate from `_request_harvest` because a blow
+## is not a node: it has a state and a window rather than a stock, the reach is
+## wider, and it is the one gathering action that makes enough noise to matter.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_spice(field_id: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	if not (p["vitals"] as Vitals).alive:
+		return
+	var prog: Progression = p["progression"]
+	var r := _spice.harvest(p["pos"], p["inventory"], field_id, p["cooldowns"],
+		_now(), prog.mult("salvage_yield"))
+	if r["ok"]:
+		# The noise is charged for a few seconds after the cut, not just on the
+		# tick the request landed on: a worm should be answering the *work*, not
+		# a single frame of it.
+		p["spice_until"] = _now() + 6.0
+		_persist_player(id)
+		_persist_world()
+		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
+		_sync_spice.rpc(_spice.to_wire())
+		print("[spice] %s cut %d from '%s'" % [p["identity"], int(r["count"]), r["name"]])
+		_advance(id, "gather", "spice_sand", int(r["count"]))
 	if not str(r["msg"]).is_empty():
 		_notice.rpc_id(id, r["msg"])
 
@@ -1104,7 +1245,23 @@ func _request_learn(skill_id: String) -> void:
 		_notice.rpc_id(id, str(where["msg"]))
 		return
 
+	# Major traits cost melange as well as a point, and the spice has to be in
+	# your hands -- the trainer takes it off you, so it is checked and consumed
+	# here rather than inside Progression, which knows nothing about a bag.
+	var cost := int(SkillDB.get_skill(skill_id).get("melange", 0))
+	var inv: Inventory = p["inventory"]
+	if cost > 0 and inv.count_of("melange") < cost:
+		var short := "%s needs %d melange; you have %d" % [
+			SkillDB.get_skill(skill_id).get("name", skill_id), cost,
+			inv.count_of("melange")]
+		print("[train] %s refused: %s" % [p["identity"], short])
+		_notice.rpc_id(id, short)
+		return
+
 	var r := prog.learn(skill_id)
+	if r["ok"] and cost > 0:
+		inv.remove("melange", cost)
+		_sync_inventory.rpc_id(id, inv.to_data())
 	print("[train] %s %s: %s" % [p["identity"], "ok" if r["ok"] else "refused", r["msg"]])
 	_notice.rpc_id(id, str(r["msg"]))
 	if r["ok"]:
@@ -1341,6 +1498,8 @@ func _client_tick(delta: float) -> void:
 		return
 	var dir := Vector2.ZERO
 	var sprint := false
+	var jump := false
+	var climb := false
 	if Net.auto:
 		_bot_survive()
 		dir = _bot_direction()
@@ -1348,6 +1507,7 @@ func _client_tick(delta: float) -> void:
 		sprint = dir != Vector2.ZERO and (Net.bot_profile == "reckless"
 			or Net.bot_profile == "prey" or Net.bot_profile == "quarry"
 			or Net.bot_profile == "pilgrim" or Net.bot_profile == "journeyman"
+			or Net.bot_profile == "spicer"
 			or float(vitals_mirror["hydration"]) > 60.0)
 	else:
 		if Input.is_action_pressed("move_forward"): dir.y -= 1.0
@@ -1355,6 +1515,9 @@ func _client_tick(delta: float) -> void:
 		if Input.is_action_pressed("move_left"): dir.x -= 1.0
 		if Input.is_action_pressed("move_right"): dir.x += 1.0
 		sprint = Input.is_action_pressed("sprint")
+		jump = Input.is_action_just_pressed("jump")
+		# Climb is held, not tapped: you are hauling, and letting go drops you.
+		climb = Input.is_action_pressed("climb")
 		# On foot, W means "the way the camera is facing". Driving keeps its own
 		# frame -- steering is left/right of the vehicle, not of the view, or
 		# looking out of the side window would turn the wheel.
@@ -1368,12 +1531,14 @@ func _client_tick(delta: float) -> void:
 	if driving != 0 and vehicle_mirror.has(driving):
 		local_pos = _predict_drive(dir, delta)
 	else:
-		local_pos = Movement.step(local_pos, dir, sprint, delta)
-	_pending.append({"seq": _input_seq, "dir": dir, "sprint": sprint})
+		local_pos = Movement.step(local_pos, dir, sprint, delta,
+			_motion, _local_vitals(), jump, climb)
+	_pending.append({"seq": _input_seq, "dir": dir, "sprint": sprint,
+		"jump": jump, "climb": climb})
 	if _pending.size() > 120:
 		_pending.pop_front()
 
-	_submit_input.rpc_id(1, _input_seq, dir.x, dir.y, sprint)
+	_submit_input.rpc_id(1, _input_seq, dir.x, dir.y, sprint, jump, climb)
 
 	var s := Terrain.sample_surface(local_pos.x, local_pos.z)
 	if s != local_surface:
@@ -1442,7 +1607,8 @@ func _reconcile(server_pos: Vector3, acked_seq: int) -> void:
 		v["pos"] = pos
 	else:
 		for cmd: Dictionary in _pending:
-			pos = Movement.step(pos, cmd["dir"], cmd["sprint"], dt)
+			pos = Movement.step(pos, cmd["dir"], cmd["sprint"], dt,
+				_motion, null, bool(cmd["jump"]), bool(cmd["climb"]))
 	local_pos = pos
 
 
@@ -1465,10 +1631,19 @@ func _sync_inventory(data: Array) -> void:
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _sync_vitals(hydration: float, heat: float, health: float, shaded: bool) -> void:
+func _sync_vitals(hydration: float, heat: float, health: float, shaded: bool,
+		stamina: float = -1.0, max_stamina: float = -1.0) -> void:
 	vitals_mirror["hydration"] = hydration
 	vitals_mirror["heat"] = heat
 	vitals_mirror["health"] = health
+	if stamina >= 0.0:
+		vitals_mirror["stamina"] = stamina
+		vitals_mirror["max_stamina"] = max_stamina
+		# The predictor is corrected by the same message that corrects the HUD:
+		# if the client thinks it can still sprint and the server does not, the
+		# two produce different speeds and the position correction never settles.
+		_shadow.stamina = stamina
+		_shadow.max_stamina = max_stamina
 	shaded_mirror = shaded
 	vitals_changed.emit()
 
@@ -1704,6 +1879,22 @@ func _bot_survive() -> void:
 			return
 
 	if Net.bot_profile == "reckless":
+		return
+	if Net.bot_profile == "spicer":
+		# Runs to the nearest live blow and cuts it until it is picked clean.
+		# The point of the profile is that spice is reachable, cuttable and
+		# extremely loud -- the last part is why it drinks on the way.
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 5
+		if float(vitals_mirror["hydration"]) < 45.0:
+			var w := find_use("hydrate")
+			if w >= 0:
+				use_slot(w)
+				return
+		if nearest_spice() != 0:
+			cut_spice()
 		return
 	if Net.bot_profile == "builder":
 		_bot_use_cd -= 1
@@ -2318,6 +2509,25 @@ func _bot_direction() -> Vector2:
 				return _steer_to(via if via != Vector3.ZERO else where)
 			return Vector2.ZERO
 
+	if Net.bot_profile == "spicer":
+		# Steer at the nearest blow the server has told us about. Straight-line,
+		# like the pilgrim: whether the sand between here and the spice is
+		# crossable is part of what is being tested.
+		var best := Vector3.ZERO
+		var best_d := INF
+		for fid: int in spice_mirror:
+			var f: Dictionary = spice_mirror[fid]
+			if int(f["state"]) == SpiceField.State.DORMANT:
+				continue
+			var d: float = local_pos.distance_to(f["pos"])
+			if d < best_d:
+				best_d = d
+				best = f["pos"]
+		if best == Vector3.ZERO or best_d < SpiceField.REACH * 0.6:
+			return Vector2.ZERO
+		var via := _bot_path.step_from(local_pos, best)
+		return _steer_to(via if via != Vector3.ZERO else best)
+
 	if Net.bot_profile == "pilgrim":
 		# Navigate by the map's own landmarks. Deliberately dead simple steering
 		# with no pathfinding: the point of the test is that the region is
@@ -2739,3 +2949,80 @@ func find_use(hook: String) -> int:
 		if str(ItemDB.get_def(s["id"]).get("use", "")) == hook:
 			return i
 	return -1
+
+
+## Client: the Vitals prediction charges its stamina against.
+func _local_vitals() -> Vitals:
+	return _shadow
+
+
+# --- spice -------------------------------------------------------------------
+
+## Advance the blow cycle and announce eruptions. A blow is visible for miles
+## in the real thing, so every player is told -- the race to it is the point,
+## and on a shared server that race is the most interesting thing that happens.
+func _tick_spice() -> void:
+	var r := _spice.tick(_now())
+	if not bool(r["changed"]):
+		return
+	# Every transition is replicated, not just the eruption: drying is what
+	# makes a blow cuttable, and a client that never hears about it is standing
+	# on spice it cannot touch.
+	_sync_spice.rpc(_spice.to_wire())
+	Store.put_blob("spice", _spice.to_data(_now()))
+	var erupted: Array = r["erupted"]
+	if erupted.is_empty():
+		return
+	for fid: int in erupted:
+		var f: Dictionary = _spice.fields[fid]
+		print("[spice] blow at '%s' (%.0f,%.0f)" % [f["name"], f["pos"].x, f["pos"].z])
+	for id: int in _players:
+		var where: Vector3 = _spice.fields[erupted[0]]["pos"]
+		var d: float = (where - (_players[id]["pos"] as Vector3)).length()
+		_notice.rpc_id(id, "A spice blow, %d m %s" % [int(d), _compass(_players[id]["pos"], where)])
+	Store.put_blob("spice", _spice.to_data(_now()))
+
+
+static func _compass(from: Vector3, to: Vector3) -> String:
+	var d := Vector2(to.x - from.x, to.z - from.z)
+	if d.length() < 1.0:
+		return "here"
+	var a := rad_to_deg(atan2(d.x, -d.y))
+	var names := ["north", "north-east", "east", "south-east",
+		"south", "south-west", "west", "north-west"]
+	return names[int(round(fposmod(a, 360.0) / 45.0)) % 8]
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_spice(rows: Array) -> void:
+	spice_mirror.clear()
+	for row: Array in rows:
+		spice_mirror[int(row[0])] = {
+			"pos": Vector3(float(row[1]), float(row[2]), float(row[3])),
+			"name": str(row[4]), "state": int(row[5]), "remaining": int(row[6]),
+		}
+	spice_changed.emit()
+
+
+## Client: the nearest blow that can actually be cut, or 0.
+func nearest_spice() -> int:
+	var best := 0
+	var best_d := SpiceField.REACH
+	for fid: int in spice_mirror:
+		var f: Dictionary = spice_mirror[fid]
+		if int(f["state"]) != SpiceField.State.DRYING or int(f["remaining"]) <= 0:
+			continue
+		var d: float = local_pos.distance_to(f["pos"])
+		if d <= best_d:
+			best_d = d
+			best = fid
+	return best
+
+
+## Client: cut the blow you are standing on.
+func cut_spice() -> void:
+	var fid := nearest_spice()
+	if fid == 0:
+		notice.emit("no spice within reach")
+		return
+	_request_spice.rpc_id(1, fid)

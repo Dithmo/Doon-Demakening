@@ -61,6 +61,10 @@ func run() -> int:
 	_test_guilds()
 	print("\n=== The interface ===")
 	_test_interface()
+	print("\n=== Traversal: jumping, climbing, stamina ===")
+	_test_traversal()
+	print("\n=== Spice ===")
+	_test_spice()
 
 	print()
 	if _failures.is_empty():
@@ -1261,3 +1265,254 @@ func _test_interface() -> void:
 		"every panel page has a name")
 	_check(Panels.PAGE_NAMES.find("BAG") == Panels.Page.BAG,
 		"and the names line up with the enum")
+
+
+## Vertical traversal. Cliffs were walls for nine phases: `is_walkable` refused
+## them, so a mesa was a hole in the map and rock -- the one surface a worm
+## cannot strike through -- was reachable only where the ground happened to
+## ramp. These tests are against the real terrain contract, not a mock, because
+## the thing that can break is the relationship between the two.
+func _test_traversal() -> void:
+	# Find a real cliff edge: a walkable cell with an unwalkable neighbour that
+	# stands above it. Searched rather than hard-coded, so this keeps working
+	# when the region is rebuilt.
+	var foot := Vector3.ZERO
+	var into := Vector2.ZERO
+	var found := false
+	var step_m := 7.0
+	var x := step_m
+	while x < Terrain.size_m.x - step_m and not found:
+		var z := step_m
+		while z < Terrain.size_m.y - step_m:
+			if Terrain.is_walkable(x, z):
+				for d: Vector2 in [Vector2(step_m, 0.0), Vector2(-step_m, 0.0),
+						Vector2(0.0, step_m), Vector2(0.0, -step_m)]:
+					var tx := x + d.x
+					var tz := z + d.y
+					if not Terrain.is_walkable(tx, tz) \
+							and Terrain.sample_height(tx, tz) > Terrain.sample_height(x, z) + 1.5:
+						foot = Vector3(x, Terrain.sample_height(x, z), z)
+						into = d.normalized()
+						found = true
+						break
+			if found:
+				break
+			z += step_m
+		x += step_m
+
+	_check(found, "the region has a cliff to climb")
+	if not found:
+		return
+
+	# Walking into it does nothing, which is the behaviour every earlier phase
+	# depended on and must not change.
+	var m := Movement.new_motion()
+	var walked := Movement.step(foot, into, false, 0.1, m, null, false, false)
+	_check(_near(walked.y, foot.y, 0.6), "walking into a cliff does not climb it")
+
+	# Holding climb does.
+	var pos := foot
+	m = Movement.new_motion()
+	var rose := false
+	for i in 200:
+		pos = Movement.step(pos, into, false, 0.1, m, null, false, true)
+		if pos.y > foot.y + 1.5:
+			rose = true
+			break
+	_check(rose, "holding climb takes you up the face")
+
+	# And it costs. Compared against the same walk with climb *off* rather than
+	# against a fixed height: the search only guarantees a cliff within a few
+	# metres, so a walker can gain some ground legitimately on the way to it.
+	# What must hold is that an exhausted climber gains no more than a walker.
+	var tired := Vitals.new()
+	tired.stamina = 0.0
+	var stuck := foot
+	var walker := foot
+	var mt := Movement.new_motion()
+	var mw := Movement.new_motion()
+	for i in 40:
+		stuck = Movement.step(stuck, into, false, 0.1, mt, tired, false, true)
+		walker = Movement.step(walker, into, false, 0.1, mw, null, false, false)
+	_check(_near(stuck.y, walker.y, 0.05),
+		"with no stamina, holding climb does exactly nothing")
+	# And with stamina, the same approach gets you higher than walking does.
+	var fresh := Vitals.new()
+	var climber := foot
+	var mc := Movement.new_motion()
+	for i in 40:
+		climber = Movement.step(climber, into, false, 0.1, mc, fresh, false, true)
+	_check(climber.y > walker.y + 0.5, "with stamina, it gets you above the walker")
+	_check(fresh.stamina < Vitals.STAMINA_MAX, "and the climb was paid for")
+
+	# Jumping, and coming back down.
+	var flat := Movement.find_spawn(Vector3(Terrain.size_m.x * 0.5, 0.0, Terrain.size_m.y * 0.5))
+	m = Movement.new_motion()
+	var up := Movement.step(flat, Vector2.ZERO, false, 0.05, m, null, true, false)
+	_check(up.y > flat.y, "a jump leaves the ground")
+	_check(not bool(m["grounded"]), "and knows it is airborne")
+	var airborne := 0
+	var landed := up
+	for i in 200:
+		landed = Movement.step(landed, Vector2.ZERO, false, 0.05, m, null, false, false)
+		if bool(m["grounded"]):
+			break
+		airborne += 1
+	_check(bool(m["grounded"]), "and gravity brings you back")
+	_check(airborne > 4 and airborne < 60,
+		"in a sensible amount of time (%d ticks)" % airborne)
+	_check(_near(landed.y, Terrain.sample_height(landed.x, landed.z), 0.05),
+		"landing puts you exactly on the ground")
+
+	# A jump on the flat must never hurt, or ordinary movement bleeds health.
+	_check(float(m["impact"]) <= Movement.SAFE_LANDING_SPEED,
+		"a jump on the flat is a safe landing (%.1f m/s)" % float(m["impact"]))
+
+	# Stamina: sprinting spends it, resting returns it, and an empty player
+	# cannot sprint. This is the budget the whole traversal system runs on.
+	var v := Vitals.new()
+	var before := v.stamina
+	for i in 20:
+		Movement.step(flat, Vector2(0.0, -1.0), true, 0.1, Movement.new_motion(), v)
+	_check(v.stamina < before, "sprinting spends stamina")
+	v.stamina = 0.0
+	var slow := Movement.step(flat, Vector2(0.0, -1.0), true, 1.0, Movement.new_motion(), v)
+	var fast := Movement.step(flat, Vector2(0.0, -1.0), true, 1.0, Movement.new_motion(), null)
+	_check(flat.distance_to(slow) < flat.distance_to(fast),
+		"and an exhausted player cannot sprint")
+	# Regeneration waits, then returns -- otherwise tapping sprint is free.
+	v.tick(0.5, 0.0, false, 1.0, 1.0)
+	_check(_near(v.stamina, 0.0, 0.01), "stamina does not come back instantly")
+	v.tick(3.0, 0.0, false, 1.0, 1.0)
+	_check(v.stamina > 10.0, "but it does come back")
+	# Holding sprint with an empty bar must still recover. The first cut of this
+	# charged the recovery delay on *refused* spends too, so a player leaning on
+	# Shift never regenerated a single point -- they simply walked for ever.
+	var held := Vitals.new()
+	held.stamina = 0.0
+	held.spend_stamina(1.0)      # bottom out, marking it exhausted
+	var sprinted := 0
+	var peak := 0.0
+	for i in 120:
+		if held.spend_stamina(Vitals.SPRINT_STAMINA * 0.1):
+			sprinted += 1
+		held.tick(0.1, 0.0, false, 1.0, 1.0)
+		peak = maxf(peak, held.stamina)
+	# The high-water mark, not the level at an arbitrary instant: the whole
+	# point is that it cycles, so sampling the end tells you only where in the
+	# cycle the loop happened to stop.
+	_check(peak > Vitals.STAMINA_MAX * Vitals.EXHAUST_RECOVER,
+		"holding sprint on an empty bar still recovers (peak %.1f)" % peak)
+	_check(sprinted > 10,
+		"and you get to run again once it has (%d of 120 ticks)" % sprinted)
+	_check(sprinted < 110, "but not the whole way (%d)" % sprinted)
+
+	# Thirst caps the ceiling: a dry player cannot keep running.
+	var dry := Vitals.new()
+	dry.hydration = 0.0
+	dry.stamina = 0.0
+	dry.tick(30.0, 0.0, false, 1.0, 1.0)
+	_check(dry.stamina < Vitals.STAMINA_MAX * 0.5,
+		"and thirst caps how much of it you get")
+
+
+## Spice: the cycle, the tool, and the fact that it is worth something.
+##
+## A blow is not a resource node -- it has a state and a window rather than a
+## stock, and being on it at the wrong time is the whole mechanic. These are
+## the rules the server enforces, tested without waiting out a real cycle.
+func _test_spice() -> void:
+	var sf := SpiceField.new()
+	sf.seed(1234)
+	_check(sf.fields.size() == SpiceField.TARGET_FIELDS,
+		"the region gets a full set of spice fields (%d)" % sf.fields.size())
+
+	var town := Pois.nearest("trade", Terrain.size_m.x * 0.5, Terrain.size_m.y * 0.5)
+	if not town.is_empty() and Terrain.size_m.x > 2000.0:
+		var near_town := 0
+		for fid: int in sf.fields:
+			var p: Vector3 = sf.fields[fid]["pos"]
+			if Vector2(p.x - float(town["x"]), p.z - float(town["z"])).length() \
+					< SpiceField.MIN_FROM_TOWN:
+				near_town += 1
+		_check(near_town == 0, "and none of them is on the town's doorstep")
+
+	var all_sand := true
+	for fid: int in sf.fields:
+		var p: Vector3 = sf.fields[fid]["pos"]
+		if Terrain.sample_surface(p.x, p.z) != Terrain.Surface.SAND:
+			all_sand = false
+	_check(all_sand, "every blow is out on open sand, where the worm can hear you")
+
+	# Seeding is deterministic: a restart must bring back the same map.
+	var again := SpiceField.new()
+	again.seed(1234)
+	var same := true
+	for fid: int in sf.fields:
+		if not again.fields.has(fid) or again.fields[fid]["pos"] != sf.fields[fid]["pos"]:
+			same = false
+	_check(same, "and the same seed lays them out the same way")
+
+	if sf.fields.is_empty():
+		return
+
+	# The cycle. Drive it by hand rather than waiting.
+	var fid1: int = sf.fields.keys()[0]
+	var f: Dictionary = sf.fields[fid1]
+	f["until"] = 0.0
+	var r := sf.tick(1.0)
+	_check((r["erupted"] as Array).has(fid1), "a dormant field erupts when its time comes")
+	_check(int(f["state"]) == SpiceField.State.BLOWING, "and is blowing, not ready")
+	_check(bool(r["changed"]), "and the tick reports that something changed")
+
+	var inv := Inventory.new()
+	inv.add("cutteray", 1)
+	var cd := {}
+	var mid: Vector3 = f["pos"]
+	var during := sf.harvest(mid, inv, fid1, cd, 2.0)
+	_check(not bool(during["ok"]), "you cannot cut it while it is still erupting")
+
+	# ... and once it dries, you can.
+	f["until"] = 0.0
+	var r2 := sf.tick(50.0)
+	_check(int(f["state"]) == SpiceField.State.DRYING, "it dries into cuttable spice")
+	_check((r2["erupted"] as Array).is_empty() and bool(r2["changed"]),
+		"drying is a change but not an eruption -- the bug that made a blow "
+		+ "uncuttable from the client")
+
+	var got := sf.harvest(mid, inv, fid1, cd, 51.0)
+	_check(bool(got["ok"]) and int(got["count"]) > 0,
+		"and cutting it yields spice sand (%d)" % int(got["count"]))
+	_check(inv.count_of("spice_sand") > 0, "which lands in the bag")
+
+	# Reach, tools and cooldown are all server rules.
+	var far := mid + Vector3(SpiceField.REACH * 3.0, 0.0, 0.0)
+	_check(not bool(sf.harvest(far, inv, fid1, cd, 60.0)["ok"]),
+		"you have to be standing on it")
+	var barehanded := Inventory.new()
+	_check(not bool(sf.harvest(mid, barehanded, fid1, {}, 60.0)["ok"]),
+		"and you need a cutteray")
+
+	# It runs out.
+	var guard := 0
+	while int(sf.fields[fid1]["state"]) == SpiceField.State.DRYING and guard < 40:
+		guard += 1
+		sf.harvest(mid, inv, fid1, cd, 60.0 + float(guard) * 2.0)
+	_check(guard < 40, "a blow is finite and gets picked clean")
+
+	# Spice is the point of all of it: worth far more than a day of ore.
+	_check(Vendor.value_of("spice_sand") > Vendor.value_of("iron_ore") * 10,
+		"raw spice is worth more than ten ore")
+	_check(Vendor.value_of("melange") > Vendor.value_of("spice_sand") * 4,
+		"and refining it is worth doing")
+	_check(RecipeDB.get_recipe("melange").get("station", "") == "refinery",
+		"melange is refined, at a refinery")
+	# Major traits cost melange, which is what makes spice a progression
+	# currency rather than an expensive rock.
+	var majors := 0
+	for sid: String in SkillDB.all_ids():
+		if int(SkillDB.get_skill(sid).get("melange", 0)) > 0:
+			majors += 1
+	_check(majors == 5, "each specialization has a trait that costs melange (%d)" % majors)
+	_check(SpiceField.HARVEST_THREAT > 10.0,
+		"and cutting it is the loudest thing you can do (x%.0f)" % SpiceField.HARVEST_THREAT)
