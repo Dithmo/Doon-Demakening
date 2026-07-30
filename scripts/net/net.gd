@@ -83,6 +83,12 @@ var panel_page: String = ""
 ## Client debug: press this row on the open panel page, once. Closes the loop
 ## between an interface and the server for the harness.
 var panel_press: int = 0
+## Client debug: fire these client actions once, by name, a few seconds after
+## joining -- "attack,extract". Phase 8 shipped six actions that were bound to
+## keys and handled by nobody, and no test could see it, because a bot calls the
+## world's methods directly and never presses anything. This runs the same
+## dispatch table the keyboard runs, so a harness can prove a key does its job.
+var do_actions: String = ""
 var deliver_to_landsraad: bool = false
 ## Starting water for new players. Debug knob so a death test takes seconds
 ## rather than minutes; -1 means full.
@@ -145,6 +151,7 @@ func _parse_args() -> void:
 	guild_name = Args.value("--guild", "")
 	panel_page = Args.value("--panel", "")
 	panel_press = Args.integer("--press", 0)
+	do_actions = Args.value("--do", "")
 	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)
 	grant = Args.value("--grant", "")

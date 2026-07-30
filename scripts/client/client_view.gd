@@ -39,6 +39,31 @@ var _panel: Label
 var _page: int = -1          ## -1 = closed
 var _actions: Array = []
 
+## Mouse-look. Until Phase 9 the camera was pinned to your direction of travel,
+## so you could not look at anything you were not walking at -- no glancing up a
+## slope before climbing it, no checking behind you for a worm. `_look` is only
+## authoritative while the pointer is captured; a bot client never captures it
+## and keeps the old follow-the-travel camera, which is what its screenshots
+## have always shown.
+var _look_yaw: float = 0.0
+var _look_pitch: float = -0.35
+var _mouse_look: bool = false
+const LOOK_SENS := 0.0032
+const PITCH_MIN := -1.15
+const PITCH_MAX := 0.45
+
+## action name -> what pressing it does. A table rather than an if/elif chain so
+## that the set of keys the client answers to is a value the program can check
+## against the set of keys it registers. Phase 8 shipped six actions that were
+## bound, hinted in the HUD, and handled by nobody -- build, demolish, container,
+## attack, extract and the debug toggle -- and no test could see it, because
+## every test drives bots that call the world methods directly and never press a
+## key. `_check_coverage` below is the fix for the whole class.
+var _dispatch: Dictionary = {}
+
+## Handled in world.gd's input gathering rather than here.
+const MOTION := ["move_forward", "move_back", "move_left", "move_right", "sprint"]
+
 
 func _ready() -> void:
 	_terrain = TerrainView.new()
@@ -104,9 +129,25 @@ func _ready() -> void:
 	_alarm.add_theme_font_size_override("font_size", 26)
 	layer.add_child(_alarm)
 
+	_build_dispatch()
+	_check_coverage()
+	# A bot has no pointer and its screenshots have always used the
+	# follow-the-travel camera; capturing for one would change what every
+	# existing harness looks at, for no gain.
+	if not Net.auto:
+		_set_mouse_look(true)
+
 	# --panel opens a page for a screenshot or a manual look.
 	if not Net.panel_page.is_empty():
 		_page = Panels.PAGE_NAMES.find(Net.panel_page.to_upper())
+
+	# --do fires actions through the same table the keyboard uses, once, after
+	# enough of a delay for the first station and hostile syncs to arrive --
+	# and before the --press tick at 3 s, so "open the chest then take from it"
+	# is expressible in one run.
+	if not Net.do_actions.is_empty():
+		var t := get_tree().create_timer(2.5)
+		t.timeout.connect(_run_debug_actions)
 
 	world.vehicles_changed.connect(_refresh_vehicles)
 	world.worm_changed.connect(_refresh_worm)
@@ -130,23 +171,32 @@ func _process(_delta: float) -> void:
 	_terrain.update_around(p)
 	_player_mesh.position = p + Vector3.UP * 0.9
 
-	# The camera follows where you are going. It used to be pinned facing north,
-	# which meant walking south moved you *toward* the lens with the ground you
-	# were heading into off-screen behind you -- fine for a bot, unplayable for
-	# a person. Driving takes the vehicle's heading instead, so a groundcar
-	# turns the view with it.
-	var travelled := Vector2(p.x - _cam_last.x, p.z - _cam_last.z)
-	if world.driving != 0 and world.vehicle_mirror.has(world.driving):
-		_cam_yaw = float(world.vehicle_mirror[world.driving]["heading"])
-	elif travelled.length() > 0.05:
-		_cam_yaw = lerp_angle(_cam_yaw, atan2(travelled.x, -travelled.y), 0.12)
+	# With the pointer captured the camera is yours: orbit it with the mouse and
+	# walk relative to it. Without one -- a bot, or after Escape -- it falls back
+	# to following your direction of travel, which is what it did before Phase 9
+	# and what every existing harness screenshot shows.
+	var focus := p + Vector3.UP * 1.5
+	var dist := 10.0 if world.driving == 0 else 15.0
+	if _mouse_look:
+		var look := Vector3(
+			sin(_look_yaw) * cos(_look_pitch),
+			sin(_look_pitch),
+			-cos(_look_yaw) * cos(_look_pitch))
+		_cam.position = focus - look * dist
+		# Never let the camera sink into the dune behind you.
+		var ground := Terrain.sample_height(_cam.position.x, _cam.position.z) + 1.2
+		_cam.position.y = maxf(_cam.position.y, ground)
+	else:
+		var travelled := Vector2(p.x - _cam_last.x, p.z - _cam_last.z)
+		if world.driving != 0 and world.vehicle_mirror.has(world.driving):
+			_cam_yaw = float(world.vehicle_mirror[world.driving]["heading"])
+		elif travelled.length() > 0.05:
+			_cam_yaw = lerp_angle(_cam_yaw, atan2(travelled.x, -travelled.y), 0.12)
+		var back := Vector3(-sin(_cam_yaw), 0.0, cos(_cam_yaw))
+		var high := 7.5 if world.driving == 0 else 10.0
+		_cam.position = p + back * dist + Vector3.UP * high
 	_cam_last = p
-
-	var back := Vector3(-sin(_cam_yaw), 0.0, cos(_cam_yaw))
-	var high := 7.5 if world.driving == 0 else 10.0
-	var far := 10.0 if world.driving == 0 else 15.0
-	_cam.position = p + back * far + Vector3.UP * high
-	_cam.look_at(p + Vector3.UP * 1.5, Vector3.UP)
+	_cam.look_at(focus, Vector3.UP)
 
 	for id: int in world.remote_players:
 		if not _remote_nodes.has(id):
@@ -190,62 +240,147 @@ func _advance_sky() -> void:
 	_env.ambient_light_energy = lerpf(0.12, 0.62, clampf(alt * 2.0 + 0.3, 0.0, 1.0))
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact"):
-		world.try_pickup()
-	elif event.is_action_pressed("drink"):
-		var i: int = world.find_use("hydrate")
-		if i >= 0:
-			world.use_slot(i)
-	elif event.is_action_pressed("harvest"):
-		var i: int = world.find_use("tool_dew")
-		if i >= 0:
-			world.use_slot(i)
-	elif event.is_action_pressed("work"):
-		world.try_harvest()
-	elif event.is_action_pressed("deploy"):
-		var i: int = world.find_use("place")
-		if i >= 0:
-			world.use_slot(i)
-	elif event.is_action_pressed("craft"):
-		# Cycles the first craftable recipe. A proper menu is Phase 6 polish.
-		for rid: String in world.available_recipes():
-			if world.has_inputs_for(rid):
-				world.craft(rid)
-				break
-	elif event.is_action_pressed("drop"):
-		for i in (world.inventory_mirror as Array).size():
-			if not (world.inventory_mirror[i] as Dictionary).is_empty():
-				world.drop_slot(i)
-				break
-	elif event.is_action_pressed("panel"):
-		# Tab cycles pages and wraps round to closed, so one key both opens and
-		# dismisses it.
-		_page += 1
-		if _page >= Panels.PAGE_NAMES.size():
-			_page = -1
-		_refresh_panel()
-	elif event.is_action_pressed("ask"):
-		world.ask_contracts()
-	elif event.is_action_pressed("vehicle"):
-		if world.driving != 0:
-			world.exit_vehicle()
-		else:
-			world.enter_vehicle()
-	elif event.is_action_pressed("refuel"):
-		world.refuel_vehicle()
-	elif event.is_action_pressed("pack"):
-		world.pack_vehicle()
-	elif event.is_action_pressed("guild"):
-		if world.my_guild == 0:
-			world.found_guild(DEFAULT_GUILD)
-		else:
-			world.leave_guild()
+func _build_dispatch() -> void:
+	_dispatch = {
+		"interact": func() -> void: world.try_pickup(),
+		"drink": func() -> void: _use_hook("hydrate"),
+		"harvest": func() -> void: _use_hook("tool_dew"),
+		"deploy": func() -> void: _use_hook("place"),
+		"work": func() -> void: world.try_harvest(),
+		"craft": _craft_first,
+		"drop": _drop_first,
+		"panel": _cycle_page,
+		"ask": func() -> void: world.ask_contracts(),
+		"refuel": func() -> void: world.refuel_vehicle(),
+		"pack": func() -> void: world.pack_vehicle(),
+		"vehicle": _toggle_vehicle,
+		"guild": _toggle_guild,
+		# Phase 9. Every one of these was already implemented, replicated and
+		# tested server-side; none of them had a key that reached it.
+		"build": func() -> void: world.try_build(),
+		"demolish": func() -> void: world.try_demolish(),
+		"attack": func() -> void: world.try_attack(),
+		"extract": func() -> void: world.try_extract(),
+		"container": _toggle_container,
+		"toggle_debug": func() -> void: _hud.visible = not _hud.visible,
+		"bag": func() -> void:
+			_page = -1 if _page == Panels.Page.BAG else Panels.Page.BAG
+			_refresh_panel(),
+	}
+	for n in range(1, Panels.MAX_ROWS + 1):
+		_dispatch["row_%d" % n] = _act_on_row.bind(n - 1)
+
+
+## Warn about any registered action nothing answers to. The registration list
+## lives in main.gd and the handling lives here, and nothing used to hold the
+## two against each other -- which is exactly how six keys came to be advertised
+## in the HUD while doing nothing at all.
+func _run_debug_actions() -> void:
+	for name: String in Net.do_actions.split(",", false):
+		var action := name.strip_edges()
+		if not _dispatch.has(action):
+			print("[do] no action called '%s'" % action)
+			continue
+		(_dispatch[action] as Callable).call()
+		print("[do] fired '%s'" % action)
+
+
+func _check_coverage() -> void:
+	for action: StringName in InputMap.get_actions():
+		var name := str(action)
+		if name.begins_with("ui_") or MOTION.has(name) or _dispatch.has(name):
+			continue
+		push_warning("input: '%s' is bound to a key but nothing handles it" % name)
+
+
+func _use_hook(hook: String) -> void:
+	var i: int = world.find_use(hook)
+	if i >= 0:
+		world.use_slot(i)
+
+
+func _craft_first() -> void:
+	# Cycles the first craftable recipe. The panel is the considered way to do
+	# this; the key stays for speed.
+	for rid: String in world.available_recipes():
+		if world.has_inputs_for(rid):
+			world.craft(rid)
+			return
+
+
+func _drop_first() -> void:
+	for i in (world.inventory_mirror as Array).size():
+		if not (world.inventory_mirror[i] as Dictionary).is_empty():
+			world.drop_slot(i)
+			return
+
+
+## Tab cycles pages and wraps round to closed, so one key both opens and
+## dismisses it.
+func _cycle_page() -> void:
+	_page += 1
+	if _page >= Panels.PAGE_NAMES.size():
+		_page = -1
+	_refresh_panel()
+
+
+func _toggle_vehicle() -> void:
+	if world.driving != 0:
+		world.exit_vehicle()
 	else:
-		for n in range(1, Panels.MAX_ROWS + 1):
-			if event.is_action_pressed("row_%d" % n):
-				_act_on_row(n - 1)
-				return
+		world.enter_vehicle()
+
+
+func _toggle_guild() -> void:
+	if world.my_guild == 0:
+		world.found_guild(DEFAULT_GUILD)
+	else:
+		world.leave_guild()
+
+
+## Opening a chest also turns to its page, because a container you cannot see
+## the contents of is not open in any sense that matters.
+func _toggle_container() -> void:
+	if world.open_container != 0:
+		world.close_container()
+		if _page == Panels.Page.CONTAINER:
+			_page = -1
+	else:
+		world.open_nearest_container()
+		_page = Panels.Page.CONTAINER
+	_refresh_panel()
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and _mouse_look:
+		var mm := event as InputEventMouseMotion
+		_look_yaw -= mm.relative.x * LOOK_SENS
+		_look_pitch = clampf(_look_pitch - mm.relative.y * LOOK_SENS,
+			PITCH_MIN, PITCH_MAX)
+		# The server is told a direction in world space, exactly as before, so
+		# moving relative to the camera is purely a client-side rotation of the
+		# same vector and prediction stays byte-identical to the server's step.
+		world.look_yaw = _look_yaw
+	elif event.is_action_pressed("ui_cancel"):
+		_set_mouse_look(false)
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		_set_mouse_look(true)
+
+
+func _set_mouse_look(on: bool) -> void:
+	_mouse_look = on
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if on else Input.MOUSE_MODE_VISIBLE
+	# Handing control back must also hand back the movement frame, or releasing
+	# the pointer would silently leave W pointing somewhere other than the way
+	# the camera is now facing.
+	world.look_yaw = _look_yaw if on else 0.0
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	for action: String in _dispatch:
+		if event.is_action_pressed(action):
+			(_dispatch[action] as Callable).call()
+			return
 
 
 ## What a number key does depends on the open page. The dispatch itself lives in
@@ -340,15 +475,19 @@ func _refresh_hud() -> void:
 	if world.find_use("build") >= 0:
 		hints.append("[V] build  [X] remove")
 	if world.nearest_container() != 0:
-		hints.append("[T] container")
+		hints.append("[T] %s chest" % ("close" if world.open_container != 0 else "open"))
 	if world.nearest_hostile() != 0:
 		hints.append("[Space] attack")
 	if world.nearest_corpse() != 0:
 		hints.append("[Z] draw water")
+	if world.nearest_vehicle() != 0 or world.driving != 0:
+		hints.append("[Y] %s" % ("get out" if world.driving != 0 else "climb in"))
 	if reach:
 		hints.append("[C] craft")
 	hints.append("[Q] drop")
 	lines.append(" ".join(hints))
+	lines.append("[I] bag  [Tab] pages  %s"
+		% ("[Esc] free the mouse" if _mouse_look else "[click] look around"))
 	_hud.text = "\n".join(lines)
 
 

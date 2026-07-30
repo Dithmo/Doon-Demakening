@@ -59,6 +59,8 @@ func run() -> int:
 	_test_vehicles()
 	print("\n=== Guilds and the Landsraad ===")
 	_test_guilds()
+	print("\n=== The interface ===")
+	_test_interface()
 
 	print()
 	if _failures.is_empty():
@@ -1227,3 +1229,35 @@ func _test_guilds() -> void:
 	_check(round_trip.of_member("ada") != 0, "guild membership persists")
 	_check(_near(round_trip.standing_of(round_trip.of_member("ada")), 40.0),
 		"and so does standing")
+
+
+## The camera frame. Mouse-look works by rotating the movement vector on the
+## client before it is predicted and before it is sent, so the server keeps
+## receiving a plain world-space direction. If this convention is wrong, W walks
+## sideways -- and no server-side test would ever notice, because the server
+## sees a perfectly valid direction either way.
+func _test_interface() -> void:
+	var forward := Vector2(0.0, -1.0)
+	_check(forward.rotated(0.0).is_equal_approx(forward),
+		"with no mouse-look, forward is unchanged")
+	var east := forward.rotated(-PI / 2.0)
+	_check(_near(east.x, -1.0) and _near(east.y, 0.0, 0.001),
+		"facing a quarter turn one way sends you along -x")
+	var west := forward.rotated(PI / 2.0)
+	_check(_near(west.x, 1.0) and _near(west.y, 0.0, 0.001),
+		"and the other way along +x")
+	_check(_near(forward.rotated(PI).y, 1.0),
+		"turning right round sends you back the way you came")
+	# Rotation must not change how far you are asking to go, or looking
+	# diagonally would be a speed bonus.
+	for a: float in [0.3, 1.1, 2.7, -0.8]:
+		_check(_near(Vector2(1.0, -1.0).normalized().rotated(a).length(), 1.0),
+			"looking about does not change your speed (%.1f rad)" % a)
+
+	# Every page must render for a player who has nothing and has done nothing:
+	# that is the state a new character is in for most of them, and a page that
+	# only works once it has data is a page that crashes on first open.
+	_check(Panels.PAGE_NAMES.size() == Panels.Page.size(),
+		"every panel page has a name")
+	_check(Panels.PAGE_NAMES.find("BAG") == Panels.Page.BAG,
+		"and the names line up with the enum")

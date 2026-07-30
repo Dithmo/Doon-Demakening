@@ -13,9 +13,10 @@ extends RefCounted
 ## quicker to build and quicker to use. Every page renders from the replicated
 ## mirrors and never from a local guess.
 
-enum Page { JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD }
+enum Page { BAG, JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD, CONTAINER }
 
-const PAGE_NAMES := ["JOURNEY", "SKILLS", "CONTRACTS", "MARKET", "GUILD", "HOLD"]
+const PAGE_NAMES := ["BAG", "JOURNEY", "SKILLS", "CONTRACTS", "MARKET", "GUILD",
+	"HOLD", "CONTAINER"]
 
 ## How many rows a page offers to the number keys. 1-9 plus 0 would be ten, but
 ## nine is enough for every list here and keeps 0 free.
@@ -27,12 +28,14 @@ const MAX_ROWS := 9
 ## key i+1 should act on.
 static func render(page: int, world: Node) -> Dictionary:
 	match page:
+		Page.BAG: return _bag(world)
 		Page.JOURNEY: return _journey(world)
 		Page.SKILLS: return _skills(world)
 		Page.CONTRACTS: return _contracts(world)
 		Page.MARKET: return _market(world)
 		Page.GUILD: return _guild(world)
 		Page.HOLD: return _hold(world)
+		Page.CONTAINER: return _container(world)
 	return {"text": "", "actions": []}
 
 
@@ -48,11 +51,23 @@ static func act(page: int, world: Node, index: int, actions: Array) -> bool:
 		return false
 	var target: Variant = actions[index]
 	match page:
+		# Using a slot is how everything in the bag is operated: a stillsuit
+		# equips, water drinks, a fabricator deploys. The item's own `use` hook
+		# decides which, so there is no separate "equip" verb to get wrong.
+		Page.BAG: world.use_slot(int(target))
 		Page.SKILLS: world.learn(str(target))
 		Page.CONTRACTS: world.ask_contracts(str(target))
 		Page.MARKET: world.sell(int(target), 1)
 		Page.GUILD: world.deliver_to_landsraad(int(target))
 		Page.HOLD: world.stow_in_hold(int(target))
+		# The one page whose rows mean two different things, so each row carries
+		# its own verb rather than relying on where it sits in the list.
+		Page.CONTAINER:
+			var row: Dictionary = target
+			if row.has("take"):
+				world.take_from_container(int(row["take"]))
+			else:
+				world.put_in_container(int(row["put"]))
 		_: return false
 	return true
 
@@ -65,6 +80,96 @@ static func header(page: int, world: Node) -> String:
 	return "=== %s ===   level %d   %d xp (%d to next)   %d point(s)   %d solari" % [
 		PAGE_NAMES[page], int(pr["level"]), int(pr["xp"]), int(pr["next"]),
 		int(pr["points"]), int(pr["solari"])]
+
+
+## What each `use` hook does when you press a row, in the player's words. Hooks
+## missing from this table are tools worked with a dedicated key rather than
+## from the bag -- a cutteray cuts the node in front of you, not itself.
+const USE_VERB := {
+	"equip": "wear", "hydrate": "drink", "place": "deploy",
+	"deploy_vehicle": "unload",
+}
+const TOOL_KEY := {
+	"build": "[V] to build with it", "tool_gather": "[R] at a node",
+	"tool_dew": "[G] at night", "tool_blood": "[Z] at a corpse",
+}
+
+
+## The bag. This page is how a person equips anything: pressing a row uses the
+## slot, and "use" on a stillsuit means wear it. Before this existed the only
+## way to put on a stillsuit was to be a bot.
+static func _bag(world: Node) -> Dictionary:
+	var lines: Array = []
+	var actions: Array = []
+
+	var worn: Array = []
+	for slot: int in world.equipped_mirror:
+		worn.append(ItemDB.display_name(str(world.equipped_mirror[slot])))
+	lines.append("worn: " + (", ".join(worn) if worn else "(nothing)"))
+	lines.append("")
+
+	var empty := true
+	for i in (world.inventory_mirror as Array).size():
+		var slot: Dictionary = world.inventory_mirror[i]
+		if slot.is_empty():
+			continue
+		empty = false
+		var id := str(slot["id"])
+		var hook := str(ItemDB.get_def(id).get("use", ""))
+		var note := ""
+		var mark := "   -"
+		if USE_VERB.has(hook) and actions.size() < MAX_ROWS:
+			actions.append(i)
+			mark = "[%d]" % actions.size()
+			note = str(USE_VERB[hook])
+		elif TOOL_KEY.has(hook):
+			note = str(TOOL_KEY[hook])
+		else:
+			note = "no use"
+		lines.append("  %-4s %-24s x%-3d %s"
+			% [mark, ItemDB.display_name(id), int(slot["count"]), note])
+	if empty:
+		lines.append("  (your bag is empty)")
+	lines.append("")
+	lines.append("[Q] drop the first thing you are carrying.")
+	return {"text": "\n".join(lines), "actions": actions}
+
+
+## A deployed chest, once [T] has opened it. Rows mean two things here -- take
+## the ones inside, put the ones you are carrying -- so each row says which.
+static func _container(world: Node) -> Dictionary:
+	var lines: Array = []
+	var actions: Array = []
+	if int(world.open_container) == 0:
+		lines.append("No container open.")
+		if int(world.nearest_container()) != 0:
+			lines.append("One is within reach -- press [T] to open it.")
+		else:
+			lines.append("Deploy a chest from your bag, then stand at it and press [T].")
+		return {"text": "\n".join(lines), "actions": actions}
+
+	lines.append("Inside:")
+	var any := false
+	for i in (world.container_mirror as Array).size():
+		var slot: Dictionary = world.container_mirror[i]
+		if slot.is_empty() or actions.size() >= MAX_ROWS:
+			continue
+		any = true
+		actions.append({"take": i})
+		lines.append("  [%d] take %s x%d" % [actions.size(),
+			ItemDB.display_name(str(slot["id"])), int(slot["count"])])
+	if not any:
+		lines.append("  (empty)")
+	lines.append("")
+	lines.append("From your bag:")
+	for i in (world.inventory_mirror as Array).size():
+		var slot: Dictionary = world.inventory_mirror[i]
+		if slot.is_empty() or actions.size() >= MAX_ROWS:
+			continue
+		actions.append({"put": i})
+		lines.append("  [%d] store %s x%d" % [actions.size(),
+			ItemDB.display_name(str(slot["id"])), int(slot["count"])])
+	return {"text": "\n".join(lines), "actions": actions}
 
 
 static func _journey(world: Node) -> Dictionary:

@@ -94,6 +94,12 @@ var claim_mirror: Array = []         ## [{owner, pos, radius}]
 ## Contents of whichever container we last opened, plus its id.
 var container_mirror: Array = []
 var open_container: int = 0
+## Client only: which way the camera is facing, set by the view when the pointer
+## is captured. Movement input is rotated by this before it is predicted *and*
+## before it is sent, so the server still receives a plain world-space direction
+## and validates it exactly as it always has. 0 means "no mouse-look" -- a bot
+## or a released pointer -- and leaves the input untouched.
+var look_yaw: float = 0.0
 var stations_in_reach: Array = []
 ## Replicated worm state. Display and warning only -- the server decides.
 var worm_mirror: Dictionary = {"state": 0, "pos": Vector3.ZERO,
@@ -944,6 +950,7 @@ func _request_attack() -> void:
 	var weapon := Combat.weapon_of(p["equipped"])
 	var npc_id := _hostiles.nearest(p["pos"], float(weapon["reach"]))
 	if npc_id == 0:
+		print("[combat] %s refused: nothing in reach" % p["identity"])
 		_notice.rpc_id(id, "nothing in reach")
 		return
 	var target_pos: Vector3 = _hostiles.npcs[npc_id]["pos"]
@@ -976,6 +983,10 @@ func _request_extract() -> void:
 	var p: Dictionary = _players[id]
 	var cid := _hostiles.nearest_corpse(p["pos"], 3.0)
 	if cid == 0:
+		# Was a silent return: the one server decision a player could provoke
+		# and get no answer to at all.
+		print("[blood] %s refused: nothing to draw from" % p["identity"])
+		_notice.rpc_id(id, "nothing to draw from")
 		return
 	var r := _hostiles.extract(p["pos"], p["inventory"], cid, p["cooldowns"], _now(),
 		(p["progression"] as Progression).mult("extract_cooldown"))
@@ -1038,6 +1049,9 @@ func _request_demolish(aim: Vector3) -> void:
 		_persist_world()
 		_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
 		_sync_base.rpc(_build.to_wire(), _claims.to_wire())
+		print("[demolish] %s %s" % [p["identity"], r["msg"]])
+	else:
+		print("[demolish] %s refused: %s" % [p["identity"], r["msg"]])
 	_notice.rpc_id(id, str(r["msg"]))
 
 
@@ -1059,9 +1073,12 @@ func _request_container(station_id: int, slot_index: int, to_container: bool) ->
 			_sync_inventory.rpc_id(id, (p["inventory"] as Inventory).to_data())
 			print("[container] %s %s" % [p["identity"], r["msg"]])
 		else:
+			print("[container] %s refused: %s" % [p["identity"], r["msg"]])
 			_notice.rpc_id(id, str(r["msg"]))
 	var box: Dictionary = _stations.stations.get(station_id, {})
 	if box.has("inventory"):
+		if slot_index < 0:
+			print("[container] %s opened #%d" % [p["identity"], station_id])
 		_sync_container.rpc_id(id, station_id, (box["inventory"] as Inventory).to_data())
 
 
@@ -1338,6 +1355,11 @@ func _client_tick(delta: float) -> void:
 		if Input.is_action_pressed("move_left"): dir.x -= 1.0
 		if Input.is_action_pressed("move_right"): dir.x += 1.0
 		sprint = Input.is_action_pressed("sprint")
+		# On foot, W means "the way the camera is facing". Driving keeps its own
+		# frame -- steering is left/right of the vehicle, not of the view, or
+		# looking out of the side window would turn the wheel.
+		if driving == 0:
+			dir = dir.rotated(look_yaw)
 
 	_input_seq += 1
 	# Predict locally, then let the server correct us. Driving predicts the
@@ -2643,8 +2665,11 @@ func worm_warning() -> String:
 
 func try_build() -> void:
 	var i := find_use("build")
-	if i >= 0:
-		_request_build.rpc_id(1, i, build_aim())
+	if i < 0:
+		# Swallowing this made the [V] hint look broken rather than inapplicable.
+		notice.emit("nothing to build with")
+		return
+	_request_build.rpc_id(1, i, build_aim())
 
 
 func try_demolish() -> void:
@@ -2653,8 +2678,10 @@ func try_demolish() -> void:
 
 func open_nearest_container() -> void:
 	var sid := nearest_container()
-	if sid != 0:
-		_request_container.rpc_id(1, sid, -1, false)
+	if sid == 0:
+		notice.emit("no container within reach")
+		return
+	_request_container.rpc_id(1, sid, -1, false)
 
 
 func take_from_container(slot_index: int) -> void:
@@ -2665,6 +2692,13 @@ func take_from_container(slot_index: int) -> void:
 func put_in_container(slot_index: int) -> void:
 	if open_container != 0:
 		_request_container.rpc_id(1, open_container, slot_index, true)
+
+
+## Closing is purely a client-side matter: the server never held the chest open,
+## it only answered questions about it, so there is nothing to tell it.
+func close_container() -> void:
+	open_container = 0
+	container_mirror = []
 
 
 func nearest_container() -> int:

@@ -429,6 +429,58 @@ panel cannot buy, only sell; there is no map screen, and the wiki's 97 markers
 are invisible until you walk into them; and vehicle *appearance* is checked by
 eye rather than automatically, since asserting on pixels is worse than useless.
 
+### Phase 9 — The controls — **done**
+The keyboard, as its own subject.
+
+*Test:* `python3 tools/test_phase9.py`.
+
+Phase 8 claimed to make Phases 0–7 reachable by a person. It made *Phases 5–7*
+reachable, wrote its acceptance suite against those three things, and passed 27
+checks. What it missed: **six actions were bound to keys, printed in the HUD as
+available, and handled by nobody** — `build`, `demolish`, `container`, `attack`,
+`extract`, `toggle_debug`. Every one had a working, replicated, server-validated
+implementation behind it; the last inch, `if pressed("attack"): try_attack()`,
+was never written. So base building and combat — two entire phases — had no
+human input path, and the HUD invited you to press keys that did nothing.
+
+No test could see it. Every harness in this project drives bots, and a bot calls
+`world.try_attack()` directly. The keyboard was the one part of the program
+nothing had ever exercised.
+
+**The structural fix** matters more than the six lines. Input dispatch is now a
+table mapping action name → what it does, and the view checks that table against
+the `InputMap` at startup, warning about any registered action nothing answers
+to. The set of keys the client handles is now a value the program can compare
+against the set of keys it registers, so the next dead key announces itself.
+`--do "attack,container"` fires entries through that same table, which is what
+makes a key assertable at all — the same trick as `--press`, one layer down.
+
+**Mouse-look**, which turned out to be the reason the game looked dead in
+screenshots: the camera was pinned to the direction of travel, so you could not
+look at anything you were not already walking at. Movement is now
+camera-relative, done by rotating the input vector on the client *before* it is
+predicted and *before* it is sent — the server still receives a plain
+world-space direction and validates it exactly as before, so prediction stays
+byte-identical. Released pointer or a bot means yaw 0, which is the old
+behaviour untouched.
+
+**Two pages that were missing subsystems, not polish.** *Bag* is the only way a
+person can equip anything — pressing a row uses the slot, and using a stillsuit
+wears it. *Container* is the only way to move resources into a chest. Both had
+complete server implementations reachable only by bots.
+
+Also: several server decisions were silent. Asking to draw water with no corpse
+in reach returned without a log line or a notice — the player got no answer at
+all. Attack, extract, demolish and container refusals now all say so, on both
+sides. A key that does nothing and says nothing is the same bug as a key that
+isn't wired.
+
+Not done: still no aiming — building places a piece a couple of metres ahead
+rather than under a cursor; no name entry, so founding a guild uses a fixed
+placeholder; the panel sells but cannot buy; no map screen, and the wiki's 97
+markers are invisible until you walk into them; and the trading post you spawn
+at has no building, so the Market page names a place the world does not draw.
+
 ## Where the demake cuts
 
 Tight spine, ~30–50 items:

@@ -49,6 +49,10 @@ func _ready() -> void:
 	# Headless clients still need to log enough for the harness to assert on.
 	if Net.is_client():
 		world.inventory_changed.connect(_log_inventory)
+		# Notices are the only channel for a refusal the client settles itself,
+		# which is otherwise invisible to a harness reading the server's log.
+		world.notice.connect(func(t: String) -> void:
+			print("[notice] %s | %s" % [Net.identity, t]))
 	# Panels render from the replicated mirrors and nothing else, so logging one
 	# tests the interface without needing a window. The view draws the same text.
 	if Net.is_client() and not Net.panel_page.is_empty():
@@ -181,6 +185,9 @@ func _register_input() -> void:
 		"toggle_debug": [KEY_F3],
 		# Phase 8: the interface for everything Phases 6 and 7 built.
 		"panel": [KEY_TAB],
+		# Straight to the bag, because cycling eight pages to put a stillsuit on
+		# is not an interface.
+		"bag": [KEY_I],
 		# H, not R: R is already "work the node in front of you", and two actions
 		# on one key means every harvest also pesters the trader.
 		"ask": [KEY_H],

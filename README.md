@@ -21,10 +21,54 @@ godot --headless -- --server [--port N] [--region res://data/regions/NAME]
 godot           -- --client [--host H] [--port N] [--identity NAME]
 ```
 
-Controls: `WASD` move, `Shift` sprint, `E` pick up, `R` work a resource node,
-`F` drink, `G` harvest dew (after dark only), `B` deploy a station,
-`C` craft, `V` build, `X` remove, `T` container, `Space` attack,
-`Z` draw water from a body, `Q` drop.
+### Playing it
+
+`tools/run_session.sh` with no arguments is the whole thing: a headless server
+and one window. You start at Griffin's Reach Trading Post with water, a
+cutteray, a dew harvester and a fabricator.
+
+**Getting about**
+
+| Key | Does |
+| --- | --- |
+| `WASD` / arrows | Walk, relative to where the camera is facing |
+| `Shift` | Sprint — doubles water loss, and noise wakes the worm |
+| Mouse | Look around. Click the window to capture the pointer, `Esc` to release |
+
+**Acting on the world** — the HUD only lists a key when there is something for
+it to act on, and every one of them answers, refusals included.
+
+| Key | Does |
+| --- | --- |
+| `E` | Pick up what is on the ground |
+| `R` | Work the resource node in front of you (needs a cutteray) |
+| `F` | Drink |
+| `G` | Harvest dew — after dark only, richest just before sunrise |
+| `B` | Deploy the first deployable in your bag |
+| `C` | Craft the first thing you have the parts for |
+| `V` / `X` | Build a piece / remove one |
+| `T` | Open or close the chest you are standing at |
+| `Space` | Attack what is in reach |
+| `Z` | Draw water from a body |
+| `Y` / `U` / `P` | Vehicle: climb in or out / refuel / pack up |
+| `Q` | Drop the first thing you are carrying |
+
+**Pages** — `Tab` cycles them, `1`–`9` act on the numbered rows, `I` jumps
+straight to the bag, `F3` hides the HUD for a clean screenshot.
+
+| Page | For |
+| --- | --- |
+| Bag | **Equipping.** A row uses the slot, and using a stillsuit wears it |
+| Journey | The twelve-step path and how far along it you are |
+| Skills | Five specializations, what each costs, and who teaches it |
+| Contracts | What you are carrying, and what is on offer here (`H` to ask) |
+| Market | Sell, at a trading post |
+| Guild | Found or join (`N`), and the Landsraad standing table |
+| Hold | Cargo in the vehicle you are driving |
+| Container | **Moving resources.** Take from a chest, or store into it |
+
+Learning a skill, taking a contract and selling all require standing at the
+right person — the server checks, so walking there is the game.
 
 ## Testing
 
@@ -39,6 +83,7 @@ python3 tools/test_phase5.py                            # the real Hagga Basin
 python3 tools/test_phase6.py                            # progression and content
 python3 tools/test_phase7.py                            # vehicles and guilds
 python3 tools/test_phase8.py                            # the client (needs xvfb-run)
+python3 tools/test_phase9.py                            # the controls (needs xvfb-run)
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -55,8 +100,10 @@ the clock), `--start-time 0..1` (0.5 = noon, 0.0 = midnight),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
 `--learn <skill id>` (client: attempt to learn once, for testing the trainer rule),
 `--guild <name>` / `--deliver` (client: join or found a guild, then give to the Landsraad),
-`--panel JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD` and `--press N` (client: open a
-panel page, log it, and press one of its rows — works headless),
+`--panel BAG|JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD|CONTAINER` and `--press N`
+(client: open a panel page, log it, and press one of its rows — works headless),
+`--do "attack,container"` (client: fire actions through the same dispatch table the
+keyboard uses, so a harness can prove a key does its job; needs a window),
 `--debug-steer`.
 
 ## Layout
