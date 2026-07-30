@@ -91,6 +91,11 @@ var panel_press: int = 0
 ## world's methods directly and never presses anything. This runs the same
 ## dispatch table the keyboard runs, so a harness can prove a key does its job.
 var do_actions: String = ""
+## Client debug: perform drags without a pointer, "bag:1>hot:0,bag:3>bag:8".
+## A mouse-driven grid is the least testable thing in the project, so the drag
+## *decision* is a function the harness can call with the same arguments the
+## pointer would produce. Needs a window: the grid lives in the view.
+var drags: String = ""
 ## Server debug: bring every spice field to a blow immediately. The cycle runs
 ## on a 7-15 minute dormancy, which is right for play and useless for a test.
 var spice_now: bool = false
@@ -157,6 +162,7 @@ func _parse_args() -> void:
 	panel_page = Args.value("--panel", "")
 	panel_press = Args.integer("--press", 0)
 	do_actions = Args.value("--do", "")
+	drags = Args.value("--drag", "")
 	spice_now = Args.has("--spice-now")
 	deliver_to_landsraad = Args.has("--deliver")
 	start_hydration = Args.number("--start-hydration", -1.0)

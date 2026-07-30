@@ -60,6 +60,13 @@ it to act on, and every one of them answers, refusals included.
 | `Y` / `U` / `P` | Vehicle: climb in or out / refuel / pack up |
 | `Q` | Drop the first thing you are carrying |
 
+**The bag and the bar** — `I` opens a grid you drag items around with the
+mouse. Drag something onto the ten-slot bar along the bottom, then press its
+number to take it in hand. What the **left mouse button** does depends on what
+you are holding: a cutteray opens a beam that runs until you let go, anything
+else swings. Aim with the crosshair — a node drains four units a second while
+you hold the trigger, and a wreck or a vein holds forty.
+
 **Pages** — `Tab` cycles them, `1`–`9` act on the numbered rows, `I` jumps
 straight to the bag, `F3` hides the HUD for a clean screenshot.
 
@@ -92,6 +99,7 @@ python3 tools/test_phase7.py                            # vehicles and guilds
 python3 tools/test_phase8.py                            # the client (needs xvfb-run)
 python3 tools/test_phase9.py                            # the controls (needs xvfb-run)
 python3 tools/test_phase10.py                           # spice, death, stamina, climbing
+python3 tools/test_phase11.py                           # bag, hotbar, beam (needs xvfb-run)
 ```
 
 The Python harnesses drive real bot clients against a real headless server and
@@ -113,8 +121,10 @@ useless for a test),
 `--guild <name>` / `--deliver` (client: join or found a guild, then give to the Landsraad),
 `--panel BAG|JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD|CONTAINER` and `--press N`
 (client: open a panel page, log it, and press one of its rows — works headless),
-`--do "attack,container"` (client: fire actions through the same dispatch table the
+`--do "trigger,container"` (client: fire actions through the same dispatch table the
 keyboard uses, so a harness can prove a key does its job; needs a window),
+`--drag "bag:1>hot:0"` (client: run drags through the grid's own drop(), which is
+what the pointer calls — the only way a mouse UI is testable at all; needs a window),
 `--debug-steer`.
 
 ## Layout

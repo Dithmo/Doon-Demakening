@@ -3289,3 +3289,68 @@ func _bot_nearest_node_pos() -> Vector3:
 			best_d = d
 			best = n["pos"]
 	return best
+
+
+## Move or swap two inventory slots. The grid lets a player rearrange their bag,
+## and rearranging is a change to inventory -- so it is a request like any other
+## and the server does the moving.
+##
+## Stacks of the same item merge up to the stack limit; anything else swaps.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_move(from_slot: int, to_slot: int) -> void:
+	if not Net.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not _players.has(id):
+		return
+	var p: Dictionary = _players[id]
+	var inv: Inventory = p["inventory"]
+	var n := inv.slots.size()
+	if from_slot < 0 or to_slot < 0 or from_slot >= n or to_slot >= n \
+			or from_slot == to_slot:
+		return
+	var a: Dictionary = inv.slots[from_slot]
+	if a.is_empty():
+		return
+	var b: Dictionary = inv.slots[to_slot]
+
+	if not b.is_empty() and str(a["id"]) == str(b["id"]):
+		var cap := ItemDB.stack_size(str(a["id"]))
+		var room: int = cap - int(b["count"])
+		if room > 0:
+			var moved: int = mini(room, int(a["count"]))
+			b["count"] = int(b["count"]) + moved
+			var left: int = int(a["count"]) - moved
+			inv.slots[from_slot] = {} if left <= 0 else {"id": a["id"], "count": left}
+			inv.slots[to_slot] = b
+			_after_move(id, p, inv, from_slot, to_slot)
+			return
+	inv.slots[from_slot] = b
+	inv.slots[to_slot] = a
+	_after_move(id, p, inv, from_slot, to_slot)
+
+
+## Slots moved, so any hotbar key pointing at them has to follow -- otherwise
+## rearranging your bag silently changes what is in your hand.
+func _after_move(id: int, p: Dictionary, inv: Inventory,
+		from_slot: int, to_slot: int) -> void:
+	var bar: Array = p["hotbar"]
+	for k in bar.size():
+		if int(bar[k]) == from_slot:
+			bar[k] = to_slot
+		elif int(bar[k]) == to_slot:
+			bar[k] = from_slot
+	# A key pointing at a slot that is now empty points at nothing.
+	for k in bar.size():
+		var s := int(bar[k])
+		if s >= 0 and inv.slots[s].is_empty():
+			bar[k] = -1
+	_persist_player(id)
+	_sync_inventory.rpc_id(id, inv.to_data())
+	_sync_hotbar.rpc_id(id, bar, int(p["held"]))
+	print("[bag] %s moved slot %d to %d" % [p["identity"], from_slot, to_slot])
+
+
+## Client: ask to move one bag slot onto another.
+func move_item(from_slot: int, to_slot: int) -> void:
+	_request_move.rpc_id(1, from_slot, to_slot)

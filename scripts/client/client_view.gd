@@ -56,6 +56,7 @@ var _aimed_node: int = 0
 var _beaming: int = 0
 const AIM_COS := 0.94        ## about a 20-degree cone
 var _crosshair: Label
+var _grid: InventoryView
 const LOOK_SENS := 0.0032
 const PITCH_MIN := -1.15
 const PITCH_MAX := 0.45
@@ -153,6 +154,12 @@ func _ready() -> void:
 	_alarm.add_theme_font_size_override("font_size", 26)
 	layer.add_child(_alarm)
 
+	# The grid draws over everything, so it goes on the layer last.
+	_grid = InventoryView.new()
+	_grid.world = world
+	layer.add_child(_grid)
+	world.hotbar_changed.connect(func() -> void: _grid.queue_redraw())
+
 	_build_dispatch()
 	_check_coverage()
 	# A bot has no pointer and its screenshots have always used the
@@ -172,6 +179,10 @@ func _ready() -> void:
 	if not Net.do_actions.is_empty():
 		var t := get_tree().create_timer(2.5)
 		t.timeout.connect(_run_debug_actions)
+	if not Net.drags.is_empty():
+		# After --do, so a run can select a hotbar key and then drag onto it.
+		var dt := get_tree().create_timer(2.8)
+		dt.timeout.connect(_run_debug_drags)
 
 	world.vehicles_changed.connect(_refresh_vehicles)
 	world.worm_changed.connect(_refresh_worm)
@@ -304,9 +315,10 @@ func _build_dispatch() -> void:
 		"trigger": _pull_trigger,
 		"release": _release_trigger,
 		"toggle_debug": func() -> void: _hud.visible = not _hud.visible,
-		"bag": func() -> void:
-			_page = -1 if _page == Panels.Page.BAG else Panels.Page.BAG
-			_refresh_panel(),
+		# The grid, not the text page. The text BAG page is still on the Tab
+		# cycle and is what the headless harness reads, but a person opening
+		# their bag should get the thing they can drag items around in.
+		"bag": _toggle_grid,
 	}
 	for n in range(1, Panels.HOTBAR_KEYS + 1):
 		_dispatch["row_%d" % n] = _act_on_row.bind(n - 1)
@@ -394,6 +406,12 @@ func _toggle_container() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# While the bag is open the pointer belongs to the grid, not the camera.
+	if _grid != null and _grid.is_open():
+		if event is InputEventMouseButton or event is InputEventMouseMotion:
+			if _grid.handle_mouse(event):
+				get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseMotion and _mouse_look:
 		var mm := event as InputEventMouseMotion
 		_look_yaw -= mm.relative.x * LOOK_SENS
@@ -881,3 +899,54 @@ func _pull_trigger() -> void:
 
 func _release_trigger() -> void:
 	_stop_beam()
+
+
+## Open or close the bag. Opening hands the pointer to the grid; closing gives
+## it back to the camera, so you are never left with a cursor you cannot use or
+## a camera that spins while you are sorting.
+func _toggle_grid() -> void:
+	if _grid == null:
+		return
+	_grid.toggle()
+	if _grid.is_open():
+		_stop_beam()
+		_set_mouse_look(false)
+	else:
+		_set_mouse_look(true)
+
+
+## --drag "bag:1>hot:0": run drags through the grid's own drop() without a
+## pointer. Mouse handling turns pixels into slots and then calls exactly this,
+## so what the harness exercises is what the player's hand does.
+## One drag at a time, waiting for the server's answer between them.
+##
+## The grid reads `hotbar_mirror`, which is the *server's* last word and arrives
+## a round trip after the request. Firing four drags in one frame meant the
+## second one decided what to swap from a bar the first had already changed --
+## a thing no hand can do, and a wrong answer when a harness does it.
+func _run_debug_drags() -> void:
+	for spec: String in Net.drags.split(",", false):
+		var parts := spec.strip_edges().split(">")
+		if parts.size() != 2:
+			print("[drag] cannot read '%s'" % spec)
+			continue
+		var from := _parse_slot(parts[0])
+		var to := _parse_slot(parts[1])
+		if from.is_empty():
+			print("[drag] no such slot '%s'" % parts[0])
+			continue
+		var ok: bool = _grid.drop(from, to)
+		print("[drag] %s -> %s: %s" % [parts[0], parts[1], "sent" if ok else "refused"])
+		await get_tree().create_timer(0.45).timeout
+
+
+## "bag:3" or "hot:0". An unreadable half means "dropped on nothing", which is
+## itself a case the grid has to handle.
+func _parse_slot(s: String) -> Dictionary:
+	var bits := s.strip_edges().split(":")
+	if bits.size() != 2:
+		return {}
+	var kind := bits[0].strip_edges().to_lower()
+	if kind != "bag" and kind != "hot":
+		return {}
+	return {"kind": kind, "index": int(bits[1])}
