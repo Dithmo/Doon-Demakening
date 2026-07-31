@@ -166,7 +166,7 @@ def main():
     # --- run 3: a thumper buys you somewhere else to be ---------------------
     print("\n=== run 3: thumper as bait ===")
     shutil.rmtree(user_dir); user_dir.mkdir()
-    srv3, _ = session(user_dir, 66, PORT + 2, clock + ["--grant", "thumper:1"],
+    srv3, _ = session(user_dir, 66, PORT + 2, clock + ["--grant", "thumper:1,construction_tool:1"],
                       [["--client", "--auto", "--bot-profile", "quarry",
                         "--identity", "trapper"]])
     log3 = srv3.text()
@@ -183,7 +183,7 @@ def main():
                            "--identity", "bare"]])
     shutil.rmtree(user_dir); user_dir.mkdir()
     srv5, (shielded,) = session(user_dir, 40, PORT + 4,
-                                clock + ["--grant", "body_shield:1"],
+                                clock + ["--grant", "body_shield:1,construction_tool:1"],
                                 [["--client", "--auto", "--bot-profile", "prey",
                                   "--identity", "shielded"]])
     check("equipped Holtzman Shield" in srv5.text(), "the shield is worn")

@@ -179,7 +179,12 @@ def main():
     # three steps sits right on a 300 s boundary and tips either way run to run.
     srv, (bot,) = session(
         user_dir, 420, PORT,
-        ["--day-seconds", "99999", "--start-time", "0.30", "--peaceful"],
+        # Materials handed over. This suite is about the Journey, the trainers
+        # and the contract board -- not about whether a wandering bot finds
+        # fibre, and a gathering hiccup should not read as a progression bug.
+        ["--day-seconds", "99999", "--start-time", "0.30", "--peaceful",
+         "--grant", "construction_tool:1,plant_fiber:12,copper_ore:8,"
+                    "salvaged_metal:8,granite_stone:12"],
         [["--client", "--auto", "--bot-profile", "journeyman",
           "--identity", "journeyman"]])
     s = bot.samples()
@@ -264,7 +269,12 @@ def main():
 
     srv2, (bot2,) = session(
         user_dir, 40, PORT + 1,
-        ["--day-seconds", "99999", "--start-time", "0.30", "--peaceful"],
+        # Materials handed over. This suite is about the Journey, the trainers
+        # and the contract board -- not about whether a wandering bot finds
+        # fibre, and a gathering hiccup should not read as a progression bug.
+        ["--day-seconds", "99999", "--start-time", "0.30", "--peaceful",
+         "--grant", "construction_tool:1,plant_fiber:12,copper_ore:8,"
+                    "salvaged_metal:8,granite_stone:12"],
         [["--client", "--auto", "--bot-profile", "journeyman",
           "--identity", "journeyman"]])
     s2 = bot2.samples()

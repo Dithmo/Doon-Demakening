@@ -127,7 +127,7 @@ def main():
             failures.append(msg)
 
     clock = ["--day-seconds", "99999", "--start-time", "0.35", "--peaceful"]
-    kit = ["--grant", "storage_chest:1,foundation:2,stillsuit:1"]
+    kit = ["--grant", "storage_chest:1,foundation:2,stillsuit:1,construction_tool:1"]
 
     # --- run 1: every key is answered ---------------------------------------
     # Nothing is in reach of any of these, on purpose: a refusal proves the key

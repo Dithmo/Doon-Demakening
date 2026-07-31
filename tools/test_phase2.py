@@ -122,7 +122,12 @@ def main():
     # one now, and this suite is about stations, crafting and persistence rather
     # than about that rule. Phase 11 is where the tool itself is tested.
     clock = ["--day-seconds", "99999", "--start-time", "0.30",
-             "--grant", "construction_tool:1"]
+             # The materials are handed over rather than gathered. This suite is
+             # about crafting, stations and persistence -- whether a wandering bot
+             # happens to find fibre before the clock runs out is not its subject,
+             # and making it one turned a crafting test into a foraging test.
+             "--grant", "construction_tool:1,plant_fiber:12,copper_ore:8,"
+                        "salvaged_metal:8,granite_stone:12"]
 
     # --- run 1: harvesting depletes a server-owned node ---------------------
     print("\n=== run 1: harvesting ===")
@@ -201,7 +206,7 @@ def main():
                          [["--client", "--auto", "--identity", "bare"]])
     shutil.rmtree(user_dir); user_dir.mkdir()
     srv6, (suited,) = session(user_dir, 30, PORT + 5,
-                              noon + ["--grant", "fiber_weave:4,copper_ingot:1"],
+                              noon + ["--grant", "fiber_weave:4,copper_ingot:1,construction_tool:1"],
                               [["--client", "--auto", "--identity", "suited"]])
     check("crafted Stillsuit" in srv6.text(), "the stillsuit is crafted")
     check("equipped Stillsuit" in srv6.text(), "the stillsuit is worn")
