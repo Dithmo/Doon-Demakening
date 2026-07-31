@@ -38,7 +38,7 @@ SYNTHETIC_REGION = "res://data/regions/synthetic_test"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27330"))
 
-KIT = ("sub_fief:1,fuel_generator:1,water_cistern:1,windtrap:1,storage_chest:1,"
+KIT = ("construction_tool:1,sub_fief:1,fuel_generator:1,water_cistern:1,windtrap:1,storage_chest:1,"
        "foundation:4,wall:4,ceiling:2")
 
 

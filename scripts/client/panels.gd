@@ -13,10 +13,10 @@ extends RefCounted
 ## quicker to build and quicker to use. Every page renders from the replicated
 ## mirrors and never from a local guess.
 
-enum Page { BAG, JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD, CONTAINER }
+enum Page { BAG, CRAFT, JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD, CONTAINER }
 
-const PAGE_NAMES := ["BAG", "JOURNEY", "SKILLS", "CONTRACTS", "MARKET", "GUILD",
-	"HOLD", "CONTAINER"]
+const PAGE_NAMES := ["BAG", "CRAFT", "JOURNEY", "SKILLS", "CONTRACTS", "MARKET",
+	"GUILD", "HOLD", "CONTAINER"]
 
 ## How many rows a page offers to the number keys. 1-9 plus 0 would be ten, but
 ## nine is enough for every list here and keeps 0 free.
@@ -31,6 +31,7 @@ const HOTBAR_KEYS := 10
 static func render(page: int, world: Node) -> Dictionary:
 	match page:
 		Page.BAG: return _bag(world)
+		Page.CRAFT: return _craft(world)
 		Page.JOURNEY: return _journey(world)
 		Page.SKILLS: return _skills(world)
 		Page.CONTRACTS: return _contracts(world)
@@ -57,6 +58,7 @@ static func act(page: int, world: Node, index: int, actions: Array) -> bool:
 		# equips, water drinks, a fabricator deploys. The item's own `use` hook
 		# decides which, so there is no separate "equip" verb to get wrong.
 		Page.BAG: world.use_slot(int(target))
+		Page.CRAFT: world.craft(str(target))
 		Page.SKILLS: world.learn(str(target))
 		Page.CONTRACTS: world.ask_contracts(str(target))
 		Page.MARKET: world.sell(int(target), 1)
@@ -134,6 +136,44 @@ static func _bag(world: Node) -> Dictionary:
 		lines.append("  (your bag is empty)")
 	lines.append("")
 	lines.append("[Q] drop the first thing you are carrying.")
+	return {"text": "\n".join(lines), "actions": actions}
+
+
+## What you can make standing here.
+##
+## Recipes with no station are personal crafting -- the wiki's "Personal
+## Fabricator" -- and are always available. Everything else needs its station
+## within reach, and is listed greyed rather than hidden so you can see what a
+## bench would buy you before you build one.
+static func _craft(world: Node) -> Dictionary:
+	var lines: Array = []
+	var actions: Array = []
+	var reach: Array = world.reachable_stations()
+	lines.append("At hand: personal crafting%s"
+		% ("" if reach.is_empty() else "   In reach: " + ", ".join(reach)))
+	lines.append("")
+
+	for rid: String in RecipeDB.ids():
+		var r := RecipeDB.get_recipe(rid)
+		var station := str(r["station"])
+		var here := station.is_empty() or reach.has(station)
+		var have: bool = world.has_inputs_for(rid)
+		var cost: Array = []
+		for raw: Variant in r["inputs"]:
+			var i: Dictionary = raw
+			cost.append("%d %s" % [int(i["count"]),
+				ItemDB.display_name(str(i["id"]))])
+		var mark := "   -"
+		if here and have and actions.size() < MAX_ROWS:
+			actions.append(rid)
+			mark = "[%d]" % actions.size()
+		var where := "" if station.is_empty() else "  (%s)" % station
+		lines.append("  %-4s %-24s %s%s%s"
+			% [mark, str(r["name"]), ", ".join(cost), where,
+			"" if here else "  -- no station"])
+	if actions.is_empty():
+		lines.append("")
+		lines.append("(nothing you have the parts for)")
 	return {"text": "\n".join(lines), "actions": actions}
 
 

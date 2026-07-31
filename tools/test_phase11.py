@@ -202,7 +202,49 @@ def main():
     check("needs the right tool" not in s4,
           "and the cutteray they started with is the right tool")
 
+    # --- run 5: the opening build sequence --------------------------------
+    # Craft a Construction Tool at personal crafting, put it on a hotbar key,
+    # take it in hand, craft a Sub-Fief and set it down. The wiki is explicit
+    # that structures are "placed with the Construction Tool", so this also
+    # checks the refusal when you are empty-handed.
+    print("\n=== run 5: crafting the tool and staking a claim ===")
+    yard = ROOT / ".test_home_p11_build"
+    if yard.exists():
+        shutil.rmtree(yard)
+    yard.mkdir(parents=True)
+    srv5, cli5 = session(
+        yard, 60, PORT + 4, clock + ["--grant", "salvaged_metal:40"],
+        ["--client", "--identity", "founder", "--auto", "--bot-profile", "founder"],
+        windowed=False)
+    s5, c5 = srv5.text(), cli5.text()
+
+    check("crafted Construction Tool" in s5,
+          "the Construction Tool is craftable with no station at all")
+    check("[hotbar] founder slot 2 -> inventory" in s5,
+          "it goes onto hotbar slot 2")
+    check("[hold] founder holds slot 2 (Construction Tool)" in s5,
+          "and pressing 2 takes it in hand")
+    check("crafted Sub-Fief Console" in s5, "a Sub-Fief can be made from salvage")
+    check("deployed Sub-Fief Console" in s5, "and set down with the tool")
+    claims = re.findall(r"\[bot\] founder .* claims (\d+)", c5)
+    check(bool(claims) and int(claims[-1]) > 0,
+          f"the claim is staked and replicated (claims={claims[-1] if claims else 0})")
+
+    # Empty-handed, the server refuses -- the tool is the rule, not a shortcut.
+    bare = ROOT / ".test_home_p11_bare"
+    if bare.exists():
+        shutil.rmtree(bare)
+    bare.mkdir(parents=True)
+    srv6, cli6 = session(
+        bare, 35, PORT + 5, clock + ["--grant", "sub_fief:1"],
+        ["--client", "--identity", "handsy", "--panel", "BAG", "--press", "2"],
+        windowed=False)
+    check("you need a Construction Tool to set that down" in srv6.text(),
+          "and without the tool the server refuses")
+
     if not args.keep:
+        shutil.rmtree(yard, ignore_errors=True)
+        shutil.rmtree(bare, ignore_errors=True)
         shutil.rmtree(user_dir, ignore_errors=True)
 
     total = len(failures)

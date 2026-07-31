@@ -58,6 +58,8 @@ var screenshot_path: String = ""
 ##               trainers to spend points and to the post to sell
 ##   spicer   -- runs to the nearest live spice blow and cuts it, which is the
 ##               loudest thing anyone can do and the fastest way to raise a worm
+##   founder  -- crafts a Construction Tool, puts it on a hotbar key, holds it,
+##               crafts a Sub-Fief and sets it down: the opening build sequence
 ##   driver   -- unloads the vehicle it was given, fuels it, drives it, stows
 ##               cargo, and gets out again
 var bot_profile: String = "survive"

@@ -202,7 +202,7 @@ def main():
 
     # --- run 3: a guild opens a holding -------------------------------------
     print("\n=== run 3: a guild shares a holding ===")
-    kit = "sub_fief:1,foundation:6,fuel_cell:2,granite_stone:6"
+    kit = "construction_tool:1,sub_fief:1,foundation:6,fuel_cell:2,granite_stone:6"
     guild_srv, (ada, bo) = session(
         user_dir, 75, PORT + 3,
         clock + ["--peaceful", "--grant", kit],

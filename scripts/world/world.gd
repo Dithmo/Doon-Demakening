@@ -321,6 +321,11 @@ func _on_peer_joined(id: int) -> void:
 	_persist_player(id)
 
 	_full_state.rpc_id(id, _entity_wire(), pos)
+	# The bar you arranged last session, before anything else can ask what is on
+	# it. Without this a returning player's hotbar was invisible until they
+	# happened to change it -- the same bug Phase 6 had with progression, where
+	# the state was persisted, restored, and then never sent.
+	_sync_hotbar.rpc_id(id, _players[id]["hotbar"], int(_players[id]["held"]))
 	_sync_nodes.rpc_id(id, _field.to_wire())
 	_sync_spice.rpc_id(id, _spice.to_wire())
 	_sync_stations.rpc_id(id, _stations.to_wire())
@@ -963,6 +968,16 @@ func _deploy(id: int, slot_index: int, item_id: String) -> void:
 	var p: Dictionary = _players[id]
 	var inv: Inventory = p["inventory"]
 	var def := ItemDB.get_def(item_id)
+
+	# You set structures down with the Construction Tool, not with your hands.
+	# Checked against the bag rather than against what is in hand, so a player
+	# does not have to juggle hotbar keys mid-build -- holding it is how you
+	# trigger a placement, having it is what makes one legal.
+	if not _has_hook(inv, "tool_build"):
+		var why := "you need a Construction Tool to set that down"
+		print("[place] %s refused: %s" % [p["identity"], why])
+		_notice.rpc_id(id, why)
+		return
 
 	# A Sub-Fief console stakes the claim, so the land must be free before the
 	# station goes down -- otherwise a refused claim would leave a stray console.
@@ -1906,6 +1921,30 @@ func _bot_survive() -> void:
 
 	if Net.bot_profile == "reckless":
 		return
+	if Net.bot_profile == "founder":
+		# The opening build sequence, exactly as a player performs it: craft a
+		# Construction Tool from salvage at personal crafting, put it on a
+		# hotbar key, take it in hand, craft a Sub-Fief, and set it down with
+		# the tool. Nothing here reaches past the client API a keyboard uses.
+		_bot_use_cd -= 1
+		if _bot_use_cd > 0:
+			return
+		_bot_use_cd = 8
+		var tool_slot := find_use("tool_build")
+		if tool_slot < 0:
+			craft("construction_tool")
+			return
+		if int(hotbar_mirror[1]) != tool_slot:
+			assign_hotbar(1, tool_slot)
+			return
+		if int(held_key) != 1:
+			hold_key(1)
+			return
+		if find_use("place") < 0:
+			craft("sub_fief")
+			return
+		place_with_tool()
+		return
 	if Net.bot_profile == "cutter":
 		# Walks to the nearest node and holds the trigger on it. Exists to prove
 		# the beam without a keyboard: the bot puts the cutteray on hotbar key 1,
@@ -2033,7 +2072,7 @@ func _bot_survive() -> void:
 
 	# Craft the deepest recipe available, so the chain runs to its end rather
 	# than stalling on intermediates.
-	for rid: String in ["stillsuit", "steel_ingot", "fiber_weave", "ore_refinery"]:
+	for rid: String in ["stillsuit", "copper_ingot", "iron_ingot", "fiber_weave", "ore_refinery"]:
 		if RecipeDB.has(rid) and available_recipes().has(rid) and has_inputs_for(rid):
 			craft(rid)
 			return
@@ -2370,7 +2409,7 @@ func _held(item_id: String) -> int:
 ## Station kind needed by a recipe the bot could run right now but cannot
 ## reach. Empty when there is nothing waiting to be made.
 func _pending_craft_station() -> String:
-	for rid: String in ["stillsuit", "steel_ingot", "fiber_weave", "ore_refinery"]:
+	for rid: String in ["stillsuit", "copper_ingot", "iron_ingot", "fiber_weave", "ore_refinery"]:
 		if not RecipeDB.has(rid) or not has_inputs_for(rid):
 			continue
 		var kind := str(RecipeDB.get_recipe(rid)["station"])
@@ -3376,3 +3415,32 @@ func _bot_cut_target() -> int:
 			best_d = d
 			best = nid
 	return best
+
+
+## True when the bag holds something carrying this use hook.
+func _has_hook(inv: Inventory, hook: String) -> bool:
+	for s: Dictionary in inv.slots:
+		if s.is_empty():
+			continue
+		if str(ItemDB.get_def(str(s["id"])).get("use", "")) == hook:
+			return true
+	return false
+
+
+## Client: place the first structure in the bag, using the Construction Tool in
+## your hand. This is what the trigger does while the tool is held.
+func place_with_tool() -> void:
+	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
+		notice.emit("you are not holding a Construction Tool")
+		return
+	var i := find_use("place")
+	if i < 0:
+		notice.emit("nothing in your bag to set down")
+		return
+	use_slot(i)
+
+
+## Client-side twin of _held_def, which is server-only.
+func _held_def_client() -> Dictionary:
+	var stack: Dictionary = hotbar_item(held_key)
+	return {} if stack.is_empty() else ItemDB.get_def(str(stack["id"]))

@@ -180,7 +180,9 @@ func _register_input() -> void:
 		"drink": [KEY_F],
 		"harvest": [KEY_G],
 		"work": [KEY_R],
-		"deploy": [KEY_B],
+		# Personal crafting. Placement is the Construction Tool's trigger now,
+		# so B is free for the menu that makes the tool in the first place.
+		"craft_menu": [KEY_B],
 		"craft": [KEY_C],
 		"build": [KEY_V],
 		"demolish": [KEY_X],

@@ -118,7 +118,11 @@ def main():
             failures.append(msg)
 
     # Long day pins the clock so water never becomes the story.
-    clock = ["--day-seconds", "99999", "--start-time", "0.30"]
+    # A Construction Tool rides along in every run: structures are placed with
+    # one now, and this suite is about stations, crafting and persistence rather
+    # than about that rule. Phase 11 is where the tool itself is tested.
+    clock = ["--day-seconds", "99999", "--start-time", "0.30",
+             "--grant", "construction_tool:1"]
 
     # --- run 1: harvesting depletes a server-owned node ---------------------
     print("\n=== run 1: harvesting ===")

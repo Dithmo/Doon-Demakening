@@ -285,7 +285,9 @@ func _build_dispatch() -> void:
 		"interact": func() -> void: world.try_pickup(),
 		"drink": func() -> void: _use_hook("hydrate"),
 		"harvest": func() -> void: _use_hook("tool_dew"),
-		"deploy": func() -> void: _use_hook("place"),
+		"craft_menu": func() -> void:
+			_page = -1 if _page == Panels.Page.CRAFT else Panels.Page.CRAFT
+			_refresh_panel(),
 		# One "work what is in front of me" key. A blow wins over a node when
 		# both are in reach: you are standing in spice, that is what you meant.
 		"work": func() -> void:
@@ -891,8 +893,12 @@ func _stop_beam() -> void:
 ## opens a beam that runs until you let go, anything else swings once. One
 ## implementation, called by the mouse and by --do alike.
 func _pull_trigger() -> void:
-	if float(_held_def().get("beam_rate", 0.0)) > 0.0:
+	var def := _held_def()
+	if float(def.get("beam_rate", 0.0)) > 0.0:
 		_start_beam()
+	elif float(def.get("place_range", 0.0)) > 0.0:
+		# Holding the Construction Tool: the trigger sets a structure down.
+		world.place_with_tool()
 	else:
 		world.try_attack()
 

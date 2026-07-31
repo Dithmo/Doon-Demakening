@@ -111,7 +111,7 @@
     {
       "id": "improvised_cutteray",
       "name": "Improvised Cutteray",
-      "station": "fabricator",
+      "station": "",
       "inputs": [
         {
           "id": "salvaged_metal",
@@ -124,6 +124,23 @@
       },
       "seconds": 4.0,
       "desc": "Two plates off a wreck and a night's work. The first tool anyone makes."
+    },
+    {
+      "id": "construction_tool",
+      "name": "Construction Tool",
+      "station": "",
+      "inputs": [
+        {
+          "id": "salvaged_metal",
+          "count": 20
+        }
+      ],
+      "output": {
+        "id": "construction_tool",
+        "count": 1
+      },
+      "seconds": 4.0,
+      "desc": "Twenty plates off a wreck. The thing that turns salvage into a base."
     },
     {
       "id": "cutteray",

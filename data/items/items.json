@@ -46,6 +46,17 @@
       "value": 3
     },
     {
+      "id": "construction_tool",
+      "name": "Construction Tool",
+      "stack": 1,
+      "slot": "utility",
+      "weight": 2.0,
+      "use": "tool_build",
+      "desc": "Solido Construction Projector. Hold it and pull the trigger to set a structure down; a Sub-Fief claims the ground everything else has to stand on.",
+      "value": 70,
+      "place_range": 6.0
+    },
+    {
       "id": "improvised_cutteray",
       "name": "Improvised Cutteray",
       "stack": 1,
