@@ -20,37 +20,67 @@ var stations: Dictionary = {}
 var _next_id: int = 1
 
 
+## Two kinds of thing stand in this field, and they come from two catalogues.
+## A *structure* -- refinery, windtrap, chest -- is placed with the Construction
+## Tool and never exists as an item, so it is defined in StructureDB. A
+## *deployable item* -- thumper, stilltent -- is field kit you carry and set
+## down, so it is in ItemDB like anything else you can hold. Both end up here
+## because both are a thing standing in the world at a point; only where their
+## definition lives differs.
+static func def_of(id: String) -> Dictionary:
+	return StructureDB.get_def(id) if StructureDB.has(id) else ItemDB.get_def(id)
+
+
+## What to call it, whichever catalogue it came from.
+static func name_of(id: String) -> String:
+	return StructureDB.display_name(id) if StructureDB.has(id) \
+		else ItemDB.display_name(id)
+
+
 ## Place a station in front of the player. Returns {ok, msg, id}.
 ##
 ## `claims` may be null for callers that predate ownership (and for tests that
 ## are only exercising spacing); when given, deploying inside someone else's
 ## holding is refused.
 func place(owner: String, player_pos: Vector3, item_id: String,
-		claims: Claims = null) -> Dictionary:
-	var def := ItemDB.get_def(item_id)
+		claims: Claims = null, grid: BuildGrid = null) -> Dictionary:
+	var def := def_of(item_id)
 	var kind := str(def.get("station", ""))
 	if kind.is_empty():
 		return {"ok": false, "msg": "%s cannot be deployed" % def.get("name", item_id), "id": 0}
 
 	if not Terrain.is_reachable(player_pos.x, player_pos.z):
 		return {"ok": false, "msg": "cannot deploy here", "id": 0}
-	# Two things may go down on unclaimed ground: the console that *makes* a
-	# claim, and anything marked portable in the data -- which is the Survival
-	# Fabricator, the bench you craft your first Sub-Fief at. Without the second
-	# exemption the opening of the game is a deadlock: no bench without land, no
-	# land without the console, no console without the bench.
+	# Open ground is for the Sub-Fief, which is the thing that *creates* a
+	# claim, and for field kit you carry -- a thumper is bait you throw into
+	# open sand. Everything else belongs to a holding.
 	var open_ok := float(def.get("claim_radius", 0.0)) > 0.0 \
 		or bool(def.get("open_ground", false))
 	if claims != null and not claims.may_build(owner, player_pos, open_ok):
 		return {"ok": false, "msg": "you must build inside your own holding",
 			"id": 0}
 
+	# A structure stands on a floor. That is what puts the order of the opening
+	# beyond argument: console, then floor, then anything that does work.
+	#
+	# Like the claim rule above it, this lapses when `claims` is null. Standing
+	# on a floor is a rule about land, and a caller that has opted out of land
+	# ownership entirely -- the crafting tests, which only care that a bench is
+	# reachable -- has opted out of this too. Both rules are on together or off
+	# together; being on separately is how a fixture ends up asserting against
+	# half a world.
+	var needs_floor := claims != null and bool(def.get("needs_foundation", false))
+	if needs_floor and grid == null:
+		return {"ok": false, "msg": "that needs a foundation to stand on", "id": 0}
+
 	# Snap to the nearest legal spot rather than demanding the player stand in
 	# exactly the right place. Deploying a second thing should not require
 	# walking away from the first.
-	var spot := _free_spot(player_pos, owner, claims, open_ok)
+	var spot := _free_spot(player_pos, owner, claims, open_ok,
+		grid if needs_floor else null)
 	if spot.is_empty():
-		return {"ok": false, "msg": "no room to deploy here", "id": 0}
+		return {"ok": false, "msg": "that needs a foundation to stand on"
+			if needs_floor else "no room to deploy here", "id": 0}
 	var pos: Vector3 = spot["pos"]
 	var id := _next_id
 	_next_id += 1
@@ -79,7 +109,7 @@ func pick_up(player_pos: Vector3, station_id: int, who: String = "",
 		return {"ok": false, "msg": "empty it first", "item_id": ""}
 	var item_id: String = s["item_id"]
 	stations.erase(station_id)
-	return {"ok": true, "msg": "packed up %s" % ItemDB.display_name(item_id),
+	return {"ok": true, "msg": "packed up %s" % name_of(item_id),
 		"item_id": item_id}
 
 
@@ -89,8 +119,11 @@ func pick_up(player_pos: Vector3, station_id: int, who: String = "",
 ## because the exemption belongs to the item, and a spot that is legal for the
 ## caller must be legal for the spiral too -- otherwise the check above says yes
 ## and the search below quietly says no.
+## `floor_grid`, when given, restricts the search to cells that already have a
+## floor tile on them -- passed only for structures that need one, so field kit
+## and the console still spiral over open ground.
 func _free_spot(near: Vector3, owner: String, claims: Claims,
-		on_open_ground: bool = false) -> Dictionary:
+		on_open_ground: bool = false, floor_grid: BuildGrid = null) -> Dictionary:
 	var radius := 0.0
 	while radius <= PLACE_RANGE:
 		var steps: int = maxi(1, int(radius * 3.0))
@@ -106,6 +139,8 @@ func _free_spot(near: Vector3, owner: String, claims: Claims,
 			# everywhere and refused every deployment on the map.
 			var probe := Vector3(x, Terrain.sample_height(x, z), z)
 			if claims != null and not claims.may_build(owner, probe, on_open_ground):
+				continue
+			if floor_grid != null and not floor_grid.has_floor_at(probe, claims):
 				continue
 			var clear := true
 			for sid: int in stations:
@@ -264,7 +299,7 @@ func from_wire(rows: Array) -> void:
 			"owner": str(row[6]),
 			"carry": float(row[8]) if row.size() > 8 else 0.0,
 		}
-		var slots := int(ItemDB.get_def(item_id).get("container_slots", 0))
+		var slots := int(def_of(item_id).get("container_slots", 0))
 		if slots > 0:
 			var inv := Inventory.new(slots)
 			if row.size() > 7:

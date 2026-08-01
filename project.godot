@@ -16,6 +16,7 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 ; Store asks Net which role it is before deciding whether to persist anything.
 ItemDB="*res://scripts/items/item_db.gd"
 RecipeDB="*res://scripts/items/recipe_db.gd"
+StructureDB="*res://scripts/items/structure_db.gd"
 SkillDB="*res://scripts/player/skill_db.gd"
 QuestDB="*res://scripts/world/quest_db.gd"
 Terrain="*res://scripts/terrain/terrain_data.gd"

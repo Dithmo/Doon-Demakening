@@ -26,7 +26,7 @@ static func power_for_claim(claim_id: int, claims: Claims,
 		var s: Dictionary = stations.stations[sid]
 		if claims.claim_at(s["pos"]) != claim_id:
 			continue
-		var def := ItemDB.get_def(str(s["item_id"]))
+		var def := StationField.def_of(str(s["item_id"]))
 		output += float(def.get("power_output", 0.0))
 		draw += float(def.get("power_draw", 0.0))
 	return {"output": output, "draw": draw, "satisfied": output >= draw}
@@ -48,7 +48,7 @@ static func produce(elapsed: float, claims: Claims, stations: StationField) -> A
 
 	for sid: int in stations.stations:
 		var s: Dictionary = stations.stations[sid]
-		var def := ItemDB.get_def(str(s["item_id"]))
+		var def := StationField.def_of(str(s["item_id"]))
 		var product := str(def.get("produces", ""))
 		if product.is_empty():
 			continue

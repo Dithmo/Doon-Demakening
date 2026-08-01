@@ -95,6 +95,23 @@ func supported(cell: Vector2i, level: int) -> bool:
 	return level > 0 and has_piece(Piece.CEILING, cell, level - 1)
 
 
+## Is there a floor tile under this point? Everything but the Sub-Fief and the
+## foundation itself has to stand on one, which is what forces the order of the
+## opening: claim the ground, floor it, then put your refinery on the floor.
+func has_floor_at(pos: Vector3, claims: Claims) -> bool:
+	var cid := claims.claim_at(pos)
+	if cid == 0:
+		return false
+	var cell := cell_in(pos, claims.origin_of(cid))
+	# Any storey will do -- a ceiling is the floor of the one above it, so a
+	# refinery on the first floor is standing on something just as real.
+	for level in range(0, 4):
+		if has_piece(Piece.FOUNDATION, cell, level) \
+				or (level > 0 and has_piece(Piece.CEILING, cell, level - 1)):
+			return true
+	return false
+
+
 ## Ground height under a cell, and how uneven it is.
 func _ground(cell: Vector2i) -> Array:
 	var lo := INF

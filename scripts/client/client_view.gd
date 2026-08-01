@@ -1012,7 +1012,7 @@ func _pull_trigger() -> void:
 		_start_beam()
 	elif float(def.get("place_range", 0.0)) > 0.0:
 		# Holding the Construction Tool: the trigger sets a structure down.
-		world.place_with_tool()
+		world.try_build()
 	else:
 		world.try_attack()
 

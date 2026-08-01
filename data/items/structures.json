@@ -1,0 +1,236 @@
+{
+  "_comment": [
+    "Structures are placed with the Construction Tool and paid for out of your",
+    "bag at the moment you place them. They are NOT crafted: no structure ever",
+    "exists as an item in your inventory, there is no recipe for one, and no",
+    "workbench is involved. Only items are fabricated.",
+    "",
+    "That distinction was got wrong once and it broke the opening of the game.",
+    "Structures were craftable items you 'deployed', so the Sub-Fief needed a",
+    "Survival Fabricator to make it -- which put a late-game bench, built from",
+    "refined metal, in the first five minutes and made the first claim",
+    "impossible to stake. Keeping the two catalogues apart is what stops that",
+    "class of mistake: if it is in this file it is placed, if it is in",
+    "recipes.json it is made.",
+    "",
+    "kind      'piece'   snaps to the claim's build grid (BuildGrid)",
+    "          'station' stands on a foundation and does work (StationField)",
+    "needs     'foundation' -- must sit on a foundation you have already laid.",
+    "          Everything except the foundation itself and the Sub-Fief does.",
+    "open      may go down outside any claim. Only the Sub-Fief may, because it",
+    "          is the thing that creates a claim in the first place.",
+    "category  the tab it appears under in the build palette."
+  ],
+  "structures": [
+    {
+      "id": "sub_fief",
+      "name": "Sub-Fief Console",
+      "kind": "station",
+      "station": "sub_fief",
+      "category": "Claim",
+      "claim_radius": 24.0,
+      "open_ground": true,
+      "needs_foundation": false,
+      "cost": [
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ],
+      "desc": "Registers a holding: a 48 m box of ground and air, and the only ground your Construction Tool will work on. The first thing you place, and the only thing you may place on open desert."
+    },
+    {
+      "id": "foundation",
+      "name": "Foundation",
+      "kind": "piece",
+      "piece": "foundation",
+      "category": "Structure",
+      "needs_foundation": false,
+      "cost": [
+        {
+          "id": "granite_stone",
+          "count": 12
+        }
+      ],
+      "desc": "A cube of dressed granite sunk into the ground so only its lid shows. Everything else in your holding stands on these."
+    },
+    {
+      "id": "wall",
+      "name": "Wall",
+      "kind": "piece",
+      "piece": "wall",
+      "category": "Structure",
+      "needs_foundation": false,
+      "cost": [
+        {
+          "id": "granite_stone",
+          "count": 2
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 2
+        }
+      ],
+      "desc": "Goes up on the edge of a floor tile. Breaks the wind and the sightline; there are no doors."
+    },
+    {
+      "id": "ceiling",
+      "name": "Ceiling",
+      "kind": "piece",
+      "piece": "ceiling",
+      "category": "Structure",
+      "needs_foundation": false,
+      "cost": [
+        {
+          "id": "granite_stone",
+          "count": 3
+        },
+        {
+          "id": "copper_ingot",
+          "count": 1
+        }
+      ],
+      "desc": "Caps a room, and becomes the floor of the storey above -- which is the whole of the multi-storey rule."
+    },
+    {
+      "id": "ore_refinery",
+      "name": "Ore Refinery",
+      "kind": "station",
+      "station": "refinery",
+      "category": "Production",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        },
+        {
+          "id": "granite_stone",
+          "count": 6
+        }
+      ],
+      "desc": "Cooks ore down into ingots. Built from scrap and stone, because it is what every refined material in the game comes through -- nothing above it could exist if it needed refining itself."
+    },
+    {
+      "id": "survival_fabricator",
+      "name": "Survival Fabricator",
+      "kind": "station",
+      "station": "fabricator",
+      "category": "Production",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "copper_ingot",
+          "count": 4
+        },
+        {
+          "id": "granite_stone",
+          "count": 8
+        }
+      ],
+      "desc": "The workbench proper. Comes after the refinery, not before it: the ingots in it are refinery work, so a standing holding with a refinery on it is the price of admission."
+    },
+    {
+      "id": "windtrap",
+      "name": "Windtrap",
+      "kind": "station",
+      "station": "windtrap",
+      "category": "Utility",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "copper_ingot",
+          "count": 3
+        },
+        {
+          "id": "fiber_weave",
+          "count": 3
+        }
+      ],
+      "desc": "Wrings water out of the night air and fills a cistern with it. Turns water from a per-trip crisis into infrastructure.",
+      "power_draw": 6.0,
+      "produces": "water",
+      "produce_rate": 0.25
+    },
+    {
+      "id": "water_cistern",
+      "name": "Water Cistern",
+      "kind": "station",
+      "station": "cistern",
+      "category": "Utility",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "copper_ingot",
+          "count": 2
+        },
+        {
+          "id": "granite_stone",
+          "count": 4
+        }
+      ],
+      "desc": "Somewhere for a windtrap to put what it catches, and somewhere for you to draw it back out.",
+      "container_slots": 8
+    },
+    {
+      "id": "storage_chest",
+      "name": "Storage Chest",
+      "kind": "station",
+      "station": "storage",
+      "category": "Utility",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        },
+        {
+          "id": "plant_fiber",
+          "count": 4
+        }
+      ],
+      "desc": "Twenty slots that stay where you left them.",
+      "container_slots": 16
+    },
+    {
+      "id": "fuel_generator",
+      "name": "Fuel Generator",
+      "kind": "station",
+      "station": "generator",
+      "category": "Power",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "copper_ingot",
+          "count": 3
+        },
+        {
+          "id": "salvaged_metal",
+          "count": 4
+        }
+      ],
+      "desc": "Burns fuel cells for power. Reliable, and it costs you something every hour it runs.",
+      "power_output": 10.0
+    },
+    {
+      "id": "wind_turbine",
+      "name": "Wind Turbine",
+      "kind": "station",
+      "station": "turbine",
+      "category": "Power",
+      "needs_foundation": true,
+      "cost": [
+        {
+          "id": "copper_ingot",
+          "count": 2
+        },
+        {
+          "id": "fiber_weave",
+          "count": 2
+        }
+      ],
+      "desc": "Free power when the wind is up, and nothing when it is not.",
+      "power_output": 4.0
+    }
+  ]
+}

@@ -16,6 +16,10 @@ const KINDS := ["gather", "craft", "use", "build", "stake", "kill", "extract",
 
 ## Kinds whose `target` names an item.
 const ITEM_KINDS := ["gather", "craft", "use", "build"]
+## ...except "build", whose target is a *structure*: a windtrap is placed with
+## the Construction Tool and never exists as an item, so it is in StructureDB
+## and looking for it in ItemDB rejects the quest as malformed.
+const STRUCTURE_KINDS := ["build"]
 
 var journey: Array = []
 var contracts: Dictionary = {}
@@ -79,7 +83,9 @@ func _read_quest(raw: Variant) -> Dictionary:
 		push_error("QuestDB: '%s' has unknown objective kind '%s'" % [d.get("id", "?"), kind])
 		return {}
 	var target := str(obj.get("target", ""))
-	if ITEM_KINDS.has(kind) and not ItemDB.has(target):
+	var known := ItemDB.has(target) \
+		or (STRUCTURE_KINDS.has(kind) and StructureDB.has(target))
+	if ITEM_KINDS.has(kind) and not known:
 		push_error("QuestDB: '%s' wants unknown item '%s'" % [d.get("id", "?"), target])
 		return {}
 	var carrying := str(obj.get("carrying", ""))

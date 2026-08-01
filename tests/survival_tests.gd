@@ -370,7 +370,13 @@ func _test_crafting() -> void:
 	for i in range(4):
 		bench.craft(here, chain, "fiber_weave")
 	_check(chain.count_of("fiber_weave") == 4, "four weaves from twelve fibre")
-	_check(bench.craft(here, chain, "ore_refinery")["ok"], "the refinery is craftable")
+	# The refinery is a *structure*: there is no recipe for one and no bench
+	# makes it. It is placed with the Construction Tool, so here it simply goes
+	# down. Asking a fabricator to craft one must fail, and that is the check
+	# worth keeping -- it is the exact confusion that put a workbench in front
+	# of the first claim.
+	_check(not bench.craft(here, chain, "ore_refinery")["ok"],
+		"a refinery cannot be fabricated -- it is a structure")
 	# Deploy it a little away, so both stations are reachable but not stacked.
 	var spot := here + Vector3(StationField.MIN_SPACING + 0.5, 0.0, 0.0)
 	_check(bench.place("tester", spot, "ore_refinery")["ok"], "the refinery deploys")
@@ -568,10 +574,23 @@ func _test_utilities() -> void:
 	claims.stake("ada", here, 30.0, 0)
 	var cid := claims.claim_at(here)
 
-	# Spread the kit out: stations refuse to stack.
+	# A floor first. Working kit stands on a foundation, so a holding with bare
+	# ground in it is a holding with nowhere to put a windtrap -- that is the
+	# rule that forces console, then floor, then infrastructure.
+	var grid := BuildGrid.new()
 	var step := StationField.MIN_SPACING + 1.0
-	stations.place("ada", here, "windtrap", claims)
-	stations.place("ada", here + Vector3(step, 0.0, 0.0), "water_cistern", claims)
+	for at: Vector3 in [here, here + Vector3(step, 0.0, 0.0)]:
+		_check(grid.build("ada", at, at, "foundation", claims)["ok"],
+			"a floor tile goes down for the kit to stand on")
+
+	# Spread the kit out: stations refuse to stack.
+	_check(stations.place("ada", here, "windtrap", claims, grid)["ok"],
+		"a windtrap stands on the floor")
+	_check(stations.place("ada", here + Vector3(step, 0.0, 0.0), "water_cistern",
+		claims, grid)["ok"], "and so does a cistern")
+	_check(not stations.place("ada", here + Vector3(200.0, 0.0, 0.0),
+		"windtrap", claims, grid)["ok"],
+		"but not on bare ground outside the holding")
 
 	var starved := Utilities.power_for_claim(cid, claims, stations)
 	_check(starved["draw"] > 0.0, "the windtrap draws power")
@@ -579,7 +598,11 @@ func _test_utilities() -> void:
 	_check(Utilities.produce(600.0, claims, stations).is_empty(),
 		"an unpowered windtrap produces nothing")
 
-	stations.place("ada", here + Vector3(step * 2.0, 0.0, 0.0), "fuel_generator", claims)
+	var gen_at := here + Vector3(step * 2.0, 0.0, 0.0)
+	_check(grid.build("ada", gen_at, gen_at, "foundation", claims)["ok"],
+		"a third floor tile for the generator")
+	_check(stations.place("ada", gen_at, "fuel_generator", claims, grid)["ok"],
+		"the generator goes down on it")
 	var powered := Utilities.power_for_claim(cid, claims, stations)
 	_check(powered["output"] > powered["draw"], "the generator covers the draw")
 	_check(powered["satisfied"], "the holding is powered")
@@ -1609,14 +1632,18 @@ func _test_granite() -> void:
 	_check(int(field.nodes[nid]["units"]) == 0, "an outcrop can be stripped bare")
 	_check(float(field.nodes[nid]["respawn_at"]) > 0.0, "and then it regrows")
 
-	# Granite is what foundations are made of: the chain has to close.
-	var found := RecipeDB.get_recipe("foundation")
-	_check(not found.is_empty(), "there is a foundation recipe")
+	# Granite is what foundations are made of: the chain has to close. A
+	# foundation is placed rather than crafted, so the price is in StructureDB
+	# and there is deliberately no recipe for one.
+	_check(RecipeDB.get_recipe("foundation").is_empty(),
+		"a foundation has no recipe -- it is placed, not made")
+	var found := StructureDB.get_def("foundation")
+	_check(not found.is_empty(), "there is a foundation structure")
 	var uses_granite := false
-	for i: Dictionary in found.get("inputs", []):
-		if str(i["id"]) == "granite_stone":
+	for raw: Variant in found.get("cost", []):
+		if str((raw as Dictionary)["id"]) == "granite_stone":
 			uses_granite = true
-	_check(uses_granite, "and it is built from granite")
+	_check(uses_granite, "and it is paid for in granite")
 
 
 ## The first base has to be buildable out of the ground.
@@ -1638,34 +1665,48 @@ func _test_first_base() -> void:
 			refined[str((r["output"] as Dictionary)["id"])] = true
 	_check(not refined.is_empty(), "the refinery makes something (%d)" % refined.size())
 
-	# Everything the wiki's opening sequence asks for, in order.
-	for rid: String in ["improvised_cutteray", "sub_fief", "foundation",
-			"ore_refinery"]:
-		var r := RecipeDB.get_recipe(rid)
-		if r.is_empty():
-			_check(false, "'%s' has a recipe" % rid)
+	# Everything the opening sequence asks for, in order. The tool is crafted;
+	# the rest are structures with a price, so each is looked up in the
+	# catalogue it actually lives in -- which is itself the check that the two
+	# have not drifted back together.
+	_check(not RecipeDB.get_recipe("improvised_cutteray").is_empty(),
+		"the starting cutteray is craftable")
+	_check(not RecipeDB.get_recipe("construction_tool").is_empty(),
+		"and so is the Construction Tool")
+	for sid: String in ["sub_fief", "foundation", "ore_refinery"]:
+		var s := StructureDB.get_def(sid)
+		if s.is_empty():
+			_check(false, "'%s' is a placeable structure" % sid)
 			continue
+		_check(RecipeDB.get_recipe(sid).is_empty(),
+			"%s is placed, not crafted" % sid)
 		var blocked: Array = []
-		for raw: Variant in r["inputs"]:
+		for raw: Variant in s["cost"]:
 			var i: Dictionary = raw
 			if refined.has(str(i["id"])):
 				blocked.append(str(i["id"]))
 		_check(blocked.is_empty(),
-			"%s can be made before you own a refinery%s"
-			% [rid, "" if blocked.is_empty() else " -- needs " + ", ".join(blocked)])
+			"%s can be paid for before you own a refinery%s"
+			% [sid, "" if blocked.is_empty() else " -- needs " + ", ".join(blocked)])
 
 	# Nothing a player can reach before they own a refinery may need steel.
 	# Steel was the only refined material in the game for ten phases, so
 	# everything that wanted "some refined metal" was written against it --
 	# which quietly put a three-tier material into a first-afternoon recipe.
-	for rid: String in ["sub_fief", "foundation", "wall", "ore_refinery",
-			"storage_chest", "improvised_cutteray", "cutteray", "dew_harvester"]:
-		var r := RecipeDB.get_recipe(rid)
+	for rid: String in ["improvised_cutteray", "cutteray", "dew_harvester",
+			"construction_tool"]:
 		var wants_steel := false
-		for raw: Variant in r.get("inputs", []):
+		for raw: Variant in RecipeDB.get_recipe(rid).get("inputs", []):
 			if str((raw as Dictionary)["id"]) == "steel_ingot":
 				wants_steel = true
 		_check(not wants_steel, "%s does not need steel" % rid)
+	for sid: String in ["sub_fief", "foundation", "wall", "ore_refinery",
+			"storage_chest"]:
+		var wants_steel2 := false
+		for raw: Variant in StructureDB.get_def(sid).get("cost", []):
+			if str((raw as Dictionary)["id"]) == "steel_ingot":
+				wants_steel2 = true
+		_check(not wants_steel2, "%s does not need steel" % sid)
 
 	# The ladder, as the wiki lays it out. Each rung may only ask for the ones
 	# below it, so a tier cannot quietly collapse into the one under it again.

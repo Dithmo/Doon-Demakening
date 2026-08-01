@@ -17,6 +17,9 @@ signal spice_changed
 signal hotbar_changed
 signal stations_changed
 signal build_changed
+## The build palette moved to a different structure, so the view can redraw the
+## selection and the ghost without polling for it.
+signal structure_chosen(id: String)
 signal container_changed
 signal worm_changed
 signal hostiles_changed
@@ -296,9 +299,10 @@ func _on_peer_joined(id: int) -> void:
 		# once you have stripped a few wrecks.
 		inv.add("improvised_cutteray", 1)
 		inv.add("dew_harvester", 1)
-		# A fabricator in the starting kit: everything else is craftable, but
-		# the first station cannot be, or there is no way in.
-		inv.add("survival_fabricator", 1)
+		# No bench in the starting kit. The Survival Fabricator is a structure
+		# built from refined metal, which means a claim, a floor and a refinery
+		# come first -- it has no business being in a bag at hour zero, and
+		# putting it there is what made the opening incoherent.
 		if Net.start_hydration >= 0.0:
 			vit.hydration = clampf(Net.start_hydration, 0.0, Vitals.MAX)
 		_apply_grant(inv)
@@ -1195,8 +1199,15 @@ func _request_extract() -> void:
 		_notice.rpc_id(id, str(r["msg"]))
 
 
+## Put a structure down with the Construction Tool.
+##
+## Structures are not items and are never crafted: this is the *only* way one
+## comes into the world. The materials come straight out of the bag at the
+## moment of placing, so there is no half-state where you are carrying a
+## refinery around. Everything the client sends is a structure id and a point;
+## the cell, the storey, the wall side and the price are all decided here.
 @rpc("any_peer", "call_remote", "reliable")
-func _request_build(slot_index: int, aim: Vector3) -> void:
+func _request_structure(structure_id: String, aim: Vector3) -> void:
 	if not Net.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -1204,27 +1215,58 @@ func _request_build(slot_index: int, aim: Vector3) -> void:
 		return
 	var p: Dictionary = _players[id]
 	var inv: Inventory = p["inventory"]
-	if slot_index < 0 or slot_index >= inv.slots.size() or inv.slots[slot_index].is_empty():
+
+	if not StructureDB.has(structure_id):
 		return
-	var stack: Dictionary = inv.slots[slot_index]
-	var kind := str(ItemDB.get_def(stack["id"]).get("build", ""))
-	if kind.is_empty():
+	var def := StructureDB.get_def(structure_id)
+
+	# The tool is the rule, not a shortcut: the wiki is explicit that structures
+	# are placed with the Construction Tool, so being empty-handed is a refusal
+	# rather than a silent success.
+	if float(_held_def(p).get("place_range", 0.0)) <= 0.0:
+		_refuse_structure(id, p, "you need a Construction Tool in hand")
+		return
+	var afford := StructureDB.affordable(structure_id, inv)
+	if not afford["ok"]:
+		_refuse_structure(id, p, str(afford["msg"]))
 		return
 
-	# The client sends where it is aiming; the cell, level and wall side are
-	# all derived server-side from that plus the server's own player position.
-	var r := _build.build(p["identity"], p["pos"], aim, kind, _claims)
-	if r["ok"]:
-		inv.remove(str(stack["id"]), 1)
-		_persist_player(id)
-		_persist_world()
-		_sync_inventory.rpc_id(id, inv.to_data())
-		_sync_base.rpc(_build.to_wire(), _claims.to_wire())
-		print("[build] %s %s" % [p["identity"], r["msg"]])
-		_advance(id, "build", str(stack["id"]), 1)
+	var r: Dictionary
+	if str(def["kind"]) == "piece":
+		r = _build.build(p["identity"], p["pos"], aim, str(def["piece"]), _claims)
 	else:
-		print("[build] %s refused: %s" % [p["identity"], r["msg"]])
-	_notice.rpc_id(id, str(r["msg"]))
+		r = _stations.place(p["identity"], p["pos"], structure_id, _claims, _build)
+		# A Sub-Fief stakes the claim it sits in the middle of. Probe first so a
+		# refused claim never leaves a stray console standing.
+		if r["ok"] and float(def["claim_radius"]) > 0.0:
+			var seat: Vector3 = _stations.stations[int(r["id"])]["pos"]
+			var got := _claims.stake(p["identity"], seat,
+				float(def["claim_radius"]), int(r["id"]))
+			if not got["ok"]:
+				_stations.stations.erase(int(r["id"]))
+				_refuse_structure(id, p, str(got["msg"]))
+				return
+
+	if not r["ok"]:
+		_refuse_structure(id, p, str(r["msg"]))
+		return
+
+	StructureDB.charge(structure_id, inv)
+	_persist_player(id)
+	_persist_world()
+	_sync_inventory.rpc_id(id, inv.to_data())
+	_sync_base.rpc(_build.to_wire(), _claims.to_wire())
+	_sync_stations.rpc(_stations.to_wire())
+	print("[build] %s placed %s" % [p["identity"], StructureDB.display_name(structure_id)])
+	_advance(id, "build", structure_id, 1)
+	if float(def["claim_radius"]) > 0.0:
+		_advance(id, "stake", "", 1)
+	_notice.rpc_id(id, "placed %s" % StructureDB.display_name(structure_id))
+
+
+func _refuse_structure(id: int, p: Dictionary, why: String) -> void:
+	print("[build] %s refused: %s" % [p["identity"], why])
+	_notice.rpc_id(id, why)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1934,18 +1976,19 @@ func _bot_survive() -> void:
 	if Net.bot_profile == "reckless":
 		return
 	if Net.bot_profile == "founder":
-		# The opening build sequence, exactly as a player performs it: craft a
-		# Construction Tool from salvage at personal crafting, put it on a
-		# hotbar key, take it in hand, craft a Sub-Fief, and set it down with
-		# the tool. Nothing here reaches past the client API a keyboard uses.
+		# The opening, exactly as a player performs it and in the only order it
+		# admits: craft a Construction Tool at personal crafting -- the one
+		# thing here that *is* crafted -- put it on a hotbar key, take it in
+		# hand, then place the Sub-Fief, floor the claim, and stand a refinery
+		# on the floor. No bench appears anywhere in this, because a bench is a
+		# structure and structures are what this sequence produces.
 		_bot_use_cd -= 1
 		if _bot_use_cd > 0:
 			return
 		_bot_use_cd = 8
-		# The sequence ends when the ground is claimed. Without this the bot
-		# spends the rest of the run asking to stake land it already owns and
-		# being told so, which buries the interesting part of the log.
-		if _deployed("sub_fief"):
+		# The sequence ends when the refinery is up. Without a stopping point
+		# the bot re-asks for things it already has and buries the log.
+		if _deployed("ore_refinery"):
 			return
 		var tool_slot := find_use("tool_build")
 		if tool_slot < 0:
@@ -1957,18 +2000,16 @@ func _bot_survive() -> void:
 		if int(held_key) != 1:
 			hold_key(1)
 			return
-		# The bench first: a Sub-Fief is fabricator work, and the fabricator is
-		# the one station you may set down before you own any land.
-		if not _deployed("survival_fabricator"):
-			place_with_tool("survival_fabricator")
+		if not _deployed("sub_fief"):
+			place_structure("sub_fief")
 			return
-		# By id, not by "the first placeable": the bag already holds the
-		# fabricator, so asking for anything settable got that instead and the
-		# bot spent the run trying to deploy a bench it had already put down.
-		if find_item("sub_fief") < 0:
-			craft("sub_fief")
+		# A floor before anything that stands on one. Placing the same
+		# foundation twice is refused by the cell test, so the aim point moving
+		# with the bot is what walks the floor outward.
+		if not _bot_has_floor():
+			place_structure("foundation")
 			return
-		place_with_tool("sub_fief")
+		place_structure("ore_refinery")
 		return
 	if Net.bot_profile == "cutter":
 		# Walks to the nearest node and holds the trigger on it. Exists to prove
@@ -2443,30 +2484,46 @@ func _pending_craft_station() -> String:
 	return ""
 
 
-## Raise a holding in a fixed order: console first so the land is ours, then
-## the kit that makes it work, then a shell around it. Deliberately dumb -- it
-## exists so the Phase 3 harness can build a base without a human.
-const BOT_BUILD_ORDER := ["sub_fief", "fuel_generator", "water_cistern",
-	"windtrap", "storage_chest", "stilltent"]
+## Raise a holding in the only order the rules admit: the console, so the land
+## is ours; a floor, because everything that does work stands on one; then the
+## kit, then the shell. Deliberately dumb -- it exists so the Phase 3 harness
+## can build a base without a human.
+##
+## Every one of these is a *structure*, placed with the tool and paid for out of
+## the bag. None of them is craftable and none is carried, which is why this
+## list is ids rather than inventory slots.
+const BOT_BUILD_ORDER := ["fuel_generator", "water_cistern", "windtrap",
+	"storage_chest"]
 
 func _bot_build_base() -> void:
-	# One console only: a second would be refused on our own doorstep.
-	for item_id: String in BOT_BUILD_ORDER:
-		if item_id == "sub_fief" and not claim_here().is_empty():
-			continue
-		var have := _slot_of(item_id)
-		if have < 0:
-			continue
-		if _deployed(item_id):
-			continue
-		use_slot(have)
+	# The tool is the only way any of this happens.
+	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
+		var tool_slot := find_use("tool_build")
+		if tool_slot < 0:
+			craft("construction_tool")
+			return
+		if int(hotbar_mirror[1]) != tool_slot:
+			assign_hotbar(1, tool_slot)
+			return
+		hold_key(1)
 		return
 
-	# Then the shell, one piece per turn.
-	for piece: String in ["foundation", "wall", "ceiling"]:
-		if _slot_of(piece) >= 0:
-			try_build()
+	# One console only: a second would be refused on our own doorstep.
+	if claim_here().is_empty():
+		place_structure("sub_fief")
+		return
+	if not _bot_has_floor():
+		place_structure("foundation")
+		return
+	for sid: String in BOT_BUILD_ORDER:
+		if not _deployed(sid):
+			place_structure(sid)
 			return
+
+	# Then the shell, one piece per turn.
+	for piece: String in ["wall", "ceiling"]:
+		place_structure(piece)
+		return
 
 	# Finally, stow spare water in the chest -- exercises the container path.
 	if nearest_container() != 0:
@@ -2552,6 +2609,20 @@ func _slot_of(item_id: String) -> int:
 		if not s.is_empty() and str(s["id"]) == item_id:
 			return i
 	return -1
+
+
+## Client: is there a floor tile replicated under where the bot is aiming? Read
+## off build_mirror rather than asked of the server, because a bot is a client
+## and may only know what a client knows.
+func _bot_has_floor() -> bool:
+	var aim := build_aim()
+	for piece: Dictionary in build_mirror:
+		if int(piece["piece"]) != BuildGrid.Piece.FOUNDATION:
+			continue
+		var at: Vector3 = piece["pos"]
+		if Vector2(at.x - aim.x, at.z - aim.z).length() <= BuildGrid.CELL * 0.5:
+			return true
+	return false
 
 
 func _deployed(item_id: String) -> bool:
@@ -3000,13 +3071,36 @@ func worm_warning() -> String:
 	return ""
 
 
+## What the build palette has selected. Structures are placed, not carried, so
+## there is no inventory slot to point at -- the choice is a client-side
+## preference and the server is told which structure by id. It starts on the
+## Sub-Fief because that genuinely is the first thing anyone places.
+var chosen_structure: String = "sub_fief"
+
+
+## Choose what the Construction Tool will put down next.
+func choose_structure(id: String) -> bool:
+	if not StructureDB.has(id):
+		return false
+	chosen_structure = id
+	structure_chosen.emit(id)
+	return true
+
+
 func try_build() -> void:
-	var i := find_use("build")
-	if i < 0:
-		# Swallowing this made the [V] hint look broken rather than inapplicable.
-		notice.emit("nothing to build with")
+	place_structure(chosen_structure)
+
+
+## Ask the server to place a structure. Everything is re-decided there; this
+## only says which one and roughly where the player is looking.
+func place_structure(id: String) -> void:
+	if not StructureDB.has(id):
+		notice.emit("nothing selected to build")
 		return
-	_request_build.rpc_id(1, i, build_aim())
+	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
+		notice.emit("you need a Construction Tool in hand")
+		return
+	_request_structure.rpc_id(1, id, build_aim())
 
 
 func try_demolish() -> void:
@@ -3043,7 +3137,7 @@ func nearest_container() -> int:
 	var best_d := StationField.USE_RANGE
 	for sid: int in station_mirror:
 		var s: Dictionary = station_mirror[sid]
-		if int(ItemDB.get_def(str(s["item_id"])).get("container_slots", 0)) <= 0:
+		if int(StationField.def_of(str(s["item_id"])).get("container_slots", 0)) <= 0:
 			continue
 		var d: float = local_pos.distance_to(s["pos"])
 		if d <= best_d:
@@ -3461,17 +3555,13 @@ func _has_hook(inv: Inventory, hook: String) -> bool:
 	return false
 
 
-## Client: set a structure down with the Construction Tool in your hand. This is
-## what the trigger does while the tool is held.
+## Client: set field kit down -- a thumper, a stilltent. These are *items*: you
+## carry them, and putting one down consumes the stack.
 ##
-## Naming the item is how the caller says *which*. "The first placeable in the
-## bag" is a workable default and a bad only-option: someone carrying a Survival
-## Fabricator and a Sub-Fief means the one they picked, not whichever sorts
-## first. Until the build palette exists, the bag page is where you pick.
-func place_with_tool(item_id: String = "") -> void:
-	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
-		notice.emit("you are not holding a Construction Tool")
-		return
+## Structures do not come through here and never did belong here. They are not
+## carried, so there is no slot to name; they go through place_structure(),
+## which sends an id and lets the server take the materials.
+func deploy_item(item_id: String = "") -> void:
 	var i := find_item(item_id) if not item_id.is_empty() else find_use("place")
 	if i < 0:
 		notice.emit("nothing in your bag to set down")
