@@ -8,8 +8,22 @@ extends RefCounted
 ## where griefing gets answered, so every rule here is enforced on the
 ## authority and nothing is trusted from a client.
 ##
-## A claim is a circle anchored on a Sub-Fief console. Placing one inside
-## someone else's claim is refused; so is building or deploying there.
+## A claim is an axis-aligned **box** anchored on a Sub-Fief console: the volume
+## of ground and air you own. It reaches SIZE/2 either way horizontally, DOWN
+## below the console's footing so its floor sits under the surface, and UP above
+## it. Everything you build has to be inside it, and the build grid is measured
+## from its corner so cells line up with its edges.
+##
+## It was a circle until Phase 12, which read fine on a map and badly in the
+## world: you cannot see the edge of a circle, you cannot align a square grid
+## to one, and there is no answer to "how high may I build".
+
+## Edge length of a Sub-Fief claim, and how far the box reaches above and below
+## the console. 48 m is sixteen 3 m cells, so the boundary is always a cell
+## edge rather than a line through the middle of one.
+const SIZE := 48.0
+const UP := 24.0
+const DOWN := 6.0
 
 ## claim id -> {owner, pos, radius, station_id}
 var claims: Dictionary = {}
@@ -27,7 +41,10 @@ func stake(owner: String, pos: Vector3, radius: float, station_id: int) -> Dicti
 		var c: Dictionary = claims[cid]
 		if str(c["owner"]) == owner:
 			continue
-		if _flat_distance(c["pos"], pos) < float(c["radius"]) + radius:
+		# Boxes may not overlap, which for axis-aligned boxes is a separating
+		# axis test on two axes rather than a distance.
+		var gap: float = float(c["radius"]) + radius
+		if absf(c["pos"].x - pos.x) < gap and absf(c["pos"].z - pos.z) < gap:
 			return {"ok": false, "msg": "too close to %s's holding" % c["owner"], "id": 0}
 
 	var id := _next_id
@@ -43,21 +60,56 @@ func stake(owner: String, pos: Vector3, radius: float, station_id: int) -> Dicti
 var allies: Guilds = null
 
 
-## The claim containing this point, or 0.
+## The claim containing this point, or 0. A box test, and it takes height into
+## account: above the roof of the volume is outside it, which is what stops
+## someone building a tower off the top of your holding.
 func claim_at(pos: Vector3) -> int:
 	for cid: int in claims:
-		var c: Dictionary = claims[cid]
-		if _flat_distance(c["pos"], pos) <= float(c["radius"]):
+		if contains(cid, pos):
 			return cid
 	return 0
 
 
-## May `owner` build at this point? Unclaimed land is open to everyone --
-## claiming it is what makes it yours.
-func may_build(owner: String, pos: Vector3) -> bool:
+## Is `pos` inside claim `cid`'s volume?
+func contains(cid: int, pos: Vector3) -> bool:
+	if not claims.has(cid):
+		return false
+	var c: Dictionary = claims[cid]
+	var half: float = float(c["radius"])
+	var o: Vector3 = c["pos"]
+	if absf(pos.x - o.x) > half or absf(pos.z - o.z) > half:
+		return false
+	return pos.y >= o.y - DOWN and pos.y <= o.y + UP
+
+
+## The floor of a claim: the level every foundation in it sits at, so a floor
+## comes out flat however the ground under it rolls.
+func floor_of(cid: int) -> float:
+	return float(claims[cid]["pos"].y) if claims.has(cid) else 0.0
+
+
+## The -x/-z corner of a claim, which the build grid measures cells from. Cells
+## are counted from here so the claim boundary is always a cell edge.
+func origin_of(cid: int) -> Vector2:
+	if not claims.has(cid):
+		return Vector2.ZERO
+	var o: Vector3 = claims[cid]["pos"]
+	var half: float = float(claims[cid]["radius"])
+	return Vector2(o.x - half, o.z - half)
+
+
+## May `owner` build at this point? Only inside a holding they own or are
+## allied to. Unclaimed ground is no longer open: the wiki is explicit that the
+## Construction Tool "can only be used on land claimed using a Sub-fief
+## console", and a claim you can build outside of is not a claim.
+func may_build(owner: String, pos: Vector3, staking: bool = false) -> bool:
 	var cid := claim_at(pos)
 	if cid == 0:
-		return true
+		# The one exception, and it has to exist: a Sub-Fief is what *makes*
+		# ground claimable, so it may go down on open desert. Everything else
+		# needs a claim already there, which is what the wiki means by the
+		# Construction Tool only working on claimed land.
+		return staking
 	var holder := str(claims[cid]["owner"])
 	if holder == owner:
 		return true

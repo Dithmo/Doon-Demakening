@@ -34,8 +34,11 @@ func place(owner: String, player_pos: Vector3, item_id: String,
 
 	if not Terrain.is_reachable(player_pos.x, player_pos.z):
 		return {"ok": false, "msg": "cannot deploy here", "id": 0}
-	if claims != null and not claims.may_build(owner, player_pos):
-		return {"ok": false, "msg": "that is %s's holding" % claims.owner_at(player_pos),
+	# A console that stakes a claim may be set down on unclaimed ground; that is
+	# the whole point of it.
+	var stakes := float(ItemDB.get_def(item_id).get("claim_radius", 0.0)) > 0.0
+	if claims != null and not claims.may_build(owner, player_pos, stakes):
+		return {"ok": false, "msg": "you must build inside your own holding",
 			"id": 0}
 
 	# Snap to the nearest legal spot rather than demanding the player stand in

@@ -242,8 +242,8 @@
       "weight": 25.0,
       "use": "place",
       "station": "sub_fief",
-      "claim_radius": 28.0,
-      "desc": "Registers a holding. Nobody else builds inside it.",
+      "claim_radius": 24.0,
+      "desc": "Registers a holding: a 48 m box of ground and air, and the only place your Construction Tool will work.",
       "value": 200
     },
     {

@@ -39,11 +39,27 @@ static func cell_centre(cell: Vector2i) -> Vector2:
 	return Vector2((float(cell.x) + 0.5) * CELL, (float(cell.y) + 0.5) * CELL)
 
 
+## Which cell of a claim a point falls in, counted from the claim's corner.
+static func cell_in(pos: Vector3, origin: Vector2) -> Vector2i:
+	return Vector2i(int(floor((pos.x - origin.x) / CELL)),
+		int(floor((pos.z - origin.y) / CELL)))
+
+
+## The centre of a claim-relative cell, back in world space.
+static func cell_centre_in(cell: Vector2i, origin: Vector2) -> Vector2:
+	return origin + Vector2((float(cell.x) + 0.5) * CELL,
+		(float(cell.y) + 0.5) * CELL)
+
+
 ## The edge of `cell` nearest to `pos`: 0 = -z, 1 = +x, 2 = +z, 3 = -x.
 ## Walls snap to whichever edge the player is closest to, so aiming roughly at
 ## a side is enough.
-static func nearest_side(cell: Vector2i, pos: Vector3) -> int:
-	var c := cell_centre(cell)
+## Which edge of a cell a point is nearest. Takes the claim's corner, because
+## cells are counted from there -- measuring against a world-origin centre put
+## every wall on whichever side the claim happened to be offset towards.
+static func nearest_side(cell: Vector2i, pos: Vector3,
+		origin: Vector2 = Vector2.ZERO) -> int:
+	var c := cell_centre_in(cell, origin)
 	var dx := pos.x - c.x
 	var dz := pos.z - c.y
 	if absf(dx) > absf(dz):
@@ -95,15 +111,20 @@ func build(owner: String, player_pos: Vector3, aim: Vector3, build_kind: String,
 	if not claims.may_build(owner, aim):
 		return _fail("that is %s's holding" % claims.owner_at(aim))
 
-	var cell := world_to_cell(aim)
-	var ground: Array = _ground(cell)
-	var base: float = ground[0]
+	var cid := claims.claim_at(aim)
+	var origin := claims.origin_of(cid)
+	var cell := cell_in(aim, origin)
+	# The floor of the holding, not the lie of the land under this one cell.
+	# Foundations used to sit at their own cell's terrain height, so a floor on
+	# a slope came out as a staircase; the claim is a box, and its floor is
+	# flat, so the platform you build on it is flat too.
+	var base: float = claims.floor_of(cid)
 	var level := 0
 	if piece != Piece.FOUNDATION:
 		# Snap to whichever level the player is standing closest to.
 		level = maxi(0, int(round((player_pos.y - base) / CELL)))
 
-	var side := nearest_side(cell, aim) if piece == Piece.WALL else 0
+	var side := nearest_side(cell, aim, origin) if piece == Piece.WALL else 0
 	if pieces.has(_key(piece, cell, level, side)):
 		return _fail("something is already there")
 
@@ -111,15 +132,19 @@ func build(owner: String, player_pos: Vector3, aim: Vector3, build_kind: String,
 		Piece.FOUNDATION:
 			if not Terrain.is_reachable(aim.x, aim.z):
 				return _fail("cannot build on that ground")
-			if float(ground[1]) > MAX_UNEVENNESS:
-				return _fail("ground is too uneven")
+			# The floor is flat, so what matters is not how uneven this cell is
+			# but how far the ground under it strays from that floor: much
+			# above and the tile is buried, much below and it hangs in the air.
+			if absf(Terrain.sample_height(aim.x, aim.z) - base) > CELL:
+				return _fail("the ground here is too far from your floor")
 		Piece.WALL, Piece.CEILING:
 			if not supported(cell, level):
 				return _fail("nothing to build onto")
 
 	var key := _key(piece, cell, level, side)
 	pieces[key] = {"piece": int(piece), "cell": cell, "level": level,
-		"side": side, "owner": owner}
+		"side": side, "owner": owner, "claim": cid,
+		"pos": _world_of(piece, cell, level, side, origin, base)}
 	return {"ok": true, "msg": "built %s" % build_kind, "key": key,
 		"pos": piece_position(pieces[key])}
 
@@ -131,14 +156,18 @@ func demolish(owner: String, player_pos: Vector3, aim: Vector3,
 	if not claims.may_build(owner, aim):
 		return {"ok": false, "msg": "that is %s's holding" % claims.owner_at(aim),
 			"build_kind": ""}
-	var cell := world_to_cell(aim)
-	var base: float = _ground(cell)[0]
+	# Demolition measures from the same corner building does, or it would look
+	# for a piece in a cell that has nothing in it.
+	var cid := claims.claim_at(aim)
+	var origin := claims.origin_of(cid)
+	var cell := cell_in(aim, origin)
+	var base: float = claims.floor_of(cid)
 	var level: int = maxi(0, int(round((player_pos.y - base) / CELL)))
 
 	# Walls first: they are what the player is most likely aiming at, and
 	# removing the floor out from under one should not be the default.
 	var candidates: Array = [
-		[Piece.WALL, nearest_side(cell, aim)],
+		[Piece.WALL, nearest_side(cell, aim, origin)],
 		[Piece.CEILING, 0],
 		[Piece.FOUNDATION, 0],
 	]
@@ -178,19 +207,25 @@ func _has_anything(cell: Vector2i, level: int) -> bool:
 
 
 ## Where a piece sits in world space, for rendering and for range checks.
+## Where a piece stands. Read off the piece rather than recomputed: cells are
+## measured from the claim's corner now, and the client has no claim registry
+## to measure from.
 func piece_position(p: Dictionary) -> Vector3:
-	var cell: Vector2i = p["cell"]
-	var c := cell_centre(cell)
-	var base: float = _ground(cell)[0]
-	var y := base + float(p["level"]) * CELL
-	if int(p["piece"]) == Piece.WALL:
+	return p["pos"]
+
+
+static func _world_of(piece: Piece, cell: Vector2i, level: int, side: int,
+		origin: Vector2, base: float) -> Vector3:
+	var c := cell_centre_in(cell, origin)
+	var y := base + float(level) * CELL
+	if piece == Piece.WALL:
 		var half := CELL * 0.5
-		match int(p["side"]):
+		match side:
 			0: return Vector3(c.x, y + half, c.y - half)
 			1: return Vector3(c.x + half, y + half, c.y)
 			2: return Vector3(c.x, y + half, c.y + half)
 			_: return Vector3(c.x - half, y + half, c.y)
-	if int(p["piece"]) == Piece.CEILING:
+	if piece == Piece.CEILING:
 		return Vector3(c.x, y + CELL, c.y)
 	return Vector3(c.x, y, c.y)
 
@@ -205,8 +240,9 @@ func to_wire() -> Array:
 	for key: String in pieces:
 		var p: Dictionary = pieces[key]
 		var cell: Vector2i = p["cell"]
+		var w: Vector3 = p["pos"]
 		out.append([key, int(p["piece"]), cell.x, cell.y, int(p["level"]),
-			int(p["side"]), str(p["owner"])])
+			int(p["side"]), str(p["owner"]), w.x, w.y, w.z, int(p["claim"])])
 	return out
 
 
@@ -217,6 +253,8 @@ func from_wire(rows: Array) -> void:
 			"piece": int(row[1]),
 			"cell": Vector2i(int(row[2]), int(row[3])),
 			"level": int(row[4]), "side": int(row[5]), "owner": str(row[6]),
+			"pos": Vector3(float(row[7]), float(row[8]), float(row[9])),
+			"claim": int(row[10]),
 		}
 
 

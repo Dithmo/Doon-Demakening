@@ -444,7 +444,10 @@ func _test_claims() -> void:
 	var here := _open_ground()
 	var far := here + Vector3(300.0, 0.0, 0.0)
 
-	_check(claims.may_build("ada", here), "open ground is open to anyone")
+	# Unclaimed ground is closed to everyone now: the Construction Tool only
+	# works on land a Sub-Fief has claimed, so a claim is what *opens* ground
+	# rather than what shuts it.
+	_check(not claims.may_build("ada", here), "unclaimed ground cannot be built on")
 	var staked := claims.stake("ada", here, 20.0, 1)
 	_check(staked["ok"], "a holding can be staked on open ground")
 	_check(claims.owner_at(here) == "ada", "the claim reports its owner")
@@ -455,7 +458,7 @@ func _test_claims() -> void:
 		"the whole radius is closed, not just the centre")
 	_check(claims.may_build("ada", here + Vector3(15.0, 0.0, 0.0)),
 		"the owner can build anywhere inside")
-	_check(claims.may_build("bo", far), "land outside the radius stays open")
+	_check(not claims.may_build("bo", far), "and nor can land outside any claim")
 
 	_check(not claims.stake("bo", here + Vector3(5.0, 0.0, 0.0), 20.0, 2)["ok"],
 		"a second console cannot be planted inside an existing holding")
@@ -470,14 +473,21 @@ func _test_claims() -> void:
 	var cid := claims.claim_for_station(1)
 	_check(cid != 0, "a claim can be found from its console")
 	claims.release(cid)
-	_check(claims.may_build("bo", here), "releasing a holding reopens the land")
+	_check(not claims.may_build("bo", here),
+		"releasing a holding closes the land again rather than freeing it")
 
 
 func _test_building() -> void:
 	var grid := BuildGrid.new()
 	var claims := Claims.new()
 	var here := _open_ground()
-	var cell := BuildGrid.world_to_cell(here)
+	# You build inside a holding or not at all, so the fixture stakes one first.
+	# That is the sequence a player follows too: console down, then floor.
+	_check(bool(claims.stake("ada", here, Claims.SIZE * 0.5, 1)["ok"]),
+		"a holding can be staked to build in")
+	# Cells are counted from the holding's corner, not from the world origin,
+	# so the claim's edge is always a cell edge.
+	var cell := BuildGrid.cell_in(here, claims.origin_of(claims.claim_at(here)))
 
 	# Walls and ceilings need something to stand on.
 	_check(not grid.build("ada", here, here, "wall", claims)["ok"],
@@ -500,7 +510,17 @@ func _test_building() -> void:
 	_check(not grid.build("ada", here, here, "wall", claims)["ok"],
 		"the same edge cannot take two walls")
 	# Aiming at the opposite edge picks a different side.
-	var other := here + Vector3(BuildGrid.CELL * 0.4, 0.0, 0.0)
+	# Aimed at the far edge of the *same* cell, so it is a different side of one
+	# cell rather than a wall in the neighbouring one. Measured from the cell's
+	# own centre, since cells no longer line up with the world origin.
+	var org := claims.origin_of(claims.claim_at(here))
+	var mid := BuildGrid.cell_centre_in(cell, org)
+	var other := Vector3(mid.x + BuildGrid.CELL * 0.4, here.y, mid.y)
+	var side_now := BuildGrid.nearest_side(cell, other, org)
+	var first_side := BuildGrid.nearest_side(cell, here, org)
+	_check(side_now != first_side,
+		"the far edge of the cell is a different side (%d vs %d)"
+		% [first_side, side_now])
 	_check(grid.build("ada", here, other, "wall", claims)["ok"],
 		"a second wall goes on a different edge")
 	_check(grid.build("ada", here, here, "ceiling", claims)["ok"], "a ceiling caps it")
@@ -514,7 +534,11 @@ func _test_building() -> void:
 	# Range and ownership are enforced.
 	_check(not grid.build("ada", here, here + Vector3(40.0, 0.0, 0.0),
 		"foundation", claims)["ok"], "building out of reach is refused")
-	claims.stake("bo", here, 20.0, 1)
+	# Hand the ground over: boxes may not overlap, so bo cannot stake here
+	# until ada's claim is released. That is the rule working, not a fixture
+	# quirk -- two owners never share a volume.
+	claims.release(claims.claim_for_station(1))
+	claims.stake("bo", here, Claims.SIZE * 0.5, 2)
 	_check(not grid.build("ada", here, here, "foundation", claims)["ok"],
 		"building inside another player's holding is refused")
 	_check(not grid.demolish("ada", here, here, claims)["ok"],
