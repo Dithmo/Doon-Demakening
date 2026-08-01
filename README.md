@@ -14,9 +14,16 @@ tools/run_session.sh 3        # server + 3 clients
 tools/run_session.sh 2 --auto # server + 2 bot clients
 ```
 
-Or by hand:
+Clone and run — the maps are committed, so there is no build step and no Python
+needed to play.
+
+Or by hand. The **first** run of a fresh checkout needs one import pass: Godot
+registers `class_name` scripts during import, and the autoloads reference them,
+so without it every autoload fails to parse and the game never starts.
+`run_session.sh` does this for you; by hand it is one command, once.
 
 ```bash
+godot --headless --import                 # once per fresh clone
 godot --headless -- --server [--port N] [--region res://data/regions/NAME]
 godot           -- --client [--host H] [--port N] [--identity NAME]
 ```
