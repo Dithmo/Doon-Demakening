@@ -8,8 +8,19 @@ and exactly one set of code to get right.
 
 ## Running
 
+Run the game with no arguments and it plays. Solo is a one-client session
+against a local server — that is how the rules stay in one place — but starting
+the server is the game's job, not yours: launched bare, it hosts its own and
+connects to it.
+
 ```bash
-tools/run_session.sh          # server + 1 client
+godot                          # play
+```
+
+`tools/run_session.sh` is for running *several* clients against one server,
+which is a developer's need rather than a player's:
+
+```bash
 tools/run_session.sh 3        # server + 3 clients
 tools/run_session.sh 2 --auto # server + 2 bot clients
 ```

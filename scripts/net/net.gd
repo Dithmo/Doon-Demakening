@@ -26,6 +26,12 @@ const MAX_CLIENTS := 8
 const PROTOCOL_VERSION := 2
 
 var role: Role = Role.NONE
+## Launched with no arguments: we are the client *and* we start the server.
+var solo: bool = false
+var _server_pid: int = -1
+## How long to give the child server before connecting. Generous: it has a
+## 19 MB region to read, and a connect that fails is worse than a slow one.
+const SOLO_SERVER_WAIT_MS := 2500
 var port: int = DEFAULT_PORT
 var host: String = "127.0.0.1"
 var identity: String = ""
@@ -142,6 +148,8 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connect_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
+	if solo:
+		_host_own_server()
 	match role:
 		Role.SERVER: _start_server()
 		Role.CLIENT: _start_client()
@@ -149,11 +157,69 @@ func _ready() -> void:
 	role_resolved.emit()
 
 
+## Solo play, with no arguments at all: start our own headless server as a child
+## process and connect to it.
+##
+## The game is server-authoritative with no offline path -- solo is a one-client
+## session against a local server, which is what keeps a single set of rules to
+## get right. That is a good decision about the *architecture* and it should
+## never have been the player's problem. It was: launching the game meant
+## launching two processes in the right order, which is why a shell script stood
+## in for the front door.
+##
+## The child is the same binary we are. From an export that is the game itself;
+## from the editor binary it needs --path, because a bare `godot --headless` in
+## some other directory has no project to run.
+func _host_own_server() -> void:
+	var exe := OS.get_executable_path()
+	var argv: PackedStringArray = ["--headless"]
+	if OS.has_feature("editor"):
+		argv.append_array(["--path", ProjectSettings.globalize_path("res://")])
+	argv.append("--")
+	argv.append_array(["--server", "--port", str(port)])
+	# World-shaping flags belong to the world, so they have to reach the process
+	# that owns it. Without this, `--peaceful` on a solo launch was accepted,
+	# ignored, and the worm ate you anyway.
+	for flag: String in ["--region", "--day-seconds", "--start-time",
+			"--grant", "--spawn-at", "--start-hydration"]:
+		var v := Args.value(flag, "")
+		if not v.is_empty():
+			argv.append_array([flag, v])
+	for flag2: String in ["--peaceful", "--spice-now"]:
+		if Args.has(flag2):
+			argv.append(flag2)
+
+	_server_pid = OS.create_process(exe, argv)
+	if _server_pid <= 0:
+		push_error("Net: could not start a local server (%s)" % exe)
+		return
+	print("[net] solo: hosting a local server (pid %d) on :%d" % [_server_pid, port])
+	# Blocking, deliberately. The alternative is restructuring startup around an
+	# await for something that takes about a second once, at launch, before
+	# there is anything on screen to be blocked.
+	OS.delay_msec(SOLO_SERVER_WAIT_MS)
+
+
+## Take the server down with us. A solo session's server is ours alone, so
+## leaving it running would hold the port and quietly serve the next launch a
+## stale world.
+func _exit_tree() -> void:
+	if _server_pid > 0:
+		OS.kill(_server_pid)
+		_server_pid = -1
+
+
 func _parse_args() -> void:
 	if Args.has("--server"):
 		role = Role.SERVER
 	elif Args.has("--client"):
 		role = Role.CLIENT
+	elif not Args.has("--run-tests"):
+		# No role asked for means somebody double-clicked the game. That is the
+		# commonest way it will ever be started, and it used to be the one way
+		# that did nothing at all: "no --server or --client given; idling".
+		role = Role.CLIENT
+		solo = true
 	port = Args.integer("--port", DEFAULT_PORT)
 	host = Args.value("--host", "127.0.0.1")
 	identity = Args.value("--identity", "")
