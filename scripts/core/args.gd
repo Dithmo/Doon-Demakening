@@ -17,6 +17,13 @@ static func value(flag: String, fallback: String = "") -> String:
 	var i := a.find(flag)
 	if i == -1 or i + 1 >= a.size():
 		return fallback
+	# The first wins, and the rest are dropped. Saying so out loud costs one
+	# line and saves the afternoon it cost once: a harness built its arguments
+	# by concatenating two lists that each carried a --grant, half the kit never
+	# arrived, and the run failed as though the game were broken.
+	if a.rfind(flag) != i:
+		push_warning("Args: '%s' given more than once; using the first ('%s')"
+			% [flag, a[i + 1]])
 	return a[i + 1]
 
 

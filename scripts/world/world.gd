@@ -2569,6 +2569,13 @@ func _bot_direction() -> Vector2:
 	var goal_is_node := false
 	var best_score := INF
 
+	# The founder stands still until its ground is claimed. Crafting needs the
+	# bench in reach, and a bot that sets a fabricator down and then strolls off
+	# to the nearest plant spends the rest of the run being told it has no
+	# fabricator -- which reads as a broken recipe rather than a wandering bot.
+	if Net.bot_profile == "founder" and not _deployed("sub_fief"):
+		return Vector2.ZERO
+
 	# Prey never seeks cover; quarry bolts for rock the moment it is warned.
 	# The pair is how the harness proves the worm both kills and can be escaped.
 	if Net.bot_profile == "prey" or Net.bot_profile == "quarry":

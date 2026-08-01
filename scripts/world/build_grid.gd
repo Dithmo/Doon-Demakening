@@ -121,6 +121,10 @@ func build(owner: String, player_pos: Vector3, aim: Vector3, build_kind: String,
 	if player_pos.distance_to(aim) > BUILD_RANGE:
 		return _fail("too far to build there")
 	if not claims.may_build(owner, aim):
+		# Open ground has no owner to name, and telling the player it belongs to
+		# nobody-in-particular is worse than telling them the actual rule.
+		if claims.claim_at(aim) == 0:
+			return _fail("you can only build on land you have claimed")
 		return _fail("that is %s's holding" % claims.owner_at(aim))
 
 	var cid := claims.claim_at(aim)
@@ -165,6 +169,11 @@ func build(owner: String, player_pos: Vector3, aim: Vector3, build_kind: String,
 func demolish(owner: String, player_pos: Vector3, aim: Vector3,
 		claims: Claims) -> Dictionary:
 	if not claims.may_build(owner, aim):
+		# On open ground there is nothing to remove, by construction -- nothing
+		# can be built there. Saying so beats naming an owner who does not
+		# exist, which is what "that is 's holding" was.
+		if claims.claim_at(aim) == 0:
+			return {"ok": false, "msg": "nothing to remove", "build_kind": ""}
 		return {"ok": false, "msg": "that is %s's holding" % claims.owner_at(aim),
 			"build_kind": ""}
 	# Demolition measures from the same corner building does, or it would look

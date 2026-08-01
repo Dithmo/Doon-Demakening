@@ -127,7 +127,11 @@ def main():
             failures.append(msg)
 
     clock = ["--day-seconds", "99999", "--start-time", "0.35", "--peaceful"]
-    kit = ["--grant", "storage_chest:1,foundation:2,stillsuit:1,construction_tool:1"]
+    # One --grant, not two: Args.value takes the *first* match, so a second
+    # --grant on the same line is silently dropped. The salvage is here so the
+    # hoarder can craft a Sub-Fief in run 3 -- see the note there.
+    kit = ["--grant", "storage_chest:1,foundation:2,stillsuit:1,"
+           "construction_tool:1,salvaged_metal:4"]
 
     # --- run 1: every key is answered ---------------------------------------
     # Nothing is in reach of any of these, on purpose: a refusal proves the key
@@ -169,9 +173,14 @@ def main():
           "the bag page offers to wear the stillsuit")
     check("worn:" in body, "and says what you have on")
 
+    # Run 1 carried the same kit, so its page tells us which row the stillsuit
+    # is on. Read it rather than count it: only rows that do something are
+    # numbered, so changing the kit renumbers the page.
+    suit = re.search(r"\[(\d+)\]\s+Stillsuit", body)
     srv2, cli2 = session(
         user_dir, 40, PORT + 1, clock + kit,
-        ["--client", "--identity", "dresser", "--panel", "BAG", "--press", "4"])
+        ["--client", "--identity", "dresser", "--panel", "BAG",
+         "--press", suit.group(1) if suit else "4"])
     equipped = re.search(r"\[use\] dresser ok: equipped (.+)", srv2.text())
     check(bool(equipped),
           "pressing the row equips it server-side"
@@ -181,21 +190,46 @@ def main():
     # A chest is deployed from the bag page, because the [B] key deploys
     # whatever is first and that is not necessarily the chest -- which is the
     # argument for the page existing.
+    #
+    # Land first. A chest has to stand somewhere, and unclaimed ground is
+    # closed to everything but the Sub-Fief and the bench you craft it at, so
+    # the fixture stakes a holding the way a player does rather than being
+    # handed one. Same identity across both sessions, so the saved position
+    # puts the hoarder back beside their own console.
     print("\n=== run 3: moving resources into a chest ===")
     store = ROOT / ".test_home_p9_chest"
     if store.exists():
         shutil.rmtree(store)
     store.mkdir(parents=True)
 
+    srv3a, cli3a = session(
+        store, 50, PORT + 2, clock + kit,
+        ["--client", "--identity", "hoarder", "--auto", "--bot-profile", "founder"],
+        windowed=False)
+    check("deployed Sub-Fief Console" in srv3a.text(),
+          "the hoarder claims ground to put a chest on")
+
+    # Which row the chest is on is not a constant. The bag page numbers only
+    # the rows that *do* something, so staking the claim -- which spent the
+    # console, spent the salvage and set the bench down -- renumbered them, and
+    # a hard-coded "press 3" pressed whatever had moved into third place. Look
+    # the row up instead of assuming it.
+    srv3b, cli3b = session(
+        store, 30, PORT + 3, clock + kit,
+        ["--client", "--identity", "hoarder", "--panel", "BAG"])
+    row = re.search(r"\[(\d+)\]\s+Storage Chest", cli3b.panel())
+    check(bool(row), "the bag page offers to deploy the chest"
+          + ("" if row else f" -- page was:\n{cli3b.panel()}"))
+
     srv3, cli3 = session(
-        store, 40, PORT + 2, clock + kit,
-        ["--client", "--identity", "hoarder", "--panel", "BAG", "--press", "3",
-         "--do", "container"])
+        store, 40, PORT + 4, clock + kit,
+        ["--client", "--identity", "hoarder", "--panel", "BAG",
+         "--press", row.group(1) if row else "3", "--do", "container"])
     check("deployed Storage Chest" in srv3.text(), "a chest goes down from the bag")
 
     # Same save, second visit: the chest is still there to be filled.
     srv4, cli4 = session(
-        store, 40, PORT + 3, clock,
+        store, 40, PORT + 5, clock,
         ["--client", "--identity", "hoarder", "--panel", "CONTAINER",
          "--do", "container", "--press", "1"])
     page = cli4.panel()
@@ -212,7 +246,7 @@ def main():
     print("\n=== run 4: mouse-look leaves the movement contract alone ===")
     shot = user_dir / "look.png"
     srv5, cli5 = session(
-        user_dir, 40, PORT + 4, clock,
+        user_dir, 40, PORT + 6, clock,
         ["--client", "--identity", "looker", "--auto", "--bot-profile", "survive",
          "--screenshot", str(shot)])
     check(shot.exists() and shot.stat().st_size > 5000, "a windowed client still draws")

@@ -311,6 +311,7 @@
       "weight": 8.0,
       "use": "place",
       "station": "stilltent",
+      "open_ground": true,
       "shade_radius": 4.0,
       "desc": "Sealed shelter. Casts its own shade wherever you pitch it.",
       "value": 80
@@ -349,6 +350,7 @@
       "weight": 6.0,
       "use": "place",
       "station": "thumper",
+      "open_ground": true,
       "worm_threat": 9.0,
       "desc": "Pounds the sand. Calls a worm to somewhere that is not you.",
       "value": 60

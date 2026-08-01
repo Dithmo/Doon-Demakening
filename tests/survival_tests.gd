@@ -1752,3 +1752,43 @@ func _test_opening_is_not_a_deadlock() -> void:
 	_check(claims.claim_at(away) == 0, "the far spot really is unclaimed")
 	_check(not field.place("ada", away, "ore_refinery", claims)["ok"],
 		"a refinery still may not go on unclaimed ground")
+
+	_test_field_kit_goes_anywhere()
+
+
+## Field kit is not a building. A thumper is bait you throw into open sand, a
+## stilltent is shade you pitch where the sun caught you, and a Survival
+## Fabricator is the bench you carry. Making the whole game need claimed land
+## swept all three up with the base stations, and each one is useless the moment
+## it can only be used at home -- the thumper especially, whose entire purpose
+## is to be somewhere you are not.
+##
+## The split is stated in the data, so this checks the data means what it says
+## in both directions: what is marked portable really does go down on open
+## desert, and what is not really is refused there.
+func _test_field_kit_goes_anywhere() -> void:
+	var portable: Array = ["survival_fabricator", "stilltent", "thumper"]
+	var housed: Array = ["ore_refinery", "windtrap", "water_cistern",
+		"storage_chest", "fuel_generator", "wind_turbine"]
+
+	for iid: String in portable:
+		var def := ItemDB.get_def(iid)
+		if def.is_empty():
+			continue
+		_check(bool(def.get("open_ground", false)),
+			"%s is marked portable" % ItemDB.display_name(iid))
+		# Each on its own field and its own patch, so "refused" can never mean
+		# "something else is already standing there".
+		var f := StationField.new()
+		_check(f.place("ada", _open_ground(), iid, Claims.new())["ok"],
+			"%s can be set down on open desert" % ItemDB.display_name(iid))
+
+	for iid: String in housed:
+		var def2 := ItemDB.get_def(iid)
+		if def2.is_empty():
+			continue
+		_check(not bool(def2.get("open_ground", false)),
+			"%s is not portable" % ItemDB.display_name(iid))
+		var f2 := StationField.new()
+		_check(not f2.place("ada", _open_ground(), iid, Claims.new())["ok"],
+			"%s needs a holding to stand in" % ItemDB.display_name(iid))
