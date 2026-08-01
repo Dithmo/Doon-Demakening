@@ -34,17 +34,21 @@ func place(owner: String, player_pos: Vector3, item_id: String,
 
 	if not Terrain.is_reachable(player_pos.x, player_pos.z):
 		return {"ok": false, "msg": "cannot deploy here", "id": 0}
-	# A console that stakes a claim may be set down on unclaimed ground; that is
-	# the whole point of it.
-	var stakes := float(ItemDB.get_def(item_id).get("claim_radius", 0.0)) > 0.0
-	if claims != null and not claims.may_build(owner, player_pos, stakes):
+	# Two things may go down on unclaimed ground: the console that *makes* a
+	# claim, and anything marked portable in the data -- which is the Survival
+	# Fabricator, the bench you craft your first Sub-Fief at. Without the second
+	# exemption the opening of the game is a deadlock: no bench without land, no
+	# land without the console, no console without the bench.
+	var open_ok := float(def.get("claim_radius", 0.0)) > 0.0 \
+		or bool(def.get("open_ground", false))
+	if claims != null and not claims.may_build(owner, player_pos, open_ok):
 		return {"ok": false, "msg": "you must build inside your own holding",
 			"id": 0}
 
 	# Snap to the nearest legal spot rather than demanding the player stand in
 	# exactly the right place. Deploying a second thing should not require
 	# walking away from the first.
-	var spot := _free_spot(player_pos, owner, claims)
+	var spot := _free_spot(player_pos, owner, claims, open_ok)
 	if spot.is_empty():
 		return {"ok": false, "msg": "no room to deploy here", "id": 0}
 	var pos: Vector3 = spot["pos"]
@@ -81,8 +85,12 @@ func pick_up(player_pos: Vector3, station_id: int, who: String = "",
 
 ## Nearest position to the player that is clear of other stations, legal
 ## terrain, and inside a claim they may build in. Spirals outward so the result
-## is as close to the player as the rules allow.
-func _free_spot(near: Vector3, owner: String, claims: Claims) -> Dictionary:
+## is as close to the player as the rules allow. `on_open_ground` rides through
+## because the exemption belongs to the item, and a spot that is legal for the
+## caller must be legal for the spiral too -- otherwise the check above says yes
+## and the search below quietly says no.
+func _free_spot(near: Vector3, owner: String, claims: Claims,
+		on_open_ground: bool = false) -> Dictionary:
 	var radius := 0.0
 	while radius <= PLACE_RANGE:
 		var steps: int = maxi(1, int(radius * 3.0))
@@ -92,7 +100,12 @@ func _free_spot(near: Vector3, owner: String, claims: Claims) -> Dictionary:
 			var z := near.z + sin(a) * radius
 			if not Terrain.is_reachable(x, z):
 				continue
-			if claims != null and not claims.may_build(owner, Vector3(x, 0.0, z)):
+			# The candidate's real height, not zero. A claim is a *volume* now,
+			# so asking whether you may build at y=0 asks about a point six
+			# metres under the floor of your own holding -- which said no
+			# everywhere and refused every deployment on the map.
+			var probe := Vector3(x, Terrain.sample_height(x, z), z)
+			if claims != null and not claims.may_build(owner, probe, on_open_ground):
 				continue
 			var clear := true
 			for sid: int in stations:

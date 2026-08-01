@@ -1704,3 +1704,51 @@ func _test_first_base() -> void:
 	for raw: Variant in fief.get("inputs", []):
 		total += int((raw as Dictionary)["count"])
 	_check(total <= 6, "and a Sub-Fief is cheap enough to stake early (%d parts)" % total)
+
+	_test_opening_is_not_a_deadlock()
+
+
+## The first five minutes, walked through with the real rules rather than
+## reasoned about. Once unclaimed ground stopped being open to build on, the
+## opening became a ring: no Sub-Fief without the fabricator to craft it at, no
+## fabricator on the ground without a claim, no claim without the Sub-Fief. It
+## cost a whole run to find, and it is one function to catch.
+func _test_opening_is_not_a_deadlock() -> void:
+	var fief := RecipeDB.get_recipe("sub_fief")
+	var bench := str(fief.get("station", ""))
+	var field := StationField.new()
+	var claims := Claims.new()
+	var here := _open_ground()
+
+	if not bench.is_empty():
+		# Whatever station the console is crafted at has to be one you can put
+		# down on open desert, or you can never craft the console.
+		var need := ""
+		for iid: String in ItemDB.ids():
+			if str(ItemDB.get_def(iid).get("station", "")) == bench:
+				need = iid
+				break
+		_check(not need.is_empty(),
+			"the Sub-Fief's station ('%s') is a deployable item" % bench)
+		if not need.is_empty():
+			_check(field.place("ada", here, need, claims)["ok"],
+				"%s goes down on open ground, so the console can be crafted"
+				% ItemDB.display_name(need))
+
+	# And the console itself.
+	var staked := field.place("ada", here + Vector3(6.0, 0.0, 0.0), "sub_fief", claims)
+	_check(staked["ok"], "the Sub-Fief goes down on open ground")
+	if staked["ok"]:
+		claims.stake("ada", field.stations[int(staked["id"])]["pos"],
+			float(ItemDB.get_def("sub_fief").get("claim_radius", 0.0)),
+			int(staked["id"]))
+
+	# Everything else still needs land. That is the rule the exemption is an
+	# exception to, and an exemption that swallowed it would be worse than the
+	# deadlock it fixed. Well clear of the claim just staked, so "refused" means
+	# unclaimed ground and not proximity to something already down.
+	var away := here + Vector3(Claims.SIZE * 3.0, 0.0, 0.0)
+	away.y = Terrain.sample_height(away.x, away.z)
+	_check(claims.claim_at(away) == 0, "the far spot really is unclaimed")
+	_check(not field.place("ada", away, "ore_refinery", claims)["ok"],
+		"a refinery still may not go on unclaimed ground")

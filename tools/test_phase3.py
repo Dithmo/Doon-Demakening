@@ -137,12 +137,12 @@ def main():
     # is a flaky test rather than a finding. The server still outlives the
     # client by a wide margin, because the tail of its log is what proves the
     # holding keeps working unattended.
-    server = launch(["--server"] + clock + ["--grant", KIT], user_dir, 100, PORT)
+    server = launch(["--server"] + clock + ["--grant", KIT], user_dir, 125, PORT)
     time.sleep(2.0)
     ada = launch(["--client", "--auto", "--bot-profile", "builder",
-                  "--identity", "ada"] + clock, user_dir, 45, PORT)
-    ada.wait(80)
-    server.wait(120)
+                  "--identity", "ada"] + clock, user_dir, 70, PORT)
+    ada.wait(110)
+    server.wait(150)
     log = server.text()
 
     check("deployed Sub-Fief Console" in log, "a holding is staked")

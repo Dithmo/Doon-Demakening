@@ -993,7 +993,19 @@ func _deploy(id: int, slot_index: int, item_id: String) -> void:
 	var r := _stations.place(p["identity"], p["pos"], item_id, _claims)
 	if r["ok"]:
 		if radius > 0.0:
-			_claims.stake(p["identity"], p["pos"], radius, int(r["id"]))
+			# Centred on the console, not on the player. The station snaps to a
+			# free spot which may be metres from where you stood, and a holding
+			# whose centre is not its console is a holding whose edges are not
+			# where the thing you can see says they are.
+			var seat: Vector3 = _stations.stations[int(r["id"])]["pos"]
+			var got := _claims.stake(p["identity"], seat, radius, int(r["id"]))
+			if not got["ok"]:
+				# The probe passed where the player stood and the snap moved the
+				# console; undo rather than leave a console holding nothing.
+				_stations.stations.erase(int(r["id"]))
+				print("[place] %s refused: %s" % [p["identity"], got["msg"]])
+				_notice.rpc_id(id, str(got["msg"]))
+				return
 			_sync_base.rpc(_build.to_wire(), _claims.to_wire())
 		inv.take_slot(slot_index)
 		_persist_player(id)
@@ -1930,6 +1942,11 @@ func _bot_survive() -> void:
 		if _bot_use_cd > 0:
 			return
 		_bot_use_cd = 8
+		# The sequence ends when the ground is claimed. Without this the bot
+		# spends the rest of the run asking to stake land it already owns and
+		# being told so, which buries the interesting part of the log.
+		if _deployed("sub_fief"):
+			return
 		var tool_slot := find_use("tool_build")
 		if tool_slot < 0:
 			craft("construction_tool")
@@ -1940,10 +1957,18 @@ func _bot_survive() -> void:
 		if int(held_key) != 1:
 			hold_key(1)
 			return
-		if find_use("place") < 0:
+		# The bench first: a Sub-Fief is fabricator work, and the fabricator is
+		# the one station you may set down before you own any land.
+		if not _deployed("survival_fabricator"):
+			place_with_tool("survival_fabricator")
+			return
+		# By id, not by "the first placeable": the bag already holds the
+		# fabricator, so asking for anything settable got that instead and the
+		# bot spent the run trying to deploy a bench it had already put down.
+		if find_item("sub_fief") < 0:
 			craft("sub_fief")
 			return
-		place_with_tool()
+		place_with_tool("sub_fief")
 		return
 	if Net.bot_profile == "cutter":
 		# Walks to the nearest node and holds the trigger on it. Exists to prove
@@ -3020,8 +3045,7 @@ func nearest_container() -> int:
 ## Claim the player is standing in: {} when on open ground.
 func claim_here() -> Dictionary:
 	for c: Dictionary in claim_mirror:
-		if Vector2(c["pos"].x - local_pos.x, c["pos"].z - local_pos.z).length() \
-				<= float(c["radius"]):
+		if Claims.inside(c["pos"], float(c["radius"]), local_pos):
 			return c
 	return {}
 
@@ -3427,17 +3451,31 @@ func _has_hook(inv: Inventory, hook: String) -> bool:
 	return false
 
 
-## Client: place the first structure in the bag, using the Construction Tool in
-## your hand. This is what the trigger does while the tool is held.
-func place_with_tool() -> void:
+## Client: set a structure down with the Construction Tool in your hand. This is
+## what the trigger does while the tool is held.
+##
+## Naming the item is how the caller says *which*. "The first placeable in the
+## bag" is a workable default and a bad only-option: someone carrying a Survival
+## Fabricator and a Sub-Fief means the one they picked, not whichever sorts
+## first. Until the build palette exists, the bag page is where you pick.
+func place_with_tool(item_id: String = "") -> void:
 	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
 		notice.emit("you are not holding a Construction Tool")
 		return
-	var i := find_use("place")
+	var i := find_item(item_id) if not item_id.is_empty() else find_use("place")
 	if i < 0:
 		notice.emit("nothing in your bag to set down")
 		return
 	use_slot(i)
+
+
+## The first bag slot holding `item_id`, or -1.
+func find_item(item_id: String) -> int:
+	for i in inventory_mirror.size():
+		var s: Dictionary = inventory_mirror[i]
+		if not s.is_empty() and str(s["id"]) == item_id:
+			return i
+	return -1
 
 
 ## Client-side twin of _held_def, which is server-only.

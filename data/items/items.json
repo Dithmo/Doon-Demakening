@@ -192,7 +192,8 @@
       "weight": 12.0,
       "use": "place",
       "station": "fabricator",
-      "desc": "Portable workbench. Deploy it and it stays put.",
+      "open_ground": true,
+      "desc": "Portable workbench. Deploy it anywhere and it stays put -- you craft your first Sub-Fief at one, so it cannot itself need claimed land.",
       "value": 120
     },
     {

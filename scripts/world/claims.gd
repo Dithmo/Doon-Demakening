@@ -35,16 +35,19 @@ func stake(owner: String, pos: Vector3, radius: float, station_id: int) -> Dicti
 	var trespass := claim_at(pos)
 	if trespass != 0 and str(claims[trespass]["owner"]) != owner:
 		return {"ok": false, "msg": "inside %s's holding" % claims[trespass]["owner"], "id": 0}
-	# Overlapping your own claims is pointless but harmless; overlapping
-	# someone else's is the thing we refuse, including at the rim.
+	# No two holdings may overlap, including two of your own. Letting a player
+	# stack consoles on ground they already hold buys them nothing -- the land
+	# is already theirs -- and it stacks the volumes on screen until the build
+	# grid is unreadable, which is how it was noticed.
 	for cid: int in claims:
 		var c: Dictionary = claims[cid]
-		if str(c["owner"]) == owner:
-			continue
 		# Boxes may not overlap, which for axis-aligned boxes is a separating
 		# axis test on two axes rather than a distance.
 		var gap: float = float(c["radius"]) + radius
 		if absf(c["pos"].x - pos.x) < gap and absf(c["pos"].z - pos.z) < gap:
+			if str(c["owner"]) == owner:
+				return {"ok": false,
+					"msg": "you already hold this ground", "id": 0}
 			return {"ok": false, "msg": "too close to %s's holding" % c["owner"], "id": 0}
 
 	var id := _next_id
@@ -75,11 +78,17 @@ func contains(cid: int, pos: Vector3) -> bool:
 	if not claims.has(cid):
 		return false
 	var c: Dictionary = claims[cid]
-	var half: float = float(c["radius"])
-	var o: Vector3 = c["pos"]
-	if absf(pos.x - o.x) > half or absf(pos.z - o.z) > half:
+	return inside(c["pos"], float(c["radius"]), pos)
+
+
+## The volume test on its own, so the client can ask "am I in this holding?" of
+## a replicated row and get the same answer the server builds by. It went its
+## own way once -- the HUD kept a circle after the server moved to a box, and
+## said you were on your own land while the server refused to build there.
+static func inside(centre: Vector3, half: float, pos: Vector3) -> bool:
+	if absf(pos.x - centre.x) > half or absf(pos.z - centre.z) > half:
 		return false
-	return pos.y >= o.y - DOWN and pos.y <= o.y + UP
+	return pos.y >= centre.y - DOWN and pos.y <= centre.y + UP
 
 
 ## The floor of a claim: the level every foundation in it sits at, so a floor
@@ -102,14 +111,16 @@ func origin_of(cid: int) -> Vector2:
 ## allied to. Unclaimed ground is no longer open: the wiki is explicit that the
 ## Construction Tool "can only be used on land claimed using a Sub-fief
 ## console", and a claim you can build outside of is not a claim.
-func may_build(owner: String, pos: Vector3, staking: bool = false) -> bool:
+func may_build(owner: String, pos: Vector3, on_open_ground: bool = false) -> bool:
 	var cid := claim_at(pos)
 	if cid == 0:
-		# The one exception, and it has to exist: a Sub-Fief is what *makes*
-		# ground claimable, so it may go down on open desert. Everything else
-		# needs a claim already there, which is what the wiki means by the
-		# Construction Tool only working on claimed land.
-		return staking
+		# The exception, and it has to exist, or the opening of the game is a
+		# deadlock. A Sub-Fief is what *makes* ground claimable, and the
+		# Survival Fabricator is the bench you craft the Sub-Fief at, so both go
+		# down on open desert. Everything else needs a claim already there,
+		# which is what the wiki means by the Construction Tool only working on
+		# claimed land.
+		return on_open_ground
 	var holder := str(claims[cid]["owner"])
 	if holder == owner:
 		return true

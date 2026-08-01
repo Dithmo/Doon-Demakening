@@ -20,6 +20,10 @@ const CELL := 3.0
 const MAX_UNEVENNESS := 1.6
 ## How far a player can reach to place or remove a piece.
 const BUILD_RANGE := 8.0
+## Standing *on* a floor puts you exactly on a storey boundary, where the
+## height arithmetic is a hair either side of the mark. Round that hair up, or
+## a player on the second storey builds on the first.
+const STOREY_SLACK := 0.05
 
 enum Piece { FOUNDATION, WALL, CEILING }
 
@@ -49,6 +53,14 @@ static func cell_in(pos: Vector3, origin: Vector2) -> Vector2i:
 static func cell_centre_in(cell: Vector2i, origin: Vector2) -> Vector2:
 	return origin + Vector2((float(cell.x) + 0.5) * CELL,
 		(float(cell.y) + 0.5) * CELL)
+
+
+## Which storey a player standing at height `y` is on, above a claim floor at
+## `base`. You build on the storey you are standing on, not the one you are
+## nearest to: a player two metres up a slope is still on the ground floor, and
+## rounding put their walls a storey above the foundation with nothing beneath.
+static func level_of(y: float, base: float) -> int:
+	return maxi(0, int(floor((y - base) / CELL + STOREY_SLACK)))
 
 
 ## The edge of `cell` nearest to `pos`: 0 = -z, 1 = +x, 2 = +z, 3 = -x.
@@ -121,8 +133,7 @@ func build(owner: String, player_pos: Vector3, aim: Vector3, build_kind: String,
 	var base: float = claims.floor_of(cid)
 	var level := 0
 	if piece != Piece.FOUNDATION:
-		# Snap to whichever level the player is standing closest to.
-		level = maxi(0, int(round((player_pos.y - base) / CELL)))
+		level = level_of(player_pos.y, base)
 
 	var side := nearest_side(cell, aim, origin) if piece == Piece.WALL else 0
 	if pieces.has(_key(piece, cell, level, side)):
@@ -162,7 +173,7 @@ func demolish(owner: String, player_pos: Vector3, aim: Vector3,
 	var origin := claims.origin_of(cid)
 	var cell := cell_in(aim, origin)
 	var base: float = claims.floor_of(cid)
-	var level: int = maxi(0, int(round((player_pos.y - base) / CELL)))
+	var level := level_of(player_pos.y, base)
 
 	# Walls first: they are what the player is most likely aiming at, and
 	# removing the floor out from under one should not be the default.

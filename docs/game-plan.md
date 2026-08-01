@@ -545,6 +545,52 @@ slots, which is a refactor of the stacking model that trading, containers and
 persistence all sit on; **armour beyond the stillsuit** — the slots exist,
 the items do not; and **ammunition** for the maula pistol.
 
+### Phase 12 — The claim is a volume, and you can see it — **done**
+
+*Test:* `godot --headless -- --run-tests`, `python3 tools/test_phase3.py`.
+
+A holding was a circle on a map that nothing drew. It is now a 48 m box — ground
+and air, floor a little below the surface — and the client draws it: the twelve
+edges of the volume, plus a grid ruled across its floor on the build-cell
+spacing, green for yours and red for someone else's. That grid is not decoration:
+it is ruled from the same corner the server counts cells from, so a line on the
+ground is the edge a foundation will snap to. The projection ignores depth,
+because the floor of the box is a flat plane the desert rolls through, and
+depth-testing chopped every line into dashes wherever the ground rose a
+centimetre — it read as a broken mesh rather than as terrain.
+
+Making the volume visible is what exposed the rest.
+
+**The opening was a deadlock.** Once unclaimed ground stopped being open to
+build on, the first five minutes closed into a ring: no Sub-Fief without the
+Survival Fabricator to craft it at, no fabricator on the ground without a claim,
+no claim without the Sub-Fief. It cost a whole play run to find and is now one
+unit test that walks the sequence with the real rules. The fix is a data flag —
+`open_ground` — rather than a hard-coded item id, so the exemption is visible
+where the item is defined.
+
+**A holding may not overlap another, including your own.** Stacking consoles on
+land you already hold buys nothing and stacked the volumes on screen until the
+grid was unreadable. That is how it was noticed.
+
+**The claim centres on the console, not on the player.** Deploying snaps the
+station to the nearest free spot, which can be metres from where you stood, and
+a holding whose centre is not its console has edges that are not where the thing
+you can see says they are.
+
+Two smaller ones. Storey height used `round()`, so a player standing on terrain
+two metres above the claim floor put walls a storey up with nothing beneath them;
+it uses `floor()` now, with a hair of slack, because standing *on* a floor lands
+exactly on a storey boundary where the arithmetic is a coin-flip either side.
+And the client's "am I in my holding?" test was still a circle after the server
+moved to a box — it said you were on your own land while the server refused to
+build there. Both sides now call one static function.
+
+Not done: the **build palette** from the original — categories, and a chosen
+piece — so the Construction Tool still places the first placeable in your bag
+rather than one you picked; and **projections**, where a click leaves a ghost and
+holding the button places and fills a run of them.
+
 ## Where the demake cuts
 
 Tight spine, ~30–50 items:

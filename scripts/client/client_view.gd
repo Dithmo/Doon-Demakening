@@ -21,6 +21,7 @@ var _node_meshes: Dictionary = {}
 var _station_meshes: Dictionary = {}
 var _craft_root: Node3D
 var _build_root: Node3D
+var _claim_root: Node3D
 var _threat_root: Node3D
 var _worm_mesh: MeshInstance3D
 var _npc_meshes: Dictionary = {}
@@ -131,6 +132,8 @@ func _ready() -> void:
 	add_child(_craft_root)
 	_build_root = Node3D.new()
 	add_child(_build_root)
+	_claim_root = Node3D.new()
+	add_child(_claim_root)
 	_threat_root = Node3D.new()
 	add_child(_threat_root)
 	_vehicle_root = Node3D.new()
@@ -653,9 +656,114 @@ func _refresh_nodes() -> void:
 			_node_meshes.erase(nid)
 
 
+## The claim volumes, as the green boxes the real game shows while a
+## Construction Tool is out. Without them the cube rules are invisible: you
+## cannot see where you may build, how high, or where the edge is, and every
+## refusal reads as a bug rather than as a boundary.
+##
+## Yours is green, someone else's is red. Both are drawn as lines and nothing
+## else: the twelve edges of the box, so its height reads from inside it, and a
+## grid ruled across its floor on the build-cell spacing, so you can see where a
+## foundation will land before you spend the granite. A filled slab was the
+## first attempt and it was wrong -- a 48 m plate at your feet paints the desert
+## green and you can no longer see the ground you are deciding about.
+func _refresh_claims() -> void:
+	if _claim_root == null:
+		return
+	for child in _claim_root.get_children():
+		child.queue_free()
+	for claim: Dictionary in world.claim_mirror:
+		var mine := str(claim["owner"]) == Net.identity
+		var tint := Color(0.25, 0.95, 0.55) if mine else Color(0.95, 0.35, 0.30)
+		_claim_root.add_child(
+			_claim_mesh(claim["pos"], float(claim["radius"]), tint))
+
+
+## The edges of the volume plus the floor grid, in one mesh.
+##
+## Ribbons rather than line primitives. A one-pixel line lying almost flat in
+## the view is fragmented by the rasteriser -- most of its length falls between
+## pixel centres -- so the grid came out as dashes and read as a broken mesh
+## rather than as a projection. A ribbon a few centimetres wide always covers
+## whole pixels, at any angle and any distance.
+func _claim_mesh(centre: Vector3, half: float, tint: Color) -> MeshInstance3D:
+	var lo := centre.y - Claims.DOWN
+	var hi := centre.y + Claims.UP
+	var x0 := centre.x - half
+	var x1 := centre.x + half
+	var z0 := centre.z - half
+	var z1 := centre.z + half
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# The four uprights, widened towards the middle of the claim so they are
+	# broadside to anyone standing in it.
+	for x: float in [x0, x1]:
+		for z: float in [z0, z1]:
+			_ribbon(st, Vector3(x, lo, z), Vector3(x, hi, z),
+				Vector3(signf(centre.x - x), 0.0, signf(centre.z - z)) * 0.7071)
+	# A frame at each end of the box and again at the floor you build on, so the
+	# height of the volume is legible and not just its footprint.
+	for y: float in [lo, centre.y, hi]:
+		_ribbon(st, Vector3(x0, y, z0), Vector3(x1, y, z0), Vector3.BACK)
+		_ribbon(st, Vector3(x1, y, z0), Vector3(x1, y, z1), Vector3.LEFT)
+		_ribbon(st, Vector3(x1, y, z1), Vector3(x0, y, z1), Vector3.FORWARD)
+		_ribbon(st, Vector3(x0, y, z1), Vector3(x0, y, z0), Vector3.RIGHT)
+
+	# The build grid, ruled from the same corner the server counts cells from,
+	# so a line on the ground is a cell edge and not a decoration near one.
+	var y_floor := centre.y
+	var across := int(round(half * 2.0 / BuildGrid.CELL))
+	for i in range(1, across):
+		var t := float(i) * BuildGrid.CELL
+		_ribbon(st, Vector3(x0 + t, y_floor, z0), Vector3(x0 + t, y_floor, z1),
+			Vector3.RIGHT)
+		_ribbon(st, Vector3(x0, y_floor, z0 + t), Vector3(x1, y_floor, z0 + t),
+			Vector3.BACK)
+
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var lm := StandardMaterial3D.new()
+	lm.albedo_color = Color(tint.r, tint.g, tint.b, 0.7)
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# It is a projection, not a fence. The floor of the volume is a flat plane
+	# and the desert rolls through it, so depth-testing chops every grid line
+	# into dashes wherever the ground rises a few centimetres -- which reads as
+	# a broken mesh rather than as terrain. Drawing it over everything is both
+	# what the original does and the only way the far edge of a 48 m box is
+	# visible from inside it.
+	lm.no_depth_test = true
+	lm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = lm
+	mi.sorting_offset = -1.0
+	return mi
+
+
+## How wide a projection line is drawn, in metres.
+const CLAIM_LINE := 0.09
+
+
+## One line of the projection, as a flat ribbon from `a` to `b` widened along
+## `spread` (a unit direction perpendicular to the line).
+func _ribbon(st: SurfaceTool, a: Vector3, b: Vector3, spread: Vector3) -> void:
+	var w := spread * (CLAIM_LINE * 0.5)
+	var p0 := a - w
+	var p1 := a + w
+	var p2 := b + w
+	var p3 := b - w
+	st.add_vertex(p0); st.add_vertex(p1); st.add_vertex(p2)
+	st.add_vertex(p0); st.add_vertex(p2); st.add_vertex(p3)
+
+
 ## Structural pieces. Rebuilt wholesale on change: a base is tens of pieces,
 ## not thousands, and correctness beats incremental bookkeeping here.
+##
+## The claim volumes ride the same signal because they arrive in the same sync
+## as the pieces, and the two are only ever read together.
 func _refresh_build() -> void:
+	_refresh_claims()
 	for child in _build_root.get_children():
 		child.queue_free()
 	for piece: Dictionary in world.build_mirror:
@@ -663,7 +771,11 @@ func _refresh_build() -> void:
 		var box := BoxMesh.new()
 		match int(piece["piece"]):
 			BuildGrid.Piece.FOUNDATION:
-				box.size = Vector3(BuildGrid.CELL, 0.3, BuildGrid.CELL)
+				# A cube, not a slab: the piece position is the *top* of it, so
+				# it is sunk a whole cell into the ground and reads as a floor
+				# tile from above while still filling the hole under it on a
+				# slope.
+				box.size = Vector3(BuildGrid.CELL, BuildGrid.CELL, BuildGrid.CELL)
 			BuildGrid.Piece.CEILING:
 				box.size = Vector3(BuildGrid.CELL, 0.25, BuildGrid.CELL)
 			_:
@@ -678,6 +790,8 @@ func _refresh_build() -> void:
 		mat.roughness = 0.85
 		m.material_override = mat
 		m.position = piece["pos"]
+		if int(piece["piece"]) == BuildGrid.Piece.FOUNDATION:
+			m.position.y -= BuildGrid.CELL * 0.5
 		_build_root.add_child(m)
 
 
