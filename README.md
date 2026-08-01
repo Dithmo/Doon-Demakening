@@ -8,7 +8,12 @@ and exactly one set of code to get right.
 
 ## Running
 
-Run the game with no arguments and it plays. Solo is a one-client session
+**Downloads:** every push builds Linux and Windows binaries in CI, and a `v*`
+tag turns them into a GitHub release. Grab the file for your platform and run
+it — nothing to install, the maps are inside it, and it starts its own local
+server on launch.
+
+From source, run the game with no arguments and it plays. Solo is a one-client session
 against a local server — that is how the rules stay in one place — but starting
 the server is the game's job, not yours: launched bare, it hosts its own and
 connects to it.

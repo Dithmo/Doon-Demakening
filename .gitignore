@@ -16,7 +16,8 @@ data/wiki/*.png
 # Godot
 .godot/
 *.import
-export_presets.cfg
+# export_presets.cfg is committed: it is the recipe for turning this repo into
+# a playable binary, and keeping it local meant only one machine could make one.
 
 # Test/diagnostic scratch
 .test_home*/

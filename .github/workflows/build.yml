@@ -1,0 +1,98 @@
+name: build
+
+# Produces a downloadable game. Every push builds and attaches the binaries as
+# workflow artifacts; pushing a v* tag also makes a GitHub release out of them.
+#
+# This exists because "how do I get an executable" had no answer: exporting a
+# Godot project needs export templates, which are a ~1 GB download nobody should
+# have to do to play a game. A machine does it here, once per run, so the
+# artefact is a file you click.
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.5"
+  GODOT_RELEASE: "4.5-stable"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Godot and the export templates
+        run: |
+          set -eux
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}"
+          curl -fsSL -o godot.zip "${base}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          curl -fsSL -o templates.tpz "${base}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          # The templates land in a directory named for the engine version, and
+          # the exporter looks for exactly that name.
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          unzip -q templates.tpz
+          mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+
+      - name: Import the project
+        # A fresh checkout has no .godot/ cache, so class_name scripts are not
+        # registered and every autoload fails to parse. The import pass is what
+        # registers them; it exits non-zero on a cold project even when it
+        # worked, so its status is not the signal we act on -- the test run is.
+        run: godot --headless --import || true
+
+      - name: Unit tests
+        run: godot --headless -- --run-tests
+
+      - name: Export
+        run: |
+          set -eux
+          mkdir -p build
+          godot --headless --export-release "Linux" build/doon.x86_64
+          godot --headless --export-release "Windows" build/doon.exe
+          chmod +x build/doon.x86_64
+          ls -lh build/
+
+      - name: Check the export is not hollow
+        # An export that omits the data files succeeds and produces a game with
+        # no terrain and no items. Size is a blunt proxy, but a build that lost
+        # the 19 MB region is unmistakably smaller than one that kept it.
+        run: |
+          set -eux
+          for f in build/doon.x86_64 build/doon.exe; do
+            size=$(stat -c%s "$f")
+            echo "$f: $size bytes"
+            test "$size" -gt 20000000 || {
+              echo "::error::$f is $size bytes -- the region data is missing"
+              exit 1
+            }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doon-${{ github.sha }}
+          path: build/
+          retention-days: 30
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/doon.x86_64
+            build/doon.exe
+          body: |
+            Download the file for your platform and run it. Nothing else to
+            install: the maps ship inside the binary, and the game starts its
+            own local server when you launch it.
+
+            - **Linux** — `doon.x86_64` (`chmod +x` then run)
+            - **Windows** — `doon.exe`
