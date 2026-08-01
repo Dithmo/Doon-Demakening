@@ -59,8 +59,10 @@ const AIM_COS := 0.94        ## about a 20-degree cone
 var _crosshair: Label
 var _grid: InventoryView
 const LOOK_SENS := 0.0032
-const PITCH_MIN := -1.15
-const PITCH_MAX := 0.45
+const PITCH_MIN := -1.30   ## about 75 degrees down
+## About 65 degrees up. It was 0.45 rad -- 26 degrees -- which is not enough to
+## look at the top of a mesa you are standing under, let alone at the sky.
+const PITCH_MAX := 1.15
 
 ## action name -> what pressing it does. A table rather than an if/elif chain so
 ## that the set of keys the client answers to is a value the program can check
@@ -220,8 +222,23 @@ func _process(_delta: float) -> void:
 			sin(_look_yaw) * cos(_look_pitch),
 			sin(_look_pitch),
 			-cos(_look_yaw) * cos(_look_pitch))
-		_cam.position = focus - look * dist
-		# Never let the camera sink into the dune behind you.
+		# Shorten the boom rather than lift the camera. This is a third-person
+		# camera, so looking *up* swings it down and behind you -- and the old
+		# rule ("never let it sink into the dune") answered that by shoving it
+		# back up, which cancelled exactly the movement you were asking for. The
+		# result was a camera that would not tilt above the horizon at all.
+		# Pulling it in towards you instead keeps the direction you chose and
+		# still keeps it out of the sand.
+		var boom := dist
+		for _i in 3:
+			var at := focus - look * boom
+			var floor_y := Terrain.sample_height(at.x, at.z) + 1.2
+			if at.y >= floor_y:
+				break
+			# How far along the boom we can go before it dips under the ground.
+			boom = clampf((focus.y - floor_y) / maxf(look.y, 0.001), 1.2, dist) \
+				if look.y > 0.0 else boom * 0.6
+		_cam.position = focus - look * boom
 		var ground := Terrain.sample_height(_cam.position.x, _cam.position.z) + 1.2
 		_cam.position.y = maxf(_cam.position.y, ground)
 	else:
