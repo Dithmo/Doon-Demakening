@@ -124,11 +124,18 @@ func _build_tile(t: Vector2i) -> MeshInstance3D:
 				Vector3(bx, Terrain.sample_height(bx, bz), bz),
 				Vector3(ax, Terrain.sample_height(ax, bz), bz),
 			]
+			# How steep this quad is, from the spread across its own corners.
+			# One number for the quad rather than a gradient per vertex: it is
+			# the difference between a dune face and a flat, which is all the
+			# eye needs to read the shape of the ground.
+			var lo: float = minf(minf(c[0].y, c[1].y), minf(c[2].y, c[3].y))
+			var hi: float = maxf(maxf(c[0].y, c[1].y), maxf(c[2].y, c[3].y))
+			var slope := clampf((hi - lo) / STEP, 0.0, 1.0)
 			var col := [
-				_surface_color(Terrain.sample_surface(ax, az)),
-				_surface_color(Terrain.sample_surface(bx, az)),
-				_surface_color(Terrain.sample_surface(bx, bz)),
-				_surface_color(Terrain.sample_surface(ax, bz)),
+				_shade(Terrain.sample_surface(ax, az), c[0], slope),
+				_shade(Terrain.sample_surface(bx, az), c[1], slope),
+				_shade(Terrain.sample_surface(bx, bz), c[2], slope),
+				_shade(Terrain.sample_surface(ax, bz), c[3], slope),
 			]
 			for tri: Array in [[0, 2, 1], [0, 3, 2]]:
 				for k: int in tri:
@@ -141,6 +148,44 @@ func _build_tile(t: Vector2i) -> MeshInstance3D:
 	mi.material_override = _material
 	add_child(mi)
 	return mi
+
+
+## The colour of one vertex: its surface, then modulated by how the ground lies.
+##
+## Flat sand under a single directional light comes out one uniform tone, and
+## with a tan sky behind it there is no horizon and no shape -- a player
+## standing on open desert reported the floor as missing, and they were right
+## that nothing was visible even though everything was drawn. Three cheap terms
+## fix it, all computed once when a tile is built:
+##
+##   slope   dune faces darken, so a crest reads against the flat below it
+##   height  crests pale off, the way wind-scoured sand actually does
+##   ripple  a fine standing pattern, so a dead-level flat still has texture
+##
+## The ripple is deterministic in world space, not random: two tiles meeting at
+## an edge have to agree, or the seam shows as a stripe.
+func _shade(surface: int, at: Vector3, slope: float) -> Color:
+	var base := _surface_color(surface)
+	if surface != Terrain.Surface.SAND:
+		# Rock and cliff already have shape of their own; only steepness.
+		return base.darkened(slope * 0.25)
+
+	var c := base.darkened(slope * 0.30)
+	c = c.lightened(clampf(at.y / 120.0, 0.0, 1.0) * 0.16)
+	# Sand ripples at roughly 8 m, with a broader 70 m drift over the top so the
+	# flats are patchy rather than corduroy. Both wavelengths are well above the
+	# 2 m vertex spacing, or the pattern aliases into noise. Two incommensurate
+	# terms, so it does not visibly repeat.
+	#
+	# The amplitude is deliberately generous. A first pass at 0.05 was
+	# technically correct and completely invisible, which is the same as not
+	# having done it -- on a dead-flat pan there is no slope term and no height
+	# term, so this is the only thing standing between the player and a blank
+	# wall of beige.
+	var ripple := sin(at.x * 0.78 + sin(at.z * 0.19) * 1.4) * 0.6 \
+		+ sin(at.x * 0.089 + at.z * 0.067) * 0.4
+	return c.lightened(clampf(ripple, 0.0, 1.0) * 0.13) \
+		.darkened(clampf(-ripple, 0.0, 1.0) * 0.13)
 
 
 func _surface_color(s: int) -> Color:

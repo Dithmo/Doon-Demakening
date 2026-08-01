@@ -950,11 +950,27 @@ func _build_lighting() -> void:
 
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.78, 0.68, 0.55)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.55, 0.47, 0.4)
-	e.ambient_light_energy = 0.6
+
+	# A sky, not a flat fill. The background was one tan, the fog was another
+	# tan, and the sand was a third: with nothing to separate them there was no
+	# horizon line anywhere on screen, and a player standing on open desert
+	# reported the floor as *missing*. It was not -- there was simply nothing to
+	# see. A gradient sky costs nothing and draws the horizon for free.
+	var sky := Sky.new()
+	var sky_mat := ProceduralSkyMaterial.new()
+	# Arrakis is not Earth: the sky reads bleached and faintly blue overhead,
+	# burning out to dust at the horizon where it meets the sand.
+	sky_mat.sky_top_color = Color(0.42, 0.55, 0.72)
+	sky_mat.sky_horizon_color = Color(0.86, 0.83, 0.74)
+	sky_mat.ground_horizon_color = Color(0.74, 0.63, 0.48)
+	sky_mat.ground_bottom_color = Color(0.55, 0.45, 0.34)
+	sky_mat.sun_angle_max = 12.0
+	sky_mat.sun_curve = 0.12
+	sky.sky_material = sky_mat
+	e.sky = sky
+	e.background_mode = Environment.BG_SKY
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_energy = 0.55
 	e.fog_enabled = true
 	e.fog_light_color = Color(0.82, 0.71, 0.56)
 	# Tuned to TerrainView.VIEW_M: the ground now ends at a finite radius, and
