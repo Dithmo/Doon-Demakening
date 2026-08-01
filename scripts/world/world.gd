@@ -2569,11 +2569,14 @@ func _bot_direction() -> Vector2:
 	var goal_is_node := false
 	var best_score := INF
 
-	# The founder stands still until its ground is claimed. Crafting needs the
+	# The founder never wanders. Before the claim is staked, crafting needs the
 	# bench in reach, and a bot that sets a fabricator down and then strolls off
 	# to the nearest plant spends the rest of the run being told it has no
 	# fabricator -- which reads as a broken recipe rather than a wandering bot.
-	if Net.bot_profile == "founder" and not _deployed("sub_fief"):
+	# *After* it is staked there is nothing left in the sequence, and walking
+	# away only means the position it saves is a hundred metres from the land it
+	# owns, so the next session starts outside its own holding.
+	if Net.bot_profile == "founder":
 		return Vector2.ZERO
 
 	# Prey never seeks cover; quarry bolts for rock the moment it is warned.
