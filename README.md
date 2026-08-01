@@ -158,10 +158,16 @@ what the pointer calls — the only way a mouse UI is testable at all; needs a w
 
 ## Regenerating data
 
-Region and wiki files are reproducible rather than vendored, so the heightmap
-and mask are built rather than checked in. **A fresh clone has to build the real
-region before it can play on it** — until then the game falls back to the
-synthetic one and says so.
+**The maps ship with the repo.** Clone it, point `$GODOT` at Godot 4.5, and run
+— there is no build step and no Python needed to play. Hagga Basin South and the
+two synthetic test regions are all committed, about 3 MB compressed between them.
+
+They were left out once, on the reasoning that anything reproducible should be
+rebuilt rather than vendored. That is a sound rule for build *inputs* and a bad
+one for the game's own map: it meant a fresh clone had no ground to stand on and
+would not run until the player installed numpy and ran two scripts. The tools
+below are how the map is *re*-made when the pipeline changes — not how anyone
+obtains it.
 
 ```bash
 python3 -m pip install -r tools/requirements.txt
@@ -169,6 +175,9 @@ python3 tools/gen_synthetic_region.py     # small test terrain
 python3 tools/fetch_map_data.py           # 655 markers + the 8182^2 render
 python3 tools/build_region.py             # -> Hagga Basin South, the real map
 ```
+
+The 8182-pixel wiki render those last two need is the one thing still not
+vendored: it is large, it is only ever an input, and nothing at runtime reads it.
 
 Each region is four files: `region.json`, `height.r16`, `mask.u8` and
 `reach.u8`. The last is derived from the mask, but it is shipped rather than
