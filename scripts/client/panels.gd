@@ -13,10 +13,11 @@ extends RefCounted
 ## quicker to build and quicker to use. Every page renders from the replicated
 ## mirrors and never from a local guess.
 
-enum Page { BAG, CRAFT, JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD, CONTAINER }
+enum Page { BAG, BUILD, CRAFT, JOURNEY, SKILLS, CONTRACTS, MARKET, GUILD, HOLD,
+	CONTAINER }
 
-const PAGE_NAMES := ["BAG", "CRAFT", "JOURNEY", "SKILLS", "CONTRACTS", "MARKET",
-	"GUILD", "HOLD", "CONTAINER"]
+const PAGE_NAMES := ["BAG", "BUILD", "CRAFT", "JOURNEY", "SKILLS", "CONTRACTS",
+	"MARKET", "GUILD", "HOLD", "CONTAINER"]
 
 ## How many rows a page offers to the number keys. 1-9 plus 0 would be ten, but
 ## nine is enough for every list here and keeps 0 free.
@@ -31,6 +32,7 @@ const HOTBAR_KEYS := 10
 static func render(page: int, world: Node) -> Dictionary:
 	match page:
 		Page.BAG: return _bag(world)
+		Page.BUILD: return _build(world)
 		Page.CRAFT: return _craft(world)
 		Page.JOURNEY: return _journey(world)
 		Page.SKILLS: return _skills(world)
@@ -58,6 +60,10 @@ static func act(page: int, world: Node, index: int, actions: Array) -> bool:
 		# equips, water drinks, a fabricator deploys. The item's own `use` hook
 		# decides which, so there is no separate "equip" verb to get wrong.
 		Page.BAG: world.use_slot(int(target))
+		# Choosing, not placing. A row picks what the Construction Tool will put
+		# down; the trigger is what puts it down, so you can line the shot up
+		# after you have chosen rather than committing from a menu.
+		Page.BUILD: world.choose_structure(str(target))
 		Page.CRAFT: world.craft(str(target))
 		Page.SKILLS: world.learn(str(target))
 		Page.CONTRACTS: world.ask_contracts(str(target))
@@ -174,6 +180,47 @@ static func _craft(world: Node) -> Dictionary:
 	if actions.is_empty():
 		lines.append("")
 		lines.append("(nothing you have the parts for)")
+	return {"text": "\n".join(lines), "actions": actions}
+
+
+## The build palette: everything the Construction Tool can put down, grouped by
+## category, priced, and marked with whether you can afford it right now.
+##
+## Structures are not craftable and never appear in the bag, so this page is the
+## only place they are visible at all -- without it the whole catalogue is
+## unreachable by a person. A row *chooses*; the trigger places, which is why
+## the current choice is called out at the top.
+static func _build(world: Node) -> Dictionary:
+	var lines: Array = []
+	var actions: Array = []
+	var chosen := str(world.chosen_structure)
+	var armed: bool = float(world.held_place_range()) > 0.0
+
+	lines.append("Selected: %s%s" % [StructureDB.display_name(chosen),
+		"   [left mouse] to place" if armed
+		else "   -- take a Construction Tool in hand first"])
+	lines.append("")
+
+	for category: String in StructureDB.categories():
+		lines.append("-- %s" % category)
+		for sid: String in StructureDB.in_category(category):
+			var afford: Dictionary = world.can_afford_structure(sid)
+			var mark := "   -"
+			# Only affordable rows get a number. A palette that lets you pick
+			# what you cannot pay for spends the player's attention on a
+			# refusal they could have been shown instead.
+			if bool(afford["ok"]) and actions.size() < MAX_ROWS:
+				actions.append(sid)
+				mark = "[%d]" % actions.size()
+			lines.append("  %-4s %-22s %-34s %s"
+				% [mark, StructureDB.display_name(sid),
+				StructureDB.cost_line(sid),
+				("<- selected" if sid == chosen
+					else ("" if bool(afford["ok"]) else str(afford["msg"])))])
+		lines.append("")
+
+	if actions.is_empty():
+		lines.append("(nothing you have the materials for)")
 	return {"text": "\n".join(lines), "actions": actions}
 
 

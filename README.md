@@ -25,7 +25,9 @@ godot           -- --client [--host H] [--port N] [--identity NAME]
 
 `tools/run_session.sh` with no arguments is the whole thing: a headless server
 and one window. You start at Griffin's Reach Trading Post with water, a
-cutteray, a dew harvester and a fabricator.
+cutteray and a dew harvester. There is no workbench in the kit: a Survival
+Fabricator is a *structure* built from refined metal, so it comes after a claim,
+a floor and a refinery -- not before them.
 
 **Getting about**
 
@@ -51,14 +53,25 @@ it to act on, and every one of them answers, refusals included.
 | `R` | Work what is in front of you: a resource node, or a spice blow |
 | `F` | Drink |
 | `G` | Harvest dew — after dark only, richest just before sunrise |
-| `B` | Deploy the first deployable in your bag |
+| `B` | Set down field kit -- a thumper, a stilltent |
 | `C` | Craft the first thing you have the parts for |
-| `V` / `X` | Build a piece / remove one |
+| `V` / `X` | Place the selected structure / remove one |
 | `T` | Open or close the chest you are standing at |
 | Left mouse | Attack what is in reach |
 | `Z` | Draw water from a body |
 | `Y` / `U` / `P` | Vehicle: climb in or out / refuel / pack up |
 | `Q` | Drop the first thing you are carrying |
+
+**Items are made; structures are placed.** Anything you carry — tools, weapons,
+ingots — is crafted, at personal crafting (`C`) or at a bench. Anything that
+stands in the world — the Sub-Fief, foundations, walls, the refinery, the
+fabricator itself — is *placed with the Construction Tool* and paid for straight
+out of your bag. No structure is ever an item, and no recipe makes one. Open the
+Build page, pick one, and pull the trigger with the tool in hand.
+
+Everything but the Sub-Fief has to stand on a foundation, and the Sub-Fief is the
+only thing that may go on unclaimed desert — so the opening has exactly one legal
+order: **claim the ground, floor it, then build on the floor.**
 
 **The bag and the bar** — `I` opens a grid you drag items around with the
 mouse. Drag something onto the ten-slot bar along the bottom, then press its
@@ -73,6 +86,7 @@ straight to the bag, `F3` hides the HUD for a clean screenshot.
 | Page | For |
 | --- | --- |
 | Bag | **Equipping.** A row uses the slot, and using a stillsuit wears it |
+| Build | **Structures.** Everything the Construction Tool can place, by category, with its price. A row selects; the trigger places |
 | Journey | The twelve-step path and how far along it you are |
 | Skills | Five specializations, what each costs, and who teaches it |
 | Contracts | What you are carrying, and what is on offer here (`H` to ask) |
@@ -119,7 +133,7 @@ useless for a test),
 `--goto "<wiki POI name>"` (client: where a `pilgrim` bot walks),
 `--learn <skill id>` (client: attempt to learn once, for testing the trainer rule),
 `--guild <name>` / `--deliver` (client: join or found a guild, then give to the Landsraad),
-`--panel BAG|JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD|CONTAINER` and `--press N`
+`--panel BAG|BUILD|JOURNEY|SKILLS|CONTRACTS|MARKET|GUILD|HOLD|CONTAINER` and `--press N`
 (client: open a panel page, log it, and press one of its rows — works headless),
 `--do "trigger,container"` (client: fire actions through the same dispatch table the
 keyboard uses, so a harness can prove a key does its job; needs a window),

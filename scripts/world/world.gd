@@ -2614,13 +2614,24 @@ func _slot_of(item_id: String) -> int:
 ## Client: is there a floor tile replicated under where the bot is aiming? Read
 ## off build_mirror rather than asked of the server, because a bot is a client
 ## and may only know what a client knows.
+##
+## Compared by cell, not by distance. A cell is three metres across, so its
+## centre can be two metres from the point you are aiming at while still being
+## the cell you are standing on -- a radius test called that "no floor here",
+## and the bot laid the same foundation over and over instead of moving on.
 func _bot_has_floor() -> bool:
 	var aim := build_aim()
+	var claim := claim_here()
+	if claim.is_empty():
+		return false
+	var half := float(claim["radius"])
+	var seat: Vector3 = claim["pos"]
+	var origin := Vector2(seat.x - half, seat.z - half)
+	var want := BuildGrid.cell_in(aim, origin)
 	for piece: Dictionary in build_mirror:
 		if int(piece["piece"]) != BuildGrid.Piece.FOUNDATION:
 			continue
-		var at: Vector3 = piece["pos"]
-		if Vector2(at.x - aim.x, at.z - aim.z).length() <= BuildGrid.CELL * 0.5:
+		if BuildGrid.cell_in(piece["pos"], origin) == want:
 			return true
 	return false
 
@@ -3076,6 +3087,19 @@ func worm_warning() -> String:
 ## preference and the server is told which structure by id. It starts on the
 ## Sub-Fief because that genuinely is the first thing anyone places.
 var chosen_structure: String = "sub_fief"
+
+
+## Client: can the bag pay for this structure? The server decides for real; this
+## is so the palette can grey out what you cannot afford and say what is short.
+func can_afford_structure(id: String) -> Dictionary:
+	var bag := Inventory.new(inventory_mirror.size())
+	bag.from_data(inventory_mirror)
+	return StructureDB.affordable(id, bag)
+
+
+## Client: the reach of whatever is in your hand, 0 when it is not a builder.
+func held_place_range() -> float:
+	return float(_held_def_client().get("place_range", 0.0))
 
 
 ## Choose what the Construction Tool will put down next.
