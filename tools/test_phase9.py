@@ -127,11 +127,14 @@ def main():
             failures.append(msg)
 
     clock = ["--day-seconds", "99999", "--start-time", "0.35", "--peaceful"]
-    # One --grant, not two: Args.value takes the *first* match, so a second
-    # --grant on the same line is silently dropped. The salvage is here so the
-    # hoarder can craft a Sub-Fief in run 3 -- see the note there.
-    kit = ["--grant", "storage_chest:1,foundation:2,stillsuit:1,"
-           "construction_tool:1,salvaged_metal:4"]
+    # Materials, not structures. A chest and a foundation are placed with the
+    # Construction Tool and paid for out of the bag; neither is an item any
+    # more, so granting one described a thing that does not exist.
+    # The builder works down a fixed list and stops at the first thing it
+    # cannot pay for, so the refined materials are here too -- otherwise it
+    # never reaches the chest this run is about.
+    kit = ["--grant", "stillsuit:1,construction_tool:1,granite_stone:80,"
+           "salvaged_metal:60,plant_fiber:24,copper_ingot:24,fiber_weave:12"]
 
     # --- run 1: every key is answered ---------------------------------------
     # Nothing is in reach of any of these, on purpose: a refusal proves the key
@@ -159,7 +162,7 @@ def main():
     check("[demolish] tester refused: nothing to remove" in s,
           "[X] remove reaches the server")
     # These two the client settles itself, so they surface as notices instead.
-    check("nothing to build with" in c or "[build] tester" in s,
+    check("Construction Tool in hand" in c or "[build] tester" in s,
           "[V] build either builds or says why not")
     check("no container within reach" in c or "[container] tester" in s,
           "[T] container either opens one or says why not")
@@ -203,29 +206,15 @@ def main():
     store.mkdir(parents=True)
 
     srv3a, cli3a = session(
-        store, 50, PORT + 2, clock + kit,
-        ["--client", "--identity", "hoarder", "--auto", "--bot-profile", "founder"],
+        store, 70, PORT + 2, clock + kit,
+        ["--client", "--identity", "hoarder", "--auto", "--bot-profile", "builder"],
         windowed=False)
-    check("deployed Sub-Fief Console" in srv3a.text(),
+    a3 = srv3a.text()
+    check("placed Sub-Fief Console" in a3,
           "the hoarder claims ground to put a chest on")
+    check("placed Foundation" in a3, "and floors it, because kit stands on a floor")
+    check("placed Storage Chest" in a3, "a chest goes down with the tool")
 
-    # Which row the chest is on is not a constant. The bag page numbers only
-    # the rows that *do* something, so staking the claim -- which spent the
-    # console, spent the salvage and set the bench down -- renumbered them, and
-    # a hard-coded "press 3" pressed whatever had moved into third place. Look
-    # the row up instead of assuming it.
-    srv3b, cli3b = session(
-        store, 30, PORT + 3, clock + kit,
-        ["--client", "--identity", "hoarder", "--panel", "BAG"])
-    row = re.search(r"\[(\d+)\]\s+Storage Chest", cli3b.panel())
-    check(bool(row), "the bag page offers to deploy the chest"
-          + ("" if row else f" -- page was:\n{cli3b.panel()}"))
-
-    srv3, cli3 = session(
-        store, 40, PORT + 4, clock + kit,
-        ["--client", "--identity", "hoarder", "--panel", "BAG",
-         "--press", row.group(1) if row else "3", "--do", "container"])
-    check("deployed Storage Chest" in srv3.text(), "a chest goes down from the bag")
 
     # Same save, second visit: the chest is still there to be filled.
     srv4, cli4 = session(

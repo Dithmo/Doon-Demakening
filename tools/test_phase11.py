@@ -213,7 +213,8 @@ def main():
         shutil.rmtree(yard)
     yard.mkdir(parents=True)
     srv5, cli5 = session(
-        yard, 60, PORT + 4, clock + ["--grant", "salvaged_metal:40"],
+        yard, 75, PORT + 4,
+        clock + ["--grant", "salvaged_metal:60,granite_stone:60"],
         ["--client", "--identity", "founder", "--auto", "--bot-profile", "founder"],
         windowed=False)
     s5, c5 = srv5.text(), cli5.text()
@@ -224,8 +225,14 @@ def main():
           "it goes onto hotbar slot 2")
     check("[hold] founder holds slot 2 (Construction Tool)" in s5,
           "and pressing 2 takes it in hand")
-    check("crafted Sub-Fief Console" in s5, "a Sub-Fief can be made from salvage")
-    check("deployed Sub-Fief Console" in s5, "and set down with the tool")
+    # The whole opening, in the only order the rules allow. None of these is
+    # crafted: a structure is placed with the tool and paid for out of the bag,
+    # so the assertion is "placed", and the sequence is the test.
+    check("placed Sub-Fief Console" in s5, "the Sub-Fief goes down on open desert")
+    check("placed Foundation" in s5, "a floor is laid inside the claim")
+    check("placed Ore Refinery" in s5, "and a refinery stands on the floor")
+    check("crafted Sub-Fief" not in s5 and "crafted Ore Refinery" not in s5,
+          "and none of them was crafted -- structures are placed, not made")
     claims = re.findall(r"\[bot\] founder .* claims (\d+)", c5)
     check(bool(claims) and int(claims[-1]) > 0,
           f"the claim is staked and replicated (claims={claims[-1] if claims else 0})")
@@ -236,11 +243,16 @@ def main():
         shutil.rmtree(bare)
     bare.mkdir(parents=True)
     srv6, cli6 = session(
-        bare, 35, PORT + 5, clock + ["--grant", "sub_fief:1"],
-        ["--client", "--identity", "handsy", "--panel", "BAG", "--press", "2"],
-        windowed=False)
-    check("you need a Construction Tool to set that down" in srv6.text(),
-          "and without the tool the server refuses")
+        bare, 35, PORT + 5, clock + ["--grant", "salvaged_metal:40"],
+        ["--client", "--identity", "handsy", "--do", "build"],
+        windowed=True)
+    # Nothing is granted that can be "used" into existence any more, so the
+    # refusal has to come from pressing build with an empty hand. It is caught
+    # client-side before it reaches the wire -- the server enforces the same
+    # rule, which the unit suite covers; what matters to a player is being told
+    # why immediately rather than after a round trip.
+    check("you need a Construction Tool in hand" in cli6.text(),
+          "and without the tool you are told so at once")
 
     if not args.keep:
         shutil.rmtree(yard, ignore_errors=True)

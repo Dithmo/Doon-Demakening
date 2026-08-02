@@ -157,6 +157,7 @@ var _pending: Array = []  ## unacknowledged {seq, dir, sprint, dt}
 var _bot_cooldown: int = 0
 var _bot_use_cd: int = 0
 var _bot_dew_probes: int = 0
+var _bot_shell: int = 0
 var _bot_orbit: float = 0.0
 var _bot_dune: Vector3 = Vector3.ZERO
 ## Last steering decision, surfaced for --debug-steer.
@@ -2512,18 +2513,29 @@ func _bot_build_base() -> void:
 	if claim_here().is_empty():
 		place_structure("sub_fief")
 		return
-	if not _bot_has_floor():
-		place_structure("foundation")
+	# A platform, not a paving slab. Stations keep MIN_SPACING between them, so
+	# one 3 m cell of floor holds the console and nothing else -- the next thing
+	# gets pushed off the edge and refused for having nothing to stand on. Four
+	# tiles is enough to spread the kit out, and the bot wandering is what puts
+	# them in different cells.
+	if _floor_count() < 4 or not _bot_has_floor():
+		# Aim at the next *empty* cell rather than at your own boots. Build
+		# range is eight metres, so a floor can be extended without walking --
+		# and without this the bot asked for a foundation on the cell it was
+		# standing on 151 times in a row and was rightly refused every time.
+		place_structure("foundation", _bot_next_floor_aim())
 		return
 	for sid: String in BOT_BUILD_ORDER:
 		if not _deployed(sid):
 			place_structure(sid)
 			return
 
-	# Then the shell, one piece per turn.
-	for piece: String in ["wall", "ceiling"]:
-		place_structure(piece)
-		return
+	# Then the shell, alternating. The old loop asked for a wall, returned, and
+	# asked for a wall again forever -- so it never reached a ceiling and spent
+	# every turn being told the edge was already walled.
+	_bot_shell += 1
+	place_structure("ceiling" if _bot_shell % 3 == 0 else "wall",
+		_bot_floored_aim())
 
 	# Finally, stow spare water in the chest -- exercises the container path.
 	if nearest_container() != 0:
@@ -2634,6 +2646,69 @@ func _bot_has_floor() -> bool:
 		if BuildGrid.cell_in(piece["pos"], origin) == want:
 			return true
 	return false
+
+
+## A cell that already has a floor on it, for the things that stand on one.
+func _bot_floored_aim() -> Vector3:
+	var claim := claim_here()
+	if claim.is_empty():
+		return build_aim()
+	var best := build_aim()
+	var near := INF
+	for piece: Dictionary in build_mirror:
+		if int(piece["piece"]) != BuildGrid.Piece.FOUNDATION:
+			continue
+		var at: Vector3 = piece["pos"]
+		var d := local_pos.distance_to(at)
+		# Walk out along the floor as the shell fills in, so successive turns
+		# do not all land on the same tile.
+		if d < near and d > float(_bot_shell % 3) * BuildGrid.CELL * 0.5 \
+				and d <= BuildGrid.BUILD_RANGE - 1.0:
+			near = d
+			best = at
+	return best
+
+
+## Where to put the next floor tile: the nearest cell inside reach that has no
+## foundation on it yet. Falls back to where you are looking, which is what the
+## first tile of a new base wants.
+func _bot_next_floor_aim() -> Vector3:
+	var claim := claim_here()
+	if claim.is_empty():
+		return build_aim()
+	var half := float(claim["radius"])
+	var seat: Vector3 = claim["pos"]
+	var origin := Vector2(seat.x - half, seat.z - half)
+	var taken := {}
+	for piece: Dictionary in build_mirror:
+		if int(piece["piece"]) == BuildGrid.Piece.FOUNDATION:
+			taken[BuildGrid.cell_in(piece["pos"], origin)] = true
+	# Rings outward from the player, so a base grows as a block rather than as
+	# a scatter of tiles nothing can span.
+	for ring in range(0, 3):
+		for dz in range(-ring, ring + 1):
+			for dx in range(-ring, ring + 1):
+				if maxi(absi(dx), absi(dz)) != ring:
+					continue
+				var at := local_pos + Vector3(float(dx) * BuildGrid.CELL, 0.0,
+					float(dz) * BuildGrid.CELL)
+				at.y = Terrain.sample_height(at.x, at.z)
+				if local_pos.distance_to(at) > BuildGrid.BUILD_RANGE - 1.0:
+					continue
+				if not Claims.inside(seat, half, at):
+					continue
+				if not taken.has(BuildGrid.cell_in(at, origin)):
+					return at
+	return build_aim()
+
+
+## How many floor tiles this player can see standing in the world.
+func _floor_count() -> int:
+	var n := 0
+	for piece: Dictionary in build_mirror:
+		if int(piece["piece"]) == BuildGrid.Piece.FOUNDATION:
+			n += 1
+	return n
 
 
 func _deployed(item_id: String) -> bool:
@@ -3117,14 +3192,14 @@ func try_build() -> void:
 
 ## Ask the server to place a structure. Everything is re-decided there; this
 ## only says which one and roughly where the player is looking.
-func place_structure(id: String) -> void:
+func place_structure(id: String, aim: Vector3 = Vector3.INF) -> void:
 	if not StructureDB.has(id):
 		notice.emit("nothing selected to build")
 		return
 	if float(_held_def_client().get("place_range", 0.0)) <= 0.0:
 		notice.emit("you need a Construction Tool in hand")
 		return
-	_request_structure.rpc_id(1, id, build_aim())
+	_request_structure.rpc_id(1, id, build_aim() if aim == Vector3.INF else aim)
 
 
 func try_demolish() -> void:

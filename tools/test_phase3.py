@@ -38,8 +38,14 @@ SYNTHETIC_REGION = "res://data/regions/synthetic_test"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("DOON_TEST_PORT", "27330"))
 
-KIT = ("construction_tool:1,sub_fief:1,fuel_generator:1,water_cistern:1,windtrap:1,storage_chest:1,"
-       "foundation:4,wall:4,ceiling:2")
+# Raw materials, not finished structures. Structures stopped being craftable
+# items you carry: they are placed with the Construction Tool and paid for out
+# of the bag at the moment of placing, so a kit that hands over "one windtrap"
+# describes a thing that no longer exists. This is the same base priced in what
+# it actually costs, with slack so a refusal here means a rule and not an empty
+# pocket.
+KIT = ("construction_tool:1,granite_stone:140,salvaged_metal:80,"
+       "copper_ingot:24,fiber_weave:12,plant_fiber:24,water:6")
 
 
 class Proc:
@@ -145,13 +151,13 @@ def main():
     server.wait(150)
     log = server.text()
 
-    check("deployed Sub-Fief Console" in log, "a holding is staked")
-    check("deployed Windtrap" in log, "a windtrap is deployed")
-    check("deployed Water Cistern" in log, "a cistern is deployed")
-    built = re.findall(r"\[build\] ada built (\w+)", log)
-    check("foundation" in built, "a foundation is laid")
-    check("wall" in built, "walls go up")
-    check("ceiling" in built, f"a ceiling caps it ({len(built)} pieces)")
+    check("placed Sub-Fief Console" in log, "a holding is staked")
+    check("placed Windtrap" in log, "a windtrap is placed")
+    check("placed Water Cistern" in log, "a cistern is placed")
+    built = re.findall(r"\[build\] ada placed ([\w -]+)", log)
+    check("Foundation" in built, "a foundation is laid")
+    check("Wall" in built, "walls go up")
+    check("Ceiling" in built, f"a ceiling caps it ({len(built)} pieces)")
 
     produced = [m.start() for m in re.finditer(r"\[produce\]", log)]
     check(bool(produced), f"the windtrap produces water ({len(produced)} ticks)")
@@ -195,11 +201,11 @@ def main():
         p.wait(80)
     log3 = srv3.text()
 
-    check("[place] ada ok: deployed Sub-Fief Console" in log3, "ada stakes first")
+    check("placed Sub-Fief Console" in log3, "ada stakes first")
     trespass = re.findall(r"\[(?:place|build)\] bo refused: (?:that is |inside |too close to )(\w+)", log3)
     check(bool(trespass), f"bo is refused on ada's land ({len(trespass)} attempts)")
     check(all(t == "ada" for t in trespass), "the refusal names the owner")
-    bo_built = re.findall(r"\[build\] bo built", log3)
+    bo_built = re.findall(r"\[build\] bo placed", log3)
     check(not bo_built, "bo builds nothing inside ada's holding")
 
     claims = save_of(user_dir).get("blobs", {}).get("claims", [])
