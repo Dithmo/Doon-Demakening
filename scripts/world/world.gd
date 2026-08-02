@@ -182,11 +182,26 @@ func _ready() -> void:
 func _restore_world() -> void:
 	var now := _now()
 	var saved_nodes := Store.get_blob("nodes")
+	# A saved world keeps its node layout, or every session would hand the
+	# player a fresh map. But that also means a *change to the node data* can
+	# never reach anyone who has played before: the layout in the save wins
+	# forever. Salvage was corrected twice and a returning player saw neither,
+	# because their world still held the old scattering. So the recipe the world
+	# was seeded from is stamped into the save, and a world seeded from
+	# different data is re-seeded once.
+	var stamp := _field.data_fingerprint()
+	var stamp_blob := Store.get_blob("nodes_recipe")
+	var saved_stamp := str(stamp_blob[0]) if not stamp_blob.is_empty() else ""
 	if saved_nodes.is_empty():
+		_field.seed()
+	elif saved_stamp != stamp:
+		print("[nodes] node data changed (%s -> %s); re-seeding the world"
+			% [saved_stamp if not saved_stamp.is_empty() else "unstamped", stamp])
 		_field.seed()
 	else:
 		_field.from_wire(saved_nodes, now)
 		print("[nodes] restored %d node(s)" % _field.nodes.size())
+	Store.put_blob("nodes_recipe", [stamp])
 	_stations.from_wire(Store.get_blob("stations"))
 	if not _stations.stations.is_empty():
 		print("[stations] restored %d" % _stations.stations.size())

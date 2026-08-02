@@ -84,6 +84,21 @@ func load_kinds() -> bool:
 	return true
 
 
+## A short stamp of the node *recipe* -- every kind and the numbers that decide
+## where and how many. A world remembers its layout, so without this a change to
+## this data can never reach anyone who has already played: their save wins
+## forever, and a corrected resource stays missing for exactly the people who
+## reported it.
+func data_fingerprint() -> String:
+	var parts: Array = []
+	for id: String in kinds:
+		var k: Dictionary = kinds[id]
+		parts.append("%s:%s:%d:%d:%s" % [id, k["surface"], int(k["count"]),
+			int(k.get("per_km2", 0)), str(k.get("anchor", ""))])
+	parts.sort()
+	return str(hash(":".join(parts)))
+
+
 ## Scatter nodes across the region, each on the surface its kind belongs to.
 func seed(seed_value: int = 424242) -> void:
 	var synthetic := Terrain.region_dir.contains("synthetic")

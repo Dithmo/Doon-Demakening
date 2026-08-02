@@ -57,11 +57,10 @@
       "harvests": 3,
       "respawn_seconds": 150.0,
       "tool": "tool_gather",
-      "count": 12,
-      "anchor": "loot",
-      "_comment": "Anchored to the wiki's shipwreck markers so salvage is at the wrecks the map draws, and scattered besides -- the markers are where a wreck certainly is, not the total amount of scrap on Arrakis. Salvage is the first material the chain needs, so it has to be findable by walking.",
+      "count": 20,
+      "_comment": "Scattered on sand like every other node. It was anchored to the wiki's shipwreck markers, which sounded good and meant salvage existed only at ten points in 7 km2 -- and salvage is the first material the chain needs. Nothing asked for it to be special. It is not.",
       "amount": 40,
-      "per_km2": 18
+      "per_km2": 24
     },
     {
       "id": "copper_vein",
