@@ -149,6 +149,14 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 	if solo:
+		# A private port per launch, not the shared default. Solo always hosted
+		# on 27015, so if a server from an earlier session was still alive --
+		# a hard-closed window, a crash, a run that outlived its client -- the
+		# new client silently connected to *that*, and played its world. Every
+		# fix to world data since then was invisible, because the world being
+		# played was the old process's, not the new build's. Randomising means
+		# a solo launch can only ever reach the server it just started.
+		port = 30000 + (randi() % 20000)
 		_host_own_server()
 	match role:
 		Role.SERVER: _start_server()
