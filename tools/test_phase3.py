@@ -172,8 +172,12 @@ def main():
     water_before = cistern_water(blob)
     check(water_before > 0, f"water is stored in the cistern ({water_before})")
     check(len(blob.get("blobs", {}).get("claims", [])) == 1, "the claim is persisted")
-    check(len(blob.get("blobs", {}).get("build", [])) == len(built),
-          "every built piece is persisted")
+    # Only grid pieces live in the build blob; stations are saved separately.
+    # "placed X" covers both now, so counting every placement against the build
+    # blob compares two different sets and can never agree.
+    pieces = [b for b in built if b in ("Foundation", "Wall", "Ceiling")]
+    check(len(blob.get("blobs", {}).get("build", [])) == len(pieces),
+          f"every built piece is persisted ({len(pieces)})")
 
     # --- run 2: a restart pays out the gap, and the base is still there ------
     print("\n=== run 2: restart ===")
