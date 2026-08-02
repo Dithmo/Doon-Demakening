@@ -11,8 +11,8 @@ extends RefCounted
 ## does not handle player-built geometry -- Phase 3 layers collision on top
 ## rather than replacing this, so predicted locomotion stays deterministic.
 
-const WALK_SPEED := 4.4
-const SPRINT_SPEED := 7.6
+const WALK_SPEED := 6.4
+const SPRINT_SPEED := 12.0
 
 ## Vertical motion. Cliffs used to be walls: `is_walkable` refused them and that
 ## was the end of it, so a mesa was a hole in the map you routed around and rock
@@ -20,7 +20,9 @@ const SPRINT_SPEED := 7.6
 ## terrain happened to ramp. Climbing turns every cliff into a question of
 ## whether you have the stamina, which is what makes rock worth the trip.
 const GRAVITY := 22.0
-const JUMP_SPEED := 6.2
+## v^2/2g, so this is a 1.45 m jump. It was 6.2 -- 0.87 m -- which will not
+## clear a rock you can see over, and made every low ledge a detour.
+const JUMP_SPEED := 8.0
 const CLIMB_SPEED := 1.9
 ## Hauling yourself up costs stamina per second, and running out drops you.
 const CLIMB_STAMINA_PER_S := 11.0

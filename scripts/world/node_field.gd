@@ -107,11 +107,15 @@ func seed(seed_value: int = 424242) -> void:
 					continue
 				_spawn(kind_id, p)
 				placed += 1
-			if placed > 0:
-				continue
-			# No markers for that role -- a synthetic region, or a crop that
-			# caught none. Fall through and scatter rather than ship a kind
-			# that silently does not exist.
+			# Anchoring puts a wreck where the map draws one; it does *not*
+			# decide how much of that material exists. It used to: `continue`
+			# here meant the ten shipwreck markers were the only salvage in
+			# 7 km², about a tenth the density of every other node, and salvage
+			# is the first thing the game asks for -- twenty of it for the
+			# Construction Tool, before any of the rest is reachable. A player
+			# walked the map, found every other node, and could not start.
+			# So the markers are a floor on the count, not a cap: fall through
+			# and scatter up to the kind's proper density.
 		var want := _target_count(k)
 		while placed < want and tries < want * 300:
 			tries += 1

@@ -36,8 +36,11 @@ const THREAT_STILL := -2.5
 ## Rock is refuge: threat drains fast and the worm cannot strike you on it.
 const THREAT_ON_ROCK := -8.0
 
-## Metres per second. Above Movement.SPRINT_SPEED on purpose.
-const SPEED := 11.0
+## Metres per second. Above Movement.SPRINT_SPEED on purpose, and it has to be
+## raised with it -- the whole shape of open sand is that you cannot outrun a
+## worm, only reach rock. Sprint went from 7.6 to 12.0 because 7.6 felt like
+## wading; this went with it.
+const SPEED := 15.5
 ## Seconds between surfacing and striking. This is the player's window, and it
 ## is the single most important number in the phase: too short and the worm is
 ## unfair, too long and it is scenery.

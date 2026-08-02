@@ -59,8 +59,9 @@
       "tool": "tool_gather",
       "count": 12,
       "anchor": "loot",
-      "_comment": "Anchored to the wiki's shipwreck and unique-loot markers, so salvage is at the wrecks the map draws.",
-      "amount": 40
+      "_comment": "Anchored to the wiki's shipwreck markers so salvage is at the wrecks the map draws, and scattered besides -- the markers are where a wreck certainly is, not the total amount of scrap on Arrakis. Salvage is the first material the chain needs, so it has to be findable by walking.",
+      "amount": 40,
+      "per_km2": 18
     },
     {
       "id": "copper_vein",

@@ -59,6 +59,12 @@ const AIM_COS := 0.94        ## about a 20-degree cone
 var _crosshair: Label
 var _grid: InventoryView
 const LOOK_SENS := 0.0032
+## How far above the player's feet the camera looks, and how far off to the
+## right the whole rig sits. Over-the-shoulder rather than centred, so the
+## character is not standing in front of the thing you are pointing at.
+const SHOULDER_UP := 2.1
+const SHOULDER_RIGHT := 0.9
+
 const PITCH_MIN := -1.30   ## about 75 degrees down
 ## About 65 degrees up. It was 0.45 rad -- 26 degrees -- which is not enough to
 ## look at the top of a mesa you are standing under, let alone at the sky.
@@ -215,8 +221,15 @@ func _process(_delta: float) -> void:
 	# walk relative to it. Without one -- a bot, or after Escape -- it falls back
 	# to following your direction of travel, which is what it did before Phase 9
 	# and what every existing harness screenshot shows.
-	var focus := p + Vector3.UP * 1.5
-	var dist := 10.0 if world.driving == 0 else 15.0
+	# Over the right shoulder and a little above the head, rather than dead
+	# behind at eye level: the character no longer sits in the middle of the
+	# screen blocking exactly what you are aiming at, and you can see the ground
+	# in front of your own feet.
+	var focus := p + Vector3.UP * SHOULDER_UP
+	var dist := 6.5 if world.driving == 0 else 12.0
+	var right := Vector3(cos(_look_yaw), 0.0, sin(_look_yaw))
+	if _mouse_look:
+		focus += right * SHOULDER_RIGHT
 	if _mouse_look:
 		var look := Vector3(
 			sin(_look_yaw) * cos(_look_pitch),
@@ -436,7 +449,10 @@ func _input(event: InputEvent) -> void:
 			return
 	if event is InputEventMouseMotion and _mouse_look:
 		var mm := event as InputEventMouseMotion
-		_look_yaw -= mm.relative.x * LOOK_SENS
+		# Plus, not minus. Moving the mouse right must turn you right; it turned
+		# you left, which is the one control convention nobody expects to have to
+		# think about.
+		_look_yaw += mm.relative.x * LOOK_SENS
 		_look_pitch = clampf(_look_pitch - mm.relative.y * LOOK_SENS,
 			PITCH_MIN, PITCH_MAX)
 		# The server is told a direction in world space, exactly as before, so
