@@ -137,7 +137,13 @@ func _build_tile(t: Vector2i) -> MeshInstance3D:
 				_shade(Terrain.sample_surface(bx, bz), c[2], slope),
 				_shade(Terrain.sample_surface(ax, bz), c[3], slope),
 			]
-			for tri: Array in [[0, 2, 1], [0, 3, 2]]:
+			# Winding decides two things at once: which side the triangle is
+			# culled from, and -- through generate_normals() -- which way it
+			# faces the sun. Backwards, the ground's normals point *down*, so
+			# flat sand is culled when seen from above and simply is not there.
+			# Steep dune faces survived it, which is why the horizon looked fine
+			# while the floor under the player was missing.
+			for tri: Array in [[0, 1, 2], [0, 2, 3]]:
 				for k: int in tri:
 					st.set_color(col[k])
 					st.add_vertex(c[k])
